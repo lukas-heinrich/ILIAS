@@ -21,6 +21,8 @@ declare(strict_types=1);
 namespace ILIAS\Questions\AnswerFormTypes\Cloze;
 
 use ILIAS\Questions\AnswerForm\Type as TypeInterface;
+use ILIAS\Questions\AnswerFormTypes\Cloze\Capabilities\Feedback;
+use ILIAS\Questions\AnswerFormTypes\Cloze\Capabilities\Marking;
 use ILIAS\Questions\AnswerFormTypes\Cloze\Views\Edit;
 use ILIAS\Questions\AnswerFormTypes\Cloze\Views\Participant;
 use ILIAS\Language\Language;
@@ -86,6 +88,11 @@ class Type implements TypeInterface
     public function getMarking(): ?Marking
     {
         return $this->marking->withAnswerForm($this);
+    }
+
+    public function getFeedback(): ?Feedback
+    {
+
     }
 
     public function getEditView(): Edit

@@ -186,6 +186,11 @@ class OverarchingQuestionTables implements \ilDatabaseUpdateSteps
                     'type' => \ilDBConstants::T_INTEGER,
                     'length' => 4,
                     'notnull' => true
+                ],
+                'position' => [
+                    'type' => \ilDBConstants::T_INTEGER,
+                    'length' => 2,
+                    'notnull' => true
                 ]
             ]);
         }

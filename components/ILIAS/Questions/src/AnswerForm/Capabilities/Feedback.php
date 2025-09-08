@@ -18,10 +18,12 @@
 
 declare(strict_types=1);
 
-namespace ILIAS\Questions\AnswerForm;
+namespace ILIAS\Questions\AnswerForm\Capabilities;
 
-interface Feedback
+use ILIAS\Questions\Question\Response;
+
+interface Feedback extends Capability
 {
-    public function getGeneralFeedback(Result $result): array;
-    public function getSpecificFeedback(Result $result, string $answer_id): array;
+    public function getGeneralFeedback(Response $response): array;
+    public function getSpecificFeedback(Response $response, string $answer_id): array;
 }

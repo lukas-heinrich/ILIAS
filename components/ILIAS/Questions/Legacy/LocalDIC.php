@@ -66,7 +66,7 @@ class LocalDIC extends PimpleContainer
                             new Cloze\Persistence(
                                 new TableNameSpaceCore('cloze')
                             ),
-                            new Cloze\Marking(),
+                            new Cloze\Capabilities\Marking(),
                             new Cloze\Views\Edit(
                                 $DIC['lng'],
                                 $DIC['ui.factory'],

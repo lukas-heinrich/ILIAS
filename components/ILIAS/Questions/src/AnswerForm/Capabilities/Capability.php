@@ -18,13 +18,9 @@
 
 declare(strict_types=1);
 
-namespace ILIAS\Questions\AnswerForm;
+namespace ILIAS\Questions\AnswerForm\Capabilities;
 
-use ILIAS\Questions\Response\Response;
-
-interface Marking
+interface Capability
 {
-    public function addAchievedPointsToResult(Response $response): Response;
-    public function getBestResponse(): Response;
-    public function getFeedback(): Feedback;
+    public function isConfigured(): bool;
 }

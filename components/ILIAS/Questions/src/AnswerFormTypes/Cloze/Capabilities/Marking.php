@@ -18,25 +18,24 @@
 
 declare(strict_types=1);
 
-namespace ILIAS\Questions\AnswerFormTypes\Cloze;
+namespace ILIAS\Questions\AnswerFormTypes\Cloze\Capabilities;
 
-use ILIAS\Questions\AnswerForm\Marking as MarkingInterface;
+use ILIAS\Questions\AnswerForm\Capabilities\Marking as MarkingInterface;
 use ILIAS\Questions\Response\Response;
-use ILIAS\Questions\AnswerForm\Feedback;
 
 class Marking implements MarkingInterface
 {
-    public function addAchievedPointsToResult(Response $response): Response
+    public function isConfigured(): bool
+    {
+        return false;
+    }
+
+    public function addAchievedPointsToResponse(Response $response): Response
     {
 
     }
 
     public function getBestResponse(): Response
-    {
-
-    }
-
-    public function getFeedback(): Feedback
     {
 
     }

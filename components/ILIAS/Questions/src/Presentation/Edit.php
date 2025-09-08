@@ -20,6 +20,7 @@ declare(strict_types=1);
 
 namespace ILIAS\Questions\Presentation;
 
+use ILIAS\Questions\AnswerForm\Capabilities\Capability;
 use ILIAS\Questions\AnswerForm\Type;
 use ILIAS\Questions\Question\Persistence\Repository;
 use ILIAS\Questions\Question\Views\Edit as QuestionEdit;
@@ -51,7 +52,9 @@ class Edit
     private const string CMD_CREATE_ACTION_FORM = 'create_af';
     private const string CMD_EDIT_ACTION_FORM = 'edit_af';
 
+    private array $required_capabilities = [];
     private Editability $editability = Editability::Full;
+    private bool $ordering_enabled = false;
 
     public function __construct(
         private readonly Language $lng,
@@ -69,10 +72,25 @@ class Edit
 
     }
 
+    public function withRequiredCapabilities(array $capabilities): self
+    {
+        $this->checkCapabilities($capabilities);
+        $clone = clone $this;
+        $clone->required_capabilities = $capabilities;
+        return $clone;
+    }
+
     public function withEditable(Editability $editability): self
     {
         $clone = clone $this;
         $clone->editability = $editability;
+        return $clone;
+    }
+
+    public function withOrderingEnabled(bool $enable): self
+    {
+        $clone = clone $this;
+        $clone->ordering_enabled = $enable;
         return $clone;
     }
 
@@ -436,5 +454,14 @@ class Edit
                 )
             ]
         );
+    }
+
+    private function checkCapabilities(array $capabilities): void
+    {
+        foreach ($capabilities as $capability) {
+            if (!($capability instanceof Capability)) {
+                throw new \InvalidArgumentException('All provided capabilities must implement ILIAS\Questions\AnswerForm\Capabilities\Capability.');
+            }
+        }
     }
 }
