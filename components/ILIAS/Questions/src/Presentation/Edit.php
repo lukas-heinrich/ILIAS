@@ -20,13 +20,13 @@ declare(strict_types=1);
 
 namespace ILIAS\Questions\Presentation;
 
-use ILIAS\Questions\AnswerForm\Capabilities\Capability;
 use ILIAS\Questions\AnswerForm\Type;
 use ILIAS\Questions\Question\Persistence\Repository;
-use ILIAS\Questions\Question\Views\Edit as QuestionEdit;
 use ILIAS\Questions\Question\QuestionImplementation;
 use ILIAS\Data\Factory as DataFactory;
 use ILIAS\Data\URI;
+use ILIAS\Data\UUID\Factory as UuidFactory;
+use ILIAS\Data\UUID\Uuid;
 use ILIAS\Language\Language;
 use ILIAS\Refinery\Factory as Refinery;
 use ILIAS\Refinery\Transformation;
@@ -44,9 +44,10 @@ use ILIAS\GlobalScreen\Services as GlobalScreen;
 class Edit
 {
     private const array QUERY_PARAMETER_NAME_SPACE = ['q'];
-    private const string ACTION_TOKEN_STRING = 'a';
-    private const string STEP_TOKEN_STRING = 's';
-    private const string ROW_ID_TOKEN_STRING = 'r';
+    private const string TOKEN_STRING_ACTION = 'a';
+    private const string TOKEN_STRING_STEP = 's';
+    private const string TOKEN_STRING_QUESTION_ID = 'q';
+    private const string TOKEN_STRING_PAGE_ID = 'p';
     private const string CMD_CREATE_QUESTION = 'create';
     private const string CMD_EDIT_QUESTION = 'edit';
     private const string CMD_CREATE_ACTION_FORM = 'create_af';
@@ -67,16 +68,17 @@ class Edit
         private readonly HTTP $http,
         private readonly \ilUIService $ui_services,
         private readonly DataFactory $data_factory,
+        private readonly UuidFactory $uuid_factory,
         private readonly Repository $questions_repository
     ) {
 
     }
 
-    public function withRequiredCapabilities(array $capabilities): self
+    public function withRequiredCapabilities(array $capability_class_names): self
     {
-        $this->checkCapabilities($capabilities);
+        $this->checkCapabilities($capability_class_names);
         $clone = clone $this;
-        $clone->required_capabilities = $capabilities;
+        $clone->required_capabilities = $capability_class_names;
         return $clone;
     }
 
@@ -98,18 +100,12 @@ class Edit
         \ilToolbarGUI $toolbar,
         URI $base_uri
     ): array {
-        [$url_builder, $action_token, $step_token, $row_id_token] = (new URLBuilder($base_uri))
-            ->acquireParameters(
-                self::QUERY_PARAMETER_NAME_SPACE,
-                self::ACTION_TOKEN_STRING,
-                self::STEP_TOKEN_STRING,
-                self::ROW_ID_TOKEN_STRING
-            );
-
-        return match($this->retrieveAction($action_token)) {
-            self::CMD_CREATE_QUESTION => $this->createQuestion($url_builder, $action_token, $step_token, $row_id_token),
-            self::CMD_EDIT_QUESTION => $this->editQuestion($url_builder, $action_token, $step_token, $row_id_token),
-            default => $this->showTable($toolbar, $url_builder, $action_token, $row_id_token)
+        [$url_builder, $action_token, $step_token, $question_id_token, $page_id_token] =
+            $this->acquireURLBuilderAndParameters($base_uri);
+        return match($this->retrieveStringValueForToken($action_token)) {
+            self::CMD_CREATE_QUESTION => $this->createQuestion($url_builder, $action_token, $step_token, $question_id_token),
+            self::CMD_EDIT_QUESTION => $this->editQuestion($url_builder, $action_token, $step_token, $question_id_token, $page_id_token),
+            default => $this->showTable($toolbar, $url_builder, $action_token, $question_id_token)
         };
     }
 
@@ -117,32 +113,22 @@ class Edit
         \ilGlobalTemplateInterface $tpl,
         URI $base_uri,
     ): void {
-        [$url_builder, $action_token, $row_id_token] = (new URLBuilder($base_uri))
-            ->acquireParameters(
-                self::QUERY_PARAMETER_NAME_SPACE,
-                self::ACTION_TOKEN_STRING,
-                self::ROW_ID_TOKEN_STRING
-            );
+        [$url_builder, $action_token, $step, $question_id_token, $page_id_token] =
+            $this->acquireURLBuilderAndParameters($base_uri);
 
-        $this->initializeEditMode($url_builder, $action_token, $row_id_token);
+        $this->initializeEditMode($url_builder, $action_token, $question_id_token);
 
-        $question_id = $this->http->wrapper()->query()->retrieve(
-            $row_id_token->getName(),
-            $this->refinery->kindlyTo()->string()
-        );
+        $question_id = $this->retrieveQuestionId($question_id_token);
 
-        $page_id = $this->http->wrapper()->query()->retrieve(
-            QuestionEdit::PAGE_ID_PARAM_FOR_EDITOR,
-            $this->refinery->kindlyTo()->int()
-        );
+        $page_id = $this->retrievePageId($page_id_token);
 
-        $this->setParametersForQuestionCmds($row_id_token, $question_id, $page_id);
+        $this->setParametersForQuestionCmds($question_id_token, $question_id->toString(), $page_id_token, $page_id);
 
         $tpl->setContent(
             $this->ctrl->forwardCommand(
                 new \QstsQuestionPageGUI(
                     $url_builder->withParameter($action_token, self::CMD_EDIT_QUESTION)
-                        ->withParameter($row_id_token, $question_id)
+                        ->withParameter($question_id_token, $question_id->toString())
                         ->buildURI(),
                     $page_id
                 )
@@ -153,27 +139,19 @@ class Edit
     public function createAnswerForm(
         URI $base_uri
     ): array {
-        [$url_builder, $action_token] = (new URLBuilder($base_uri))
-            ->acquireParameters(
-                self::QUERY_PARAMETER_NAME_SPACE,
-                self::ACTION_TOKEN_STRING
-            );
-        return match($this->retrieveAction($action_token)) {
-            self::CMD_CREATE_ACTION_FORM => $this->processCreateAnswerForm($url_builder, $action_token),
-            default => [$this->buildCreateAnswerForm($url_builder, $action_token)]
+        [$url_builder, $action_token, $step_token, $question_id_token, $page_id_token] = $this->acquireURLBuilderAndParameters($base_uri);
+        return match($this->retrieveStringValueForToken($action_token)) {
+            self::CMD_CREATE_ACTION_FORM => $this->processCreateAnswerForm($url_builder, $action_token, $step_token, $question_id_token, $page_id_token),
+            default => [$this->buildCreateAnswerForm($url_builder, $action_token, $question_id_token, $page_id_token)]
         };
     }
 
     public function editAnswerForm(
         URI $base_uri
     ): array {
-        [$url_builder, $action_token] = (new URLBuilder($base_uri))
-            ->acquireParameters(
-                self::QUERY_PARAMETER_NAME_SPACE,
-                self::ACTION_TOKEN_STRING
-            );
-        return match($this->retrieveAction($action_token)) {
-            self::CMD_CREATE_ACTION_FORM => [$this->retrieve($url_builder, $action_token)],
+        [$url_builder, $action_token] = $this->acquireURLBuilderAndParameters($base_uri);
+        return match($this->retrieveStringValueForToken($action_token)) {
+            self::CMD_EDIT_ACTION_FORM => [$this->processCreateAnswerForm($url_builder, $action_token)],
             default => [$this->buildCreateAnswerForm($url_builder, $action_token)]
         };
     }
@@ -182,9 +160,9 @@ class Edit
         URLBuilder $url_builder,
         URLBuilderToken $action_token,
         URLBuilderToken $step_token,
-        URLBuilderToken $row_id_token
+        URLBuilderToken $question_id_token
     ): array {
-        $this->initializeEditMode($url_builder, $action_token, $row_id_token);
+        $this->initializeEditMode($url_builder, $action_token, $question_id_token);
 
         $create = (new QuestionImplementation())->getEditView(
             $this->lng,
@@ -197,7 +175,7 @@ class Edit
         )->create(
             $url_builder->withParameter($action_token, self::CMD_CREATE_QUESTION),
             $step_token,
-            $this->retrieveAction($action_token)
+            $this->retrieveStringValueForToken($step_token)
         );
 
         if (is_array($create)) {
@@ -206,7 +184,7 @@ class Edit
 
         $this->questions_repository->store($create);
         return $this->buildEditStartView(
-            $url_builder->withParameter($row_id_token, $create->getId()),
+            $url_builder->withParameter($question_id_token, $create->getId()),
             $step_token,
             $create
         );
@@ -217,16 +195,14 @@ class Edit
         URLBuilder $url_builder,
         URLBuilderToken $action_token,
         URLBuilderToken $step_token,
-        URLBuilderToken $row_id_token
+        URLBuilderToken $question_id_token,
+        URLBuilderToken $page_id_token
     ): array {
-        $this->initializeEditMode($url_builder, $action_token, $row_id_token);
+        $this->initializeEditMode($url_builder, $action_token, $question_id_token);
 
-        $question_id = $this->http->wrapper()->query()->retrieve(
-            $row_id_token->getName(),
-            $this->refinery->kindlyTo()->string()
-        );
+        $question_id = $this->retrieveQuestionId($question_id_token);
 
-        $url_builder_with_row_id = $url_builder->withParameter($row_id_token, $question_id);
+        $url_builder_with_row_id = $url_builder->withParameter($question_id_token, $question_id->toString());
 
         $edit = $this->questions_repository->getForQuestionId($question_id)->getEditView(
             $this->lng,
@@ -239,7 +215,8 @@ class Edit
         )->edit(
             $url_builder_with_row_id->withParameter($action_token, self::CMD_EDIT_QUESTION),
             $step_token,
-            $this->retrieveAction($action_token)
+            $page_id_token,
+            $this->retrieveStringValueForToken($step_token)
         );
 
         if (is_array($edit)) {
@@ -258,7 +235,7 @@ class Edit
         \ilToolbarGUI $toolbar,
         URLBuilder $url_builder,
         URLBuilderToken $action_token,
-        URLBuilderToken $row_id_token
+        URLBuilderToken $question_id_token
     ): array {
         $toolbar->addComponent(
             $this->ui_factory->button()->standard(
@@ -274,7 +251,7 @@ class Edit
             $this->questions_repository,
             $url_builder->withParameter($action_token, self::CMD_EDIT_QUESTION),
             $action_token,
-            $row_id_token
+            $question_id_token
         );
         return [
             $table->getFilter($url_builder->buildURI()->__toString()),
@@ -285,23 +262,73 @@ class Edit
 
     private function processCreateAnswerForm(
         URLBuilder $url_builder,
-        URLBuilderToken $action_token
+        URLBuilderToken $action_token,
+        URLBuilderToken $step_token,
+        URLBuilderToken $question_id_token,
+        URLBuilderToken $page_id_token
     ): array {
-        $form = $this->buildCreateAnswerForm($url_builder, $action_token)
-            ->withRequest($this->http->request());
+        $form = $this->buildCreateAnswerForm(
+            $url_builder,
+            $action_token,
+            $question_id_token,
+            $page_id_token
+        )->withRequest($this->http->request());
+
         $data = $form->getData();
         if ($data === null || $data['form_type'] === null) {
             return [$form];
         }
-        return $data['form_type']->getEditView()->create();
+        return $data['form_type']->getEditView()->create(
+            $url_builder,
+            $step_token,
+            $this->retrieveStringValueForToken($step_token)
+        );
     }
 
-    private function retrieveAction(
-        URLBuilderToken $action_token
+    private function acquireURLBuilderAndParameters(URI $base_uri): array
+    {
+        return (new URLBuilder($base_uri))
+            ->acquireParameters(
+                self::QUERY_PARAMETER_NAME_SPACE,
+                self::TOKEN_STRING_ACTION,
+                self::TOKEN_STRING_STEP,
+                self::TOKEN_STRING_QUESTION_ID,
+                self::TOKEN_STRING_PAGE_ID
+            );
+    }
+
+    private function retrieveStringValueForToken(
+        URLBuilderToken $token
     ): string {
         return $this->http->wrapper()->query()->retrieve(
-            $action_token->getName(),
+            $token->getName(),
             $this->buildActionTrafo()
+        );
+    }
+
+    private function retrieveQuestionId(
+        URLBuilderToken $question_id_token
+    ): ?Uuid {
+        return $this->http->wrapper()->query()->retrieve(
+            $question_id_token->getName(),
+            $this->refinery->byTrying([
+                $this->refinery->custom()->transformation(
+                    fn($v): Uuid => $this->uuid_factory->fromString($v)
+                ),
+                $this->refinery->always(null)
+            ])
+        );
+    }
+
+    public function retrievePageId(
+        URLBuilderToken $page_id_token
+    ): ?int {
+        return $this->http->wrapper()->query()->retrieve(
+            $page_id_token->getName(),
+            $this->refinery->byTrying([
+                $this->refinery->kindlyTo()->int(),
+                $this->refinery->always(null)
+            ])
         );
     }
 
@@ -316,7 +343,7 @@ class Edit
     private function initializeEditMode(
         URLBuilder $url_builder,
         URLBuilderToken $action_token,
-        URLBuilderToken $row_id_token
+        URLBuilderToken $question_id_token
     ): void {
         $this->global_screen->tool()->context()->current()->addAdditionalData(
             LayoutProvider::MODE_ENABLED,
@@ -324,7 +351,7 @@ class Edit
         );
         $this->global_screen->tool()->context()->current()->addAdditionalData(
             LayoutProvider::QUESTIONLIST_ENTRY,
-            $this->buildQuestionListSlate($url_builder, $action_token, $row_id_token)
+            $this->buildQuestionListSlate($url_builder, $action_token, $question_id_token)
         );
         $this->global_screen->tool()->context()->current()->addAdditionalData(
             LayoutProvider::URL_CLOSE_MODE_INFO,
@@ -337,28 +364,19 @@ class Edit
     }
 
     private function setParametersForQuestionCmds(
-        URLBuilderToken $row_id_token,
+        URLBuilderToken $question_id_token,
         string $question_id,
+        URLBuilderToken $page_id_token,
         int $page_id
     ): void {
         $this->ctrl->setParameterByClass(
             \QstsQuestionPageGUI::class,
-            $row_id_token->getName(),
+            $question_id_token->getName(),
             $question_id
         );
         $this->ctrl->setParameterByClass(
             \QstsQuestionPageGUI::class,
-            QuestionEdit::PAGE_ID_PARAM_FOR_EDITOR,
-            $page_id
-        );
-        $this->ctrl->setParameterByClass(
-            $this->ctrl->getCmdClass(),
-            $row_id_token->getName(),
-            $question_id
-        );
-        $this->ctrl->setParameterByClass(
-            $this->ctrl->getCmdClass(),
-            QuestionEdit::PAGE_ID_PARAM_FOR_EDITOR,
+            $page_id_token->getName(),
             $page_id
         );
     }
@@ -366,7 +384,7 @@ class Edit
     private function buildQuestionListSlate(
         URLBuilder $url_builder,
         URLBuilderToken $action_token,
-        URLBuilderToken $row_id_token
+        URLBuilderToken $question_id_token
     ): LegacySlate {
         return $this->ui_factory->mainControls()->slate()->legacy(
             $this->lng->txt('mainbar_button_label_questionlist'),
@@ -376,7 +394,7 @@ class Edit
                     $this->ui_factory->panel()->secondary()->listing(
                         $this->lng->txt('mainbar_button_label_questionlist'),
                         [
-                            $this->buildItemGroupForQuestionListSlate($url_builder, $action_token, $row_id_token)
+                            $this->buildItemGroupForQuestionListSlate($url_builder, $action_token, $question_id_token)
                         ]
                     )
                 )
@@ -387,7 +405,7 @@ class Edit
     private function buildItemGroupForQuestionListSlate(
         URLBuilder $url_builder,
         URLBuilderToken $action_token,
-        URLBuilderToken $row_id_token
+        URLBuilderToken $question_id_token
     ): ItemGroup {
         return $this->ui_factory->item()->group(
             '',
@@ -396,7 +414,7 @@ class Edit
                     $v->toEditLink(
                         $this->ui_factory->link(),
                         $url_builder->withParameter($action_token, self::CMD_EDIT_QUESTION),
-                        $row_id_token
+                        $question_id_token
                     )
                 ),
                 iterator_to_array($this->questions_repository->getAllQuestions())
@@ -426,11 +444,17 @@ class Edit
 
     private function buildCreateAnswerForm(
         URLBuilder $url_builder,
-        URLBuilderToken $action_token
+        URLBuilderToken $action_token,
+        URLBuilderToken $question_id_token,
+        URLBuilderToken $page_id_token
     ): StandardForm {
         $if = $this->ui_factory->input();
         return $if->container()->form()->standard(
-            $url_builder->withParameter($action_token, self::CMD_CREATE_ACTION_FORM)->buildURI()->__toString(),
+            $url_builder
+                ->withParameter($action_token, self::CMD_CREATE_ACTION_FORM)
+                ->withParameter($question_id_token, $this->retrieveQuestionId($question_id_token)->toString())
+                ->withParameter($page_id_token, (string) $this->retrievePageId($page_id_token))
+                ->buildURI()->__toString(),
             [
                 'form_type' => $if->field()->section(
                     [
@@ -459,7 +483,7 @@ class Edit
     private function checkCapabilities(array $capabilities): void
     {
         foreach ($capabilities as $capability) {
-            if (!($capability instanceof Capability)) {
+            if (!$this->questions_repository->capabilityExists($capability)) {
                 throw new \InvalidArgumentException('All provided capabilities must implement ILIAS\Questions\AnswerForm\Capabilities\Capability.');
             }
         }

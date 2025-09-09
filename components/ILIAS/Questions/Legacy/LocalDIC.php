@@ -58,6 +58,7 @@ class LocalDIC extends PimpleContainer
                 $DIC['http'],
                 $DIC->uiService(),
                 new DataFactory(),
+                new UuidFactory(),
                 new QuestionsRepository(
                     $DIC['ilDB'],
                     new UuidFactory(),
@@ -66,7 +67,11 @@ class LocalDIC extends PimpleContainer
                             new Cloze\Persistence(
                                 new TableNameSpaceCore('cloze')
                             ),
-                            new Cloze\Capabilities\Marking(),
+                            [
+                                Cloze\Capabilities\Marking::class => new Cloze\Capabilities\Marking(),
+                                Cloze\Capabilities\Feedback::class => new Cloze\Capabilities\Feedback(),
+                                Cloze\Capabilities\Skills::class => new Cloze\Capabilities\Skills()
+                            ],
                             new Cloze\Views\Edit(
                                 $DIC['lng'],
                                 $DIC['ui.factory'],

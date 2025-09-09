@@ -22,7 +22,7 @@ namespace ILIAS\Questions\Question\Persistence;
 
 use ILIAS\Questions\AnswerForm\Type;
 use ILIAS\Questions\AnswerFormTypes\Factory as FormTypesFactory;
-use ILIAS\Questions\Question\Lifecycle;
+use ILIAS\Questions\Question\Definitions\Lifecycle;
 use ILIAS\Questions\Question\QuestionImplementation;
 use ILIAS\Data\UUID\Factory as UuidFactory;
 use ILIAS\Data\UUID\Uuid;
@@ -86,13 +86,13 @@ class Repository
         yield from $this->getForWhereClause('');
     }
 
-    public function getForQuestionId(string $question_id): ?QuestionImplementation
+    public function getForQuestionId(Uuid $question_id): ?QuestionImplementation
     {
         if ($question_id < 1) {
             return new QuestionImplementation();
         }
 
-        return $this->getForWhereClause("q.id='{$question_id}'")->current();
+        return $this->getForWhereClause("q.id='{$question_id->toString()}'")->current();
     }
 
     /**
@@ -186,6 +186,7 @@ class Repository
                 ]
             ]
         );
+        return $question->getId();
     }
 
     private function buildAvailableUuid(): Uuid

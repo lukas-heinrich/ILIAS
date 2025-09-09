@@ -20,10 +20,9 @@ declare(strict_types=1);
 
 namespace ILIAS\Questions\AnswerForm\Capabilities;
 
-use ILIAS\Questions\AnswerForm;
+use ILIAS\Questions\Question\Response;
 
-interface Capability
+interface Skills extends Capability
 {
-    public function isConfigured(): bool;
-    public function withAnswerForm(AnswerForm $answer_form): self;
+    public function getSkillPointsForResponse(Response $response): float;
 }

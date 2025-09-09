@@ -20,7 +20,6 @@ declare(strict_types=1);
 
 namespace ILIAS\Questions;
 
-use ILIAS\Questions\AnswerForm\Type as AnswerFormType;
 use ILIAS\Questions\Question\Persistence\Repository;
 use ILIAS\Questions\Question\Question;
 
@@ -33,28 +32,12 @@ class Collector
     ) {
     }
 
-    public function having(string $property_class_name): self
+    public function withRequiredCapabilities(array $capability_class_names): self
     {
-        if (in_array($property_class_name, $this->required_capabilities)) {
-            return $this;
-        }
-
+        $this->checkCapabilities($capability_class_names);
         $clone = clone $this;
-        $clone->required_capabilities[] = $property_class_name;
-        $clone->available_answer_form_types = array_filter(
-            $clone->available_answer_form_types,
-            static fn(AnswerFormType $v): bool => $v->isGradable()
-        );
-
+        $clone->required_capabilities = $capability_class_names;
         return $clone;
-    }
-
-    /**
-     * @return array<string, \ILIAS\Questions\AnswerForm\Type>
-     */
-    public function getAvailableAnswerTypes(): array
-    {
-        return $this->repository->getAvailableAnswerTypes();
     }
 
     public function getQuestionsForId(int $id): Question|null

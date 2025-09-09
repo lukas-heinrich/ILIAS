@@ -22,7 +22,7 @@ namespace ILIAS\Questions\Question\Views;
 
 use ILIAS\Questions\Question\Question;
 use ILIAS\Questions\Question\QuestionImplementation;
-use ILIAS\Questions\Question\Lifecycle;
+use ILIAS\Questions\Question\Definitions\Lifecycle;
 use ILIAS\Data\Factory as DataFactory;
 use ILIAS\Language\Language;
 use ILIAS\UI\Factory as UIFactory;
@@ -37,8 +37,6 @@ use Psr\Http\Message\RequestInterface;
 class Edit
 {
     private const string CMD_SAVE_QUESTION = 'sq';
-
-    public const string PAGE_ID_PARAM_FOR_EDITOR = 'p_id';
 
     public function __construct(
         private readonly Language $lng,
@@ -67,13 +65,14 @@ class Edit
     public function edit(
         URLBuilder $url_builder,
         URLBuilderToken $step_token,
+        URLBuilderToken $page_id_token,
         string $step
     ): array|Question {
         return match ($step) {
             self::CMD_SAVE_QUESTION => $this->onBasicPropertiesFormSubmission($url_builder, $step_token),
             default => [
                 $this->buildBasicPropertiesForm($url_builder, $step_token),
-                $this->buildPreviewPanel($url_builder, $step_token)
+                $this->buildPreviewPanel($url_builder, $page_id_token)
             ]
         };
     }
@@ -141,26 +140,25 @@ class Edit
     private function buildAddBasicPropertiesToQuestionTrafo(): Transformation
     {
         return $this->refinery->custom()->transformation(
-            static fn(array $vs): QuestionImplementation => new QuestionImplementation(
-                null,
-                null,
+            fn(array $vs): QuestionImplementation => new QuestionImplementation(
+                $this->question?->getId(),
+                $this->question?->getPageId(),
                 $vs['title'],
                 $vs['author'],
                 Lifecycle::tryFrom($vs['lifecycle']) ?? Lifecycle::Draft,
-                $vs['remarks']
+                $vs['remarks'],
+                $this->question?->getOriginalId(),
+                $this->question?->getLastUpdate(),
+                $this->question?->getCreated(),
+                $this->question?->getAnswerForms() ?? []
             )
         );
     }
 
     private function buildPreviewPanel(
         URLBuilder $url_builder,
-        URLBuilderToken $step_token
+        URLBuilderToken $page_id_token
     ): StandardPanel {
-        $this->ctrl->setParameterByClass(
-            \QstsQuestionPageGUI::class,
-            self::PAGE_ID_PARAM_FOR_EDITOR,
-            $this->question->getPageId()
-        );
         return $this->ui_factory->panel()->standard(
             $this->lng->txt('preview'),
             $this->ui_factory->legacy()->content($this->question->getTitle())
@@ -173,7 +171,8 @@ class Edit
                             $this->data_factory->uri(
                                 ILIAS_HTTP_PATH . '/' . $this->ctrl->getLinkTargetByClass(\QstsQuestionPageGUI::class, 'edit')
                             )
-                        )->buildURI()->__toString()
+                        )->withParameter($page_id_token, (string) $this->question->getPageId())
+                        ->buildURI()->__toString()
                 )
             ])
         );

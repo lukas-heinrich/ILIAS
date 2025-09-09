@@ -18,12 +18,24 @@
 
 declare(strict_types=1);
 
-namespace ILIAS\Questions\AnswerForm\Capabilities;
+namespace ILIAS\Questions\AnswerFormTypes\Cloze\Definitions;
 
-use ILIAS\Questions\AnswerForm;
+use ILIAS\Language\Language;
 
-interface Capability
+enum ScoringIdentical: string
 {
-    public function isConfigured(): bool;
-    public function withAnswerForm(AnswerForm $answer_form): self;
+    case ScoreAll = 'score_all';
+    case OnlyScoreDistinct = 'score_distinct';
+
+    public static function buildOptionsList(Language $lng): array
+    {
+        return array_reduce(
+            self::cases(),
+            function (array $c, self $v) use ($lng): array {
+                $c[$v->value] = $lng->txt($v->value);
+                return $c;
+            },
+            []
+        );
+    }
 }

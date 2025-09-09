@@ -21,7 +21,7 @@ declare(strict_types=1);
 namespace ILIAS\Questions\Question;
 
 use ILIAS\Questions\AnswerForm\Form;
-use ILIAS\Questions\Question\Lifecycle;
+use ILIAS\Questions\Question\Definitions\Lifecycle;
 use ILIAS\Data\Factory as DataFactory;
 use ILIAS\Data\UUID\Uuid;
 use ILIAS\Language\Language;

@@ -18,12 +18,30 @@
 
 declare(strict_types=1);
 
-namespace ILIAS\Questions\AnswerForm\Capabilities;
+namespace ILIAS\Questions\AnswerFormTypes\Cloze\Capabilities;
 
+use ILIAS\Questions\AnswerForm\Capabilities\Skills as SkillsInterface;
+use ILIAS\Questions\Question\Response;
 use ILIAS\Questions\AnswerForm;
 
-interface Capability
+class Skills implements SkillsInterface
 {
-    public function isConfigured(): bool;
-    public function withAnswerForm(AnswerForm $answer_form): self;
+    private ?AnswerForm $answer_form = null;
+
+    public function isConfigured(): bool
+    {
+        return false;
+    }
+
+    public function withAnswerForm(AnswerForm $answer_form): self
+    {
+        $clone = clone $this;
+        $clone->answer_form = $answer_form;
+        return $clone;
+    }
+
+    public function getSkillPointsForResponse(Response $response): float
+    {
+
+    }
 }

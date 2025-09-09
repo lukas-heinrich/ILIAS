@@ -21,8 +21,7 @@ declare(strict_types=1);
 namespace ILIAS\Questions\AnswerFormTypes\Cloze;
 
 use ILIAS\Questions\AnswerForm\Type as TypeInterface;
-use ILIAS\Questions\AnswerFormTypes\Cloze\Capabilities\Feedback;
-use ILIAS\Questions\AnswerFormTypes\Cloze\Capabilities\Marking;
+use ILIAS\Questions\AnswerForm\Capabilities\Capability;
 use ILIAS\Questions\AnswerFormTypes\Cloze\Views\Edit;
 use ILIAS\Questions\AnswerFormTypes\Cloze\Views\Participant;
 use ILIAS\Language\Language;
@@ -44,9 +43,12 @@ class Type implements TypeInterface
      */
     private array $gaps = [];
 
+    /**
+     * @param array<string, \ILIAS\Questions\AnswerForm\Capabilities\Capability> $available_capabilities
+     */
     public function __construct(
         private readonly Persistence $persistence,
-        private readonly Marking $marking,
+        private readonly array $available_capabilities,
         private readonly Edit $edit_view,
         private readonly Participant $participant_view
     ) {
@@ -80,19 +82,14 @@ class Type implements TypeInterface
         return $this->persistence;
     }
 
-    public function isMarkable(): bool
+    public function hasCapability(string $capability_class_name): bool
     {
-        return true;
+        return array_key_exists($capability_class_name, $this->available_capabilities);
     }
 
-    public function getMarking(): ?Marking
+    public function getCapability(string $capability_class_name): ?Capability
     {
-        return $this->marking->withAnswerForm($this);
-    }
-
-    public function getFeedback(): ?Feedback
-    {
-
+        return $this->available_capabilities[$capability_class_name]?->withAnswerForm($this);
     }
 
     public function getEditView(): Edit

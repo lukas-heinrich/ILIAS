@@ -20,8 +20,7 @@ declare(strict_types=1);
 
 namespace ILIAS\Questions\AnswerForm;
 
-use ILIAS\Questions\AnswerForm\Capabilities\Feedback;
-use ILIAS\Questions\AnswerForm\Capabilities\Marking;
+use ILIAS\Questions\AnswerForm\Capabilities\Capability;
 use ILIAS\Questions\AnswerForm\Views\Edit;
 use ILIAS\Questions\AnswerForm\Views\Participant;
 use ILIAS\Language\Language;
@@ -41,9 +40,8 @@ interface Type
     public function getLabel(Language $lng): string;
 
     public function getPersistence(): Persistence;
-    public function isMarkable(): bool;
-    public function getMarking(): ?Marking;
-    public function getFeedback(): ?Feedback;
+    public function hasCapability(string $capability_class_name): bool;
+    public function getCapability(string $capability_class_name): ?Capability;
     public function getEditView(): Edit;
     public function getParticipantView(): Participant;
 }

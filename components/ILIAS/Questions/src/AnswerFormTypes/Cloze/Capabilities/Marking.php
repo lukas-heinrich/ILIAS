@@ -22,12 +22,22 @@ namespace ILIAS\Questions\AnswerFormTypes\Cloze\Capabilities;
 
 use ILIAS\Questions\AnswerForm\Capabilities\Marking as MarkingInterface;
 use ILIAS\Questions\Response\Response;
+use ILIAS\Questions\AnswerForm;
 
 class Marking implements MarkingInterface
 {
+    private ?AnswerForm $answer_form = null;
+
     public function isConfigured(): bool
     {
         return false;
+    }
+
+    public function withAnswerForm(AnswerForm $answer_form): self
+    {
+        $clone = clone $this;
+        $clone->answer_form = $answer_form;
+        return $clone;
     }
 
     public function addAchievedPointsToResponse(Response $response): Response

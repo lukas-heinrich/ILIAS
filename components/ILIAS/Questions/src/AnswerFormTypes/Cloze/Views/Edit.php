@@ -21,7 +21,9 @@ declare(strict_types=1);
 namespace ILIAS\Questions\AnswerFormTypes\Cloze\Views;
 
 use ILIAS\Questions\AnswerForm\Views\Edit as EditViewInterface;
+use ILIAS\Questions\AnswerFormTypes\Cloze\Definitions\ScoringIdentical;
 use ILIAS\Questions\AnswerFormTypes\Cloze\Type;
+use ILIAS\Questions\Question\Definitions\TextMatchingOptions;
 use ILIAS\Questions\Question\Persistence\UpdateQuery;
 use ILIAS\Data\Factory as DataFactory;
 use ILIAS\Language\Language;
@@ -85,6 +87,31 @@ class Edit implements EditViewInterface
         URLBuilder $url_builder,
         URLBuilderToken $step_token
     ): StandardForm {
-
+        $ff = $this->ui_factory->input()->field();
+        return $this->ui_factory->input()->container()->form()->standard(
+            $url_builder->withParameter($step_token, self::SET_GAP_TYPES)->buildURI()->__toString(),
+            [
+                'form' => $ff->section(
+                    [
+                        'cloze_text' => $ff->markdown(
+                            new \ilUIMarkdownPreviewGUI(),
+                            $this->lng->txt('cloze_text')
+                        )->withRequired(true),
+                        'matching_method' => $ff->select(
+                            $this->lng->txt('text_rating'),
+                            TextMatchingOptions::buildOptionsList($this->lng)
+                        )->withRequired(true),
+                        'min_autocomplete' => $ff->numeric($this->lng->txt('min_auto_complete')),
+                        'identical_responses' => $ff->select(
+                            $this->lng->txt('scoring_identical_responses'),
+                            ScoringIdentical::buildOptionsList($this->lng)
+                        )->withRequired(true),
+                        'max_chars' => $ff->numeric($this->lng->txt('cloze_fixed_textlength')),
+                        'enable_combinations' => $ff->checkbox($this->lng->txt('enable_combinations'))
+                    ],
+                    $this->lng->txt('set_basic_properties')
+                )
+            ]
+        );
     }
 }
