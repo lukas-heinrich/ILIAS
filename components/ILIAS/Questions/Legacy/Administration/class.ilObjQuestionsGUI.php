@@ -52,6 +52,7 @@ class ilObjQuestionsGUI extends ilObjectGUI
         parent::__construct($a_data, $a_id, $a_call_by_reference, false);
 
         $this->lng->loadLanguageModule('assessment');
+        $this->lng->loadLanguageModule('qsts');
 
         if (!$rbacsystem->checkAccess('read', $this->object->getRefId())) {
             $this->ilias->raiseError($this->lng->txt("msg_no_perm_read_assf"), $this->ilias->error_obj->WARNING);
@@ -108,7 +109,7 @@ class ilObjQuestionsGUI extends ilObjectGUI
 
     protected function getTabs(): void
     {
-        if ($this->rbac_system->checkAccess('visible,read', $this->object->getRefId())) {
+        if ($this->rbac_system->checkAccess('read', $this->object->getRefId())) {
             $this->tabs_gui->addTab(
                 'questions',
                 $this->lng->txt('questions'),

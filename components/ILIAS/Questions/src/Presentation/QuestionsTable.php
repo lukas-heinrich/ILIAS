@@ -20,6 +20,7 @@ declare(strict_types=1);
 
 namespace ILIAS\Questions\Presentation;
 
+use ILIAS\Questions\AnswerFormTypes\Factory as AnswerFormTypesFactory;
 use ILIAS\Questions\Question\Persistence\Repository;
 use ILIAS\Data\Range;
 use ILIAS\Data\Order;
@@ -35,6 +36,7 @@ class QuestionsTable implements Table\DataRetrieval
         private readonly UIFactory $ui_factory,
         private readonly \ilUIService $ui_service,
         private readonly \ilLanguage $lng,
+        private readonly AnswerFormTypesFactory $answer_form_type_factory,
         private readonly Repository $questions_repository,
         private readonly URLBuilder $url_builder,
         private readonly URLBuilderToken $action_token,
@@ -58,7 +60,7 @@ class QuestionsTable implements Table\DataRetrieval
             '' => $this->lng->txt('filter_all_question_types')
         ];
 
-        foreach ($this->questions_repository->getAvailableAnswerTypes() as $class => $type) {
+        foreach ($this->answer_form_type_factory->getAvailableAnswerFormTypes() as $class => $type) {
             $question_type_options[$class] = $type->getLabel($this->lng);
         }
 

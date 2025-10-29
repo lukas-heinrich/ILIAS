@@ -112,17 +112,17 @@ class Edit
                 'author' => $ff->text($this->lng->txt('author'))
                     ->withValue($this->current_user->getFullname()),
                 'lifecycle' => $ff->select(
-                    $this->lng->txt('lifecycle'),
+                    $this->lng->txt('qst_lifecycle'),
                     array_reduce(
                         Lifecycle::cases(),
                         function (array $c, Lifecycle $v): array {
-                            $c[$v->value] = $this->lng->txt($v->value);
+                            $c[$v->value] = $this->lng->txt("qst_lifecycle_{$v->value}");
                             return $c;
                         },
                         []
                     )
                 )->withRequired(true),
-                'remarks' => $ff->textarea($this->lng->txt('remarks'))
+                'remarks' => $ff->textarea($this->lng->txt('qst_remarks'))
             ],
             $this->lng->txt('edit_basic_form_properties')
         )->withAdditionalTransformation($this->buildAddBasicPropertiesToQuestionTrafo());

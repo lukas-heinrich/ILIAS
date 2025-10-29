@@ -21,6 +21,7 @@ declare(strict_types=1);
 namespace ILIAS\Questions\Presentation;
 
 use ILIAS\Questions\AnswerForm\Type;
+use ILIAS\Questions\AnswerFormTypes\Factory as AnswerFormTypesFactory;
 use ILIAS\Questions\Question\Persistence\Repository;
 use ILIAS\Questions\Question\QuestionImplementation;
 use ILIAS\Data\Factory as DataFactory;
@@ -48,10 +49,11 @@ class Edit
     private const string TOKEN_STRING_STEP = 's';
     private const string TOKEN_STRING_QUESTION_ID = 'q';
     private const string TOKEN_STRING_PAGE_ID = 'p';
+    private const string TOKEN_TYPE_HASH = 't';
     private const string CMD_CREATE_QUESTION = 'create';
     private const string CMD_EDIT_QUESTION = 'edit';
-    private const string CMD_CREATE_ACTION_FORM = 'create_af';
-    private const string CMD_EDIT_ACTION_FORM = 'edit_af';
+    private const string CMD_CREATE_ANSWER_FORM = 'create_af';
+    private const string CMD_EDIT_ANSWER_FORM = 'edit_af';
 
     private array $required_capabilities = [];
     private Editability $editability = Editability::Full;
@@ -69,6 +71,7 @@ class Edit
         private readonly \ilUIService $ui_services,
         private readonly DataFactory $data_factory,
         private readonly UuidFactory $uuid_factory,
+        private readonly AnswerFormTypesFactory $answer_form_types_factory,
         private readonly Repository $questions_repository
     ) {
 
@@ -100,12 +103,34 @@ class Edit
         \ilToolbarGUI $toolbar,
         URI $base_uri
     ): array {
-        [$url_builder, $action_token, $step_token, $question_id_token, $page_id_token] =
-            $this->acquireURLBuilderAndParameters($base_uri);
+        [
+            $url_builder,
+            $action_token,
+            $step_token,
+            $question_id_token,
+            $page_id_token
+        ] = $this->acquireURLBuilderAndParameters($base_uri);
         return match($this->retrieveStringValueForToken($action_token)) {
-            self::CMD_CREATE_QUESTION => $this->createQuestion($url_builder, $action_token, $step_token, $question_id_token),
-            self::CMD_EDIT_QUESTION => $this->editQuestion($url_builder, $action_token, $step_token, $question_id_token, $page_id_token),
-            default => $this->showTable($toolbar, $url_builder, $action_token, $question_id_token)
+            self::CMD_CREATE_QUESTION => $this->createQuestion(
+                $url_builder,
+                $action_token,
+                $step_token,
+                $question_id_token,
+                $page_id_token
+            ),
+            self::CMD_EDIT_QUESTION => $this->editQuestion(
+                $url_builder,
+                $action_token,
+                $step_token,
+                $question_id_token,
+                $page_id_token
+            ),
+            default => $this->showTable(
+                $toolbar,
+                $url_builder,
+                $action_token,
+                $question_id_token
+            )
         };
     }
 
@@ -113,15 +138,17 @@ class Edit
         \ilGlobalTemplateInterface $tpl,
         URI $base_uri,
     ): void {
-        [$url_builder, $action_token, $step, $question_id_token, $page_id_token] =
-            $this->acquireURLBuilderAndParameters($base_uri);
+        [
+            0 => $url_builder,
+            1 => $action_token,
+            3 => $question_id_token,
+            4 => $page_id_token
+        ] = $this->acquireURLBuilderAndParameters($base_uri);
 
         $this->initializeEditMode($url_builder, $action_token, $question_id_token);
 
         $question_id = $this->retrieveQuestionId($question_id_token);
-
         $page_id = $this->retrievePageId($page_id_token);
-
         $this->setParametersForQuestionCmds($question_id_token, $question_id->toString(), $page_id_token, $page_id);
 
         $tpl->setContent(
@@ -139,10 +166,39 @@ class Edit
     public function createAnswerForm(
         URI $base_uri
     ): array {
-        [$url_builder, $action_token, $step_token, $question_id_token, $page_id_token] = $this->acquireURLBuilderAndParameters($base_uri);
+        [
+            $url_builder,
+            $action_token,
+            $step_token,
+            $question_id_token,
+            $page_id_token,
+            $type_hash_token
+        ] = $this->acquireURLBuilderAndParameters($base_uri);
+        $url_builder_with_params = $url_builder
+                ->withParameter($question_id_token, $this->retrieveQuestionId($question_id_token)->toString())
+                ->withParameter($page_id_token, (string) $this->retrievePageId($page_id_token))
+                ->withParameter($action_token, self::CMD_CREATE_ANSWER_FORM);
+
+        $answer_form_type_class_hash = $this->retrieveStringValueForToken($type_hash_token);
+        if ($answer_form_type_class_hash !== '') {
+            return $this->forwardCreateAnswerFormCmd(
+                $this->answer_form_types_factory->getAnswerFormTypeByClassHash($answer_form_type_class_hash),
+                $url_builder_with_params->withParameter($type_hash_token, $answer_form_type_class_hash),
+                $step_token
+            );
+        }
+
         return match($this->retrieveStringValueForToken($action_token)) {
-            self::CMD_CREATE_ACTION_FORM => $this->processCreateAnswerForm($url_builder, $action_token, $step_token, $question_id_token, $page_id_token),
-            default => [$this->buildCreateAnswerForm($url_builder, $action_token, $question_id_token, $page_id_token)]
+            self::CMD_CREATE_ANSWER_FORM => $this->processCreateAnswerForm(
+                $url_builder_with_params,
+                $action_token,
+                $step_token,
+                $type_hash_token
+            ),
+            default => [$this->buildCreateAnswerForm(
+                $url_builder_with_params,
+                $action_token
+            )]
         };
     }
 
@@ -151,7 +207,7 @@ class Edit
     ): array {
         [$url_builder, $action_token] = $this->acquireURLBuilderAndParameters($base_uri);
         return match($this->retrieveStringValueForToken($action_token)) {
-            self::CMD_EDIT_ACTION_FORM => [$this->processCreateAnswerForm($url_builder, $action_token)],
+            self::CMD_EDIT_ANSWER_FORM => [$this->processCreateAnswerForm($url_builder, $action_token)],
             default => [$this->buildCreateAnswerForm($url_builder, $action_token)]
         };
     }
@@ -160,7 +216,8 @@ class Edit
         URLBuilder $url_builder,
         URLBuilderToken $action_token,
         URLBuilderToken $step_token,
-        URLBuilderToken $question_id_token
+        URLBuilderToken $question_id_token,
+        URLBuilderToken $page_id_token
     ): array {
         $this->initializeEditMode($url_builder, $action_token, $question_id_token);
 
@@ -186,6 +243,7 @@ class Edit
         return $this->buildEditStartView(
             $url_builder->withParameter($question_id_token, $create->getId()),
             $step_token,
+            $page_id_token,
             $create
         );
 
@@ -227,6 +285,7 @@ class Edit
         return $this->buildEditStartView(
             $url_builder_with_row_id,
             $step_token,
+            $page_id_token,
             $edit
         );
     }
@@ -248,6 +307,7 @@ class Edit
             $this->ui_factory,
             $this->ui_services,
             $this->lng,
+            $this->answer_form_types_factory,
             $this->questions_repository,
             $url_builder->withParameter($action_token, self::CMD_EDIT_QUESTION),
             $action_token,
@@ -264,21 +324,32 @@ class Edit
         URLBuilder $url_builder,
         URLBuilderToken $action_token,
         URLBuilderToken $step_token,
-        URLBuilderToken $question_id_token,
-        URLBuilderToken $page_id_token
+        URLBuilderToken $type_hash_token
     ): array {
         $form = $this->buildCreateAnswerForm(
             $url_builder,
-            $action_token,
-            $question_id_token,
-            $page_id_token
+            $action_token
         )->withRequest($this->http->request());
 
         $data = $form->getData();
         if ($data === null || $data['form_type'] === null) {
             return [$form];
         }
-        return $data['form_type']->getEditView()->create(
+
+        return $this->forwardCreateAnswerFormCmd(
+            $data['form_type'],
+            $url_builder->withParameter($type_hash_token, $this->answer_form_types_factory->getHashedClass($data['form_type']::class)),
+            $action_token,
+            $step_token
+        );
+    }
+
+    private function forwardCreateAnswerFormCmd(
+        Type $type,
+        URLBuilder $url_builder,
+        URLBuilderToken $step_token
+    ): array {
+        return $type->getEditView()->create(
             $url_builder,
             $step_token,
             $this->retrieveStringValueForToken($step_token)
@@ -293,7 +364,8 @@ class Edit
                 self::TOKEN_STRING_ACTION,
                 self::TOKEN_STRING_STEP,
                 self::TOKEN_STRING_QUESTION_ID,
-                self::TOKEN_STRING_PAGE_ID
+                self::TOKEN_STRING_PAGE_ID,
+                self::TOKEN_TYPE_HASH
             );
     }
 
@@ -302,7 +374,7 @@ class Edit
     ): string {
         return $this->http->wrapper()->query()->retrieve(
             $token->getName(),
-            $this->buildActionTrafo()
+            $this->buildStringTrafo()
         );
     }
 
@@ -332,7 +404,7 @@ class Edit
         );
     }
 
-    private function buildActionTrafo(): Transformation
+    private function buildStringTrafo(): Transformation
     {
         return $this->refinery->byTrying([
             $this->refinery->kindlyTo()->string(),
@@ -425,6 +497,7 @@ class Edit
     private function buildEditStartView(
         URLBuilder $url_builder,
         URLBuilderToken $step_token,
+        URLBuilderToken $page_id_token,
         QuestionImplementation $question
     ): array {
         return $question->getEditView(
@@ -438,32 +511,26 @@ class Edit
         )->edit(
             $url_builder,
             $step_token,
+            $page_id_token,
             ''
         );
     }
 
     private function buildCreateAnswerForm(
-        URLBuilder $url_builder,
-        URLBuilderToken $action_token,
-        URLBuilderToken $question_id_token,
-        URLBuilderToken $page_id_token
+        URLBuilder $url_builder
     ): StandardForm {
         $if = $this->ui_factory->input();
         return $if->container()->form()->standard(
-            $url_builder
-                ->withParameter($action_token, self::CMD_CREATE_ACTION_FORM)
-                ->withParameter($question_id_token, $this->retrieveQuestionId($question_id_token)->toString())
-                ->withParameter($page_id_token, (string) $this->retrievePageId($page_id_token))
-                ->buildURI()->__toString(),
+            $url_builder->buildURI()->__toString(),
             [
                 'form_type' => $if->field()->section(
                     [
                         $if->field()->select(
-                            $this->lng->txt('select_answer_form'),
+                            $this->lng->txt('select_answer_form_type'),
                             array_reduce(
-                                $this->questions_repository->getAvailableAnswerTypes(),
+                                $this->answer_form_types_factory->getAvailableAnswerFormTypes(),
                                 function (array $c, Type $v): array {
-                                    $c[$v::class] = $v->getLabel($this->lng);
+                                    $c[$this->answer_form_types_factory->getHashedClass($v::class)] = $v->getLabel($this->lng);
                                     return $c;
                                 },
                                 []
@@ -473,11 +540,11 @@ class Edit
                     $this->lng->txt('create_answer_form')
                 )->withAdditionalTransformation(
                     $this->refinery->custom()->transformation(
-                        fn(array $vs): ?Type => $this->questions_repository->getAvailableAnswerTypeByClass($vs[0])
+                        fn(array $vs): ?Type => $this->answer_form_types_factory->getAnswerFormTypeByClassHash($vs[0])
                     )
                 )
             ]
-        );
+        )->withSubmitLabel($this->lng->txt('next'));
     }
 
     private function checkCapabilities(array $capabilities): void

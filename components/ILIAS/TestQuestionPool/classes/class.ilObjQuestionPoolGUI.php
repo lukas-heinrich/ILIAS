@@ -136,6 +136,7 @@ class ilObjQuestionPoolGUI extends ilObjectGUI implements ilCtrlBaseClassInterfa
         $this->ctrl->saveParameterByClass('ilobjquestionpoolgui', 'consumer_context');
 
         $this->lng->loadLanguageModule('assessment');
+        $this->lng->loadLanguageModule('qsts');
 
         $here_uri = $this->data_factory->uri($this->request->getUri()->__toString());
         $url_builder = new URLBuilder($here_uri);

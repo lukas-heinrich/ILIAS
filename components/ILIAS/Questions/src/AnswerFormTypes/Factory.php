@@ -37,8 +37,8 @@ class Factory
     ) {
         $this->available_answer_form_types = array_reduce(
             $available_answer_form_types,
-            static function (array $c, Type $v) {
-                $c[$v::class] = $v;
+            function (array $c, Type $v) {
+                $c[$this->getHashedClass($v::class)] = $v;
                 return $c;
             },
             []
@@ -48,13 +48,18 @@ class Factory
     /**
      * @return array<string, \ILIAS\Questions\AnswerForm\Type>
      */
-    public function getAvailableAnswerTypes(): array
+    public function getAvailableAnswerFormTypes(): array
     {
         return $this->available_answer_form_types;
     }
 
-    public function getAnswerFormTypeByClass(string $class): ?Type
+    public function getHashedClass(string $class): string
     {
-        return $this->available_answer_form_types[$class] ?? null;
+        return md5($class);
+    }
+
+    public function getAnswerFormTypeByClassHash(string $class_hash): ?Type
+    {
+        return $this->available_answer_form_types[$class_hash] ?? null;
     }
 }

@@ -60,22 +60,8 @@ class Repository
 
     public function __construct(
         private readonly \ilDBInterface $db,
-        private readonly UuidFactory $uuid_factory,
-        private readonly FormTypesFactory $form_types_factory
+        private readonly UuidFactory $uuid_factory
     ) {
-    }
-
-    /**
-     * @return array<string, \ILIAS\Questions\AnswerForm\Type>
-     */
-    public function getAvailableAnswerTypes(): array
-    {
-        return $this->form_types_factory->getAvailableAnswerTypes();
-    }
-
-    public function getAvailableAnswerTypeByClass(string $class): ?Type
-    {
-        return $this->form_types_factory->getAnswerFormTypeByClass($class);
     }
 
     /**
@@ -88,11 +74,9 @@ class Repository
 
     public function getForQuestionId(Uuid $question_id): ?QuestionImplementation
     {
-        if ($question_id < 1) {
-            return new QuestionImplementation();
-        }
-
-        return $this->getForWhereClause("q.id='{$question_id->toString()}'")->current();
+        return $this->getForWhereClause(
+            "q.id={$this->db->quote($question_id->toString(), \ilDBConstants::T_TEXT)}"
+        )->current();
     }
 
     /**

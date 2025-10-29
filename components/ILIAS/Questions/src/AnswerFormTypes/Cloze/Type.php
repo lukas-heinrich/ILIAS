@@ -29,7 +29,9 @@ use ILIAS\Language\Language;
 class Type implements TypeInterface
 {
     private string $id;
-    private float $available_points = 0.0;
+    private ?float $available_points = null;
+    private int $image_size = 150;
+    private bool $shuffle_answer_options = false;
     private string $cloze_text = '';
     private string $cloze_text_legacy = '';
     private bool $case_sensitive = false;
@@ -57,19 +59,43 @@ class Type implements TypeInterface
     public function withData(
         string $id,
         ?float $available_points,
-        ?int $image_size,
-        ?bool $shuffle_answer_options,
+        int $image_size,
+        bool $shuffle_answer_options,
         string $additional_text,
         string $additional_text_legacy,
         ?array $data
     ): static {
         $this->id = $id;
-        if ($available_points !== null) {
-            $this->available_points = $available_points;
-        }
-
+        $this->available_points = $available_points;
+        $this->image_size = $image_size;
+        $this->shuffle_answer_options = $shuffle_answer_options;
         $this->cloze_text = $additional_text;
         $this->cloze_text_legacy = $additional_text_legacy;
+    }
+
+    public function getAvailablePoints(): ?float
+    {
+        return $this->available_points;
+    }
+
+    public function getImageSize(): int
+    {
+        return $this->image_size;
+    }
+
+    public function getShuffleAnswerOptions(): bool
+    {
+        return $this->shuffle_answer_options;
+    }
+
+    public function getClozeText(): string
+    {
+        return $this->cloze_text;
+    }
+
+    public function getClozeTextLegacy(): string
+    {
+        return $this->cloze_text_legacy;
     }
 
     public function getLabel(Language $lng): string

@@ -249,6 +249,7 @@ class ilObjTestGUI extends ilObjectGUI implements ilCtrlBaseClassInterface, ilDe
         $this->ctrl->saveParameter($this, ['ref_id', 'test_ref_id']);
 
         $this->lng->loadLanguageModule('assessment');
+        $this->lng->loadLanguageModule('qsts');
 
         $this->objective_oriented_container = new ilTestObjectiveOrientedContainer();
 

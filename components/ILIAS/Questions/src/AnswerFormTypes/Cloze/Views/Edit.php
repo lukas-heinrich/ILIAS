@@ -55,7 +55,7 @@ class Edit implements EditViewInterface
         string $step
     ): array|UpdateQuery {
         return match($step) {
-            self::SET_GAP_TYPES => $this->setGapTypes($url_builder, $step_token),
+            self::SET_GAP_TYPES => [$this->processBasicEditingForm($url_builder, $step_token)],
             default => [$this->buildBasicEditingForm($url_builder, $step_token)]
         };
     }
@@ -96,22 +96,40 @@ class Edit implements EditViewInterface
                         'cloze_text' => $ff->markdown(
                             new \ilUIMarkdownPreviewGUI(),
                             $this->lng->txt('cloze_text')
-                        )->withRequired(true),
+                        )->withRequired(true)
+                        ->withValue($this->type->getClozeText()),
                         'matching_method' => $ff->select(
                             $this->lng->txt('text_rating'),
                             TextMatchingOptions::buildOptionsList($this->lng)
-                        )->withRequired(true),
-                        'min_autocomplete' => $ff->numeric($this->lng->txt('min_auto_complete')),
+                        )->withRequired(true)
+                        ->withValue($this->type->getMatchingMethod()->value),
+                        'min_autocomplete' => $ff->numeric($this->lng->txt('min_auto_complete'))
+                            ->withRequired(true)
+                            ->withValue($this->type->getAutocompleteLength()),
                         'identical_responses' => $ff->select(
-                            $this->lng->txt('scoring_identical_responses'),
+                            $this->lng->txt('scoring_of_identical_responses'),
                             ScoringIdentical::buildOptionsList($this->lng)
-                        )->withRequired(true),
+                        )->withRequired(true)
+                        ->withValue($this->type->getScoringIdentical()->value),
                         'max_chars' => $ff->numeric($this->lng->txt('cloze_fixed_textlength')),
-                        'enable_combinations' => $ff->checkbox($this->lng->txt('enable_combinations'))
+                        'enable_combinations' => $ff->checkbox($this->lng->txt('cloze_enable_combinations'))
                     ],
-                    $this->lng->txt('set_basic_properties')
+                    $this->lng->txt('create_answer_form')
                 )
             ]
-        );
+        )->withSubmitLabel($this->lng->txt('next'));
+    }
+
+    private function processBasicEditingForm(
+        URLBuilder $url_builder,
+        URLBuilderToken $step_token
+    ): StandardForm {
+        $form = $this->buildBasicEditingForm($url_builder, $step_token)->withRequest($this->request);
+        $data = $form->getData();
+        if ($data === null) {
+            return $form;
+        }
+
+        $this->buildGapTypesForm($url_builder, $step_token, $data);
     }
 }

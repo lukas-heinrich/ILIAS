@@ -46,6 +46,27 @@ class LocalDIC extends PimpleContainer
     protected static function buildDIC(ILIASContainer $DIC): self
     {
         $dic = new self();
+        $dic[AnswerFormTypesFactory::class] = static fn($c): AnswerFormTypesFactory =>
+            new AnswerFormTypesFactory([
+                new Cloze\Type(
+                    new Cloze\Persistence(
+                        new TableNameSpaceCore('cloze')
+                    ),
+                    [
+                        Cloze\Capabilities\Marking::class => new Cloze\Capabilities\Marking(),
+                        Cloze\Capabilities\Feedback::class => new Cloze\Capabilities\Feedback(),
+                        Cloze\Capabilities\Skills::class => new Cloze\Capabilities\Skills()
+                    ],
+                    new Cloze\Views\Edit(
+                        $DIC['lng'],
+                        $DIC['ui.factory'],
+                        $DIC['refinery'],
+                        $DIC['http']->request(),
+                        new DataFactory()
+                    ),
+                    new Cloze\Views\Participant()
+                )
+            ]);
         $dic[Edit::class] = static fn($c): Edit =>
             new Edit(
                 $DIC['lng'],
@@ -59,29 +80,10 @@ class LocalDIC extends PimpleContainer
                 $DIC->uiService(),
                 new DataFactory(),
                 new UuidFactory(),
+                $c[AnswerFormTypesFactory::class],
                 new QuestionsRepository(
                     $DIC['ilDB'],
                     new UuidFactory(),
-                    new AnswerFormTypesFactory([
-                        new Cloze\Type(
-                            new Cloze\Persistence(
-                                new TableNameSpaceCore('cloze')
-                            ),
-                            [
-                                Cloze\Capabilities\Marking::class => new Cloze\Capabilities\Marking(),
-                                Cloze\Capabilities\Feedback::class => new Cloze\Capabilities\Feedback(),
-                                Cloze\Capabilities\Skills::class => new Cloze\Capabilities\Skills()
-                            ],
-                            new Cloze\Views\Edit(
-                                $DIC['lng'],
-                                $DIC['ui.factory'],
-                                $DIC['refinery'],
-                                $DIC['http']->request(),
-                                new DataFactory()
-                            ),
-                            new Cloze\Views\Participant()
-                        )
-                    ])
                 )
             );
 
