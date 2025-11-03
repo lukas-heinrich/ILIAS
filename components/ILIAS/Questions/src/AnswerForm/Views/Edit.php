@@ -20,7 +20,7 @@ declare(strict_types=1);
 
 namespace ILIAS\Questions\AnswerForm\Views;
 
-use ILIAS\Questions\Question\Persistence\UpdateQuery;
+use ILIAS\Questions\Question\Persistence\ManipulateQuery;
 use ILIAS\UI\URLBuilder;
 use ILIAS\UI\URLBuilderToken;
 
@@ -30,17 +30,17 @@ interface Edit
         URLBuilder $url_builder,
         URLBuilderToken $step_token,
         string $step
-    ): array|UpdateQuery;
+    ): array|ManipulateQuery;
 
     public function edit(
         URLBuilder $url_builder,
         URLBuilderToken $step_token,
         string $step
-    ): array|UpdateQuery;
+    ): array|ManipulateQuery;
 
     public function other(
         URLBuilder $url_builder,
         URLBuilderToken $step_token,
         string $cmd
-    ): array|UpdateQuery;
+    ): array|ManipulateQuery;
 }

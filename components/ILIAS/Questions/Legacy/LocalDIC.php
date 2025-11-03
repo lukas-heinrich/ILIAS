@@ -46,46 +46,81 @@ class LocalDIC extends PimpleContainer
     protected static function buildDIC(ILIASContainer $DIC): self
     {
         $dic = new self();
-        $dic[AnswerFormTypesFactory::class] = static fn($c): AnswerFormTypesFactory =>
-            new AnswerFormTypesFactory([
-                new Cloze\Type(
-                    new Cloze\Persistence(
-                        new TableNameSpaceCore('cloze')
-                    ),
-                    [
-                        Cloze\Capabilities\Marking::class => new Cloze\Capabilities\Marking(),
-                        Cloze\Capabilities\Feedback::class => new Cloze\Capabilities\Feedback(),
-                        Cloze\Capabilities\Skills::class => new Cloze\Capabilities\Skills()
-                    ],
-                    new Cloze\Views\Edit(
-                        $DIC['lng'],
-                        $DIC['ui.factory'],
-                        $DIC['refinery'],
-                        $DIC['http']->request(),
-                        new DataFactory()
-                    ),
-                    new Cloze\Views\Participant()
-                )
+        $dic[DataFactory::class] = static fn($c): DataFactory => new DataFactory();
+        $dic[UuidFactory::class] = static fn($c): UuidFactory => new UuidFactory();
+
+        $dic[AnswerFormTypesFactory::class] = static fn($c): AnswerFormTypesFactory
+            => new AnswerFormTypesFactory([
+                $c[Cloze\Type::class]
             ]);
-        $dic[Edit::class] = static fn($c): Edit =>
-            new Edit(
-                $DIC['lng'],
-                $DIC['ilUser'],
-                $DIC['refinery'],
-                $DIC['ui.factory'],
-                $DIC['ui.renderer'],
-                $DIC['global_screen'],
-                $DIC['ilCtrl'],
-                $DIC['http'],
-                $DIC->uiService(),
-                new DataFactory(),
+        $dic[QuestionsRepository::class] = static fn($c): QuestionsRepository =>
+            new QuestionsRepository(
+                $DIC['ilDB'],
                 new UuidFactory(),
-                $c[AnswerFormTypesFactory::class],
-                new QuestionsRepository(
-                    $DIC['ilDB'],
-                    new UuidFactory(),
-                )
             );
+        $dic[Edit::class] = static fn($c): Edit => new Edit(
+            $DIC['lng'],
+            $DIC['ilUser'],
+            $DIC['refinery'],
+            $DIC['ui.factory'],
+            $DIC['ui.renderer'],
+            $DIC['global_screen'],
+            $DIC['ilCtrl'],
+            $DIC['http'],
+            $DIC->uiService(),
+            $c[DataFactory::class],
+            $c[UuidFactory::class],
+            $c[AnswerFormTypesFactory::class],
+            $c[QuestionsRepository::class]
+        );
+
+        $dic[Cloze\Properties\ClozeText\Factory::class] = static fn($c): Cloze\Properties\ClozeText\Factory
+            => new Cloze\Properties\ClozeText\Factory(
+                $DIC['refinery'],
+                (new \ilMustacheFactory())->getBasicEngine(),
+                $c[UuidFactory::class],
+                $c[DataFactory::class]->text()
+            );
+        $dic[Cloze\Properties\Gaps\Factory::class] = static fn($c): Cloze\Properties\Gaps\Factory => new Cloze\Properties\Gaps\Factory([
+            new Cloze\Properties\Gaps\Text(),
+            new Cloze\Properties\Gaps\Numeric(),
+            new Cloze\Properties\Gaps\Select(),
+            new Cloze\Properties\Gaps\LongMenu()
+        ]);
+        $dic[Cloze\Properties\AnswerForm\Factory::class] = static fn($c): Cloze\Properties\AnswerForm\Factory
+            => new Cloze\Properties\AnswerForm\Factory(
+                $c[Cloze\Properties\ClozeText\Factory::class],
+                $c[Cloze\Properties\Gaps\Factory::class]
+            );
+        $dic[Cloze\Persistence::class] = static fn($c): Cloze\Persistence
+            => new Cloze\Persistence(
+                new TableNameSpaceCore('cloze')
+            );
+        $dic[Cloze\Views\Edit::class] = static fn($c): Cloze\Views\Edit
+            => new Cloze\Views\Edit(
+                $DIC['lng'],
+                $DIC['ui.factory'],
+                $DIC['refinery'],
+                $DIC['http'],
+                $c[UuidFactory::class],
+                $c[DataFactory::class],
+                $c[Cloze\Properties\AnswerForm\Factory::class],
+                $c[Cloze\Properties\ClozeText\Factory::class],
+                $c[Cloze\Properties\Gaps\Factory::class]
+            );
+        $dic[Cloze\Views\Participant::class] = static fn($c): Cloze\Views\Participant
+            => new Cloze\Views\Participant();
+        $dic[Cloze\Type::class] = static fn($c): Cloze\Type => new Cloze\Type(
+            $c[Cloze\Properties\AnswerForm\Factory::class],
+            $c[Cloze\Persistence::class],
+            [
+                Cloze\Capabilities\Marking::class => new Cloze\Capabilities\Marking(),
+                Cloze\Capabilities\Feedback::class => new Cloze\Capabilities\Feedback(),
+                Cloze\Capabilities\Skills::class => new Cloze\Capabilities\Skills()
+            ],
+            $c[Cloze\Views\Edit::class],
+            $c[Cloze\Views\Participant::class]
+        );
 
         return $dic;
     }

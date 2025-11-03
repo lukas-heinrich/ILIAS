@@ -46,25 +46,15 @@ class ClozeQuestionTables implements \ilDatabaseUpdateSteps
                     'length' => 64,
                     'notnull' => true
                 ],
-                 'case_sensitive' => [
+                 'scoring_identical_responses' => [
+                    'type' => \ilDBConstants::T_TEXT,
+                    'length' => 32,
+                    'notnull' => true
+                ],
+                'combinations_activated' => [
                     'type' => \ilDBConstants::T_INTEGER,
                     'length' => 1,
                     'notnull' => true
-                ],
-                 'identical_responses_valid' => [
-                    'type' => \ilDBConstants::T_INTEGER,
-                    'length' => 1,
-                    'notnull' => true
-                ],
-                 'max_chars' => [
-                    'type' => \ilDBConstants::T_INTEGER,
-                    'length' => 2,
-                    'notnull' => false
-                ],
-                 'min_autocomplete' => [
-                    'type' => \ilDBConstants::T_INTEGER,
-                    'length' => 1,
-                    'notnull' => false
                 ]
             ]);
         }
@@ -94,9 +84,36 @@ class ClozeQuestionTables implements \ilDatabaseUpdateSteps
                     'length' => 32,
                     'notnull' => true
                 ],
-                 'max_chars' => [
+                'max_chars' => [
                     'type' => \ilDBConstants::T_INTEGER,
                     'length' => 2,
+                    'notnull' => false
+                ],
+                'step_size' => [
+                    'type' => \ilDBConstants::T_FLOAT,
+                    'notnull' => false
+                ],
+                'text_matching_method' => [
+                    'type' => \ilDBConstants::T_TEXT,
+                    'length' => 32,
+                    'notnull' => false
+                ],
+                'min_autocomplete' => [
+                    'type' => \ilDBConstants::T_INTEGER,
+                    'length' => 2,
+                    'notnull' => false
+                ],
+                'shuffle_answer_options' => [
+                    'type' => \ilDBConstants::T_INTEGER,
+                    'length' => 1,
+                    'notnull' => false
+                ],
+                'lower_limit' => [
+                    'type' => \ilDBConstants::T_FLOAT,
+                    'notnull' => false
+                ],
+                'upper_limit' => [
+                    'type' => \ilDBConstants::T_FLOAT,
                     'notnull' => false
                 ]
             ]);

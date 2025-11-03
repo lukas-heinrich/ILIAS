@@ -339,7 +339,6 @@ class Edit
         return $this->forwardCreateAnswerFormCmd(
             $data['form_type'],
             $url_builder->withParameter($type_hash_token, $this->answer_form_types_factory->getHashedClass($data['form_type']::class)),
-            $action_token,
             $step_token
         );
     }

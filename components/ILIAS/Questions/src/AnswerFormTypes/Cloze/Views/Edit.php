@@ -21,22 +21,33 @@ declare(strict_types=1);
 namespace ILIAS\Questions\AnswerFormTypes\Cloze\Views;
 
 use ILIAS\Questions\AnswerForm\Views\Edit as EditViewInterface;
-use ILIAS\Questions\AnswerFormTypes\Cloze\Definitions\ScoringIdentical;
+use ILIAS\Questions\AnswerFormTypes\Cloze\Properties\AnswerForm\Factory as PropertiesFactory;
+use ILIAS\Questions\AnswerFormTypes\Cloze\Properties\AnswerForm\Properties;
+use ILIAS\Questions\AnswerFormTypes\Cloze\Properties\ClozeText\Factory as ClozeTextFactory;
+use ILIAS\Questions\AnswerFormTypes\Cloze\Properties\ClozeText\Text as ClozeText;
+use ILIAS\Questions\AnswerFormTypes\Cloze\Properties\Gaps\Factory as GapFactory;
 use ILIAS\Questions\AnswerFormTypes\Cloze\Type;
-use ILIAS\Questions\Question\Definitions\TextMatchingOptions;
-use ILIAS\Questions\Question\Persistence\UpdateQuery;
+use ILIAS\Questions\Question\Persistence\ManipulateQuery;
+use ILIAS\HTTP\Services as HTTPServices;
 use ILIAS\Data\Factory as DataFactory;
+use ILIAS\Data\UUID\Factory as UuidFactory;
+use ILIAS\Data\UUID\Uuid;
 use ILIAS\Language\Language;
 use ILIAS\UI\URLBuilder;
 use ILIAS\UI\URLBuilderToken;
 use ILIAS\UI\Factory as UIFactory;
 use ILIAS\UI\Component\Input\Container\Form\Standard as StandardForm;
 use ILIAS\Refinery\Factory as Refinery;
-use Psr\Http\Message\RequestInterface;
 
 class Edit implements EditViewInterface
 {
-    private const string SET_GAP_TYPES = 'sgt';
+    private const string STEP_SET_GAP_TYPES = 'sgt';
+    private const string STEP_SET_ANSWER_OPTIONS = 'sao';
+    private const string STEP_SET_POINTS = 'sap';
+    private const string STEP_SAVE = 's';
+
+    private const string MAIN_SECTION_NAME = 'form';
+    private const string PROPERTIES_SECTION_NAME = 'properties';
 
     private ?Type $type = null;
 
@@ -44,8 +55,12 @@ class Edit implements EditViewInterface
         private readonly Language $lng,
         private readonly UIFactory $ui_factory,
         private readonly Refinery $refinery,
-        private readonly RequestInterface $request,
-        private readonly DataFactory $data_factory
+        private readonly HTTPServices $http,
+        private readonly UuidFactory $uuid_factory,
+        private readonly DataFactory $data_factory,
+        private readonly PropertiesFactory $properties_factory,
+        private readonly ClozeTextFactory $cloze_text_factory,
+        private readonly GapFactory $gap_factory
     ) {
     }
 
@@ -53,9 +68,11 @@ class Edit implements EditViewInterface
         URLBuilder $url_builder,
         URLBuilderToken $step_token,
         string $step
-    ): array|UpdateQuery {
+    ): array|ManipulateQuery {
         return match($step) {
-            self::SET_GAP_TYPES => [$this->processBasicEditingForm($url_builder, $step_token)],
+            self::STEP_SET_GAP_TYPES => $this->processBasicEditingForm($url_builder, $step_token),
+            self::STEP_SET_ANSWER_OPTIONS => $this->processGapTypesForm($url_builder, $step_token),
+            self::STEP_SET_POINTS => $this->processAnswerOptionsForm($url_builder, $step_token),
             default => [$this->buildBasicEditingForm($url_builder, $step_token)]
         };
     }
@@ -64,7 +81,7 @@ class Edit implements EditViewInterface
         URLBuilder $url_builder,
         URLBuilderToken $step_token,
         string $step
-    ): array|UpdateQuery {
+    ): array|ManipulateQuery {
 
     }
 
@@ -72,7 +89,7 @@ class Edit implements EditViewInterface
         URLBuilder $url_builder,
         URLBuilderToken $step_token,
         string $step
-    ): array|UpdateQuery {
+    ): array|ManipulateQuery {
 
     }
 
@@ -87,34 +104,15 @@ class Edit implements EditViewInterface
         URLBuilder $url_builder,
         URLBuilderToken $step_token
     ): StandardForm {
-        $ff = $this->ui_factory->input()->field();
         return $this->ui_factory->input()->container()->form()->standard(
-            $url_builder->withParameter($step_token, self::SET_GAP_TYPES)->buildURI()->__toString(),
+            $url_builder->withParameter($step_token, self::STEP_SET_GAP_TYPES)->buildURI()->__toString(),
             [
-                'form' => $ff->section(
-                    [
-                        'cloze_text' => $ff->markdown(
-                            new \ilUIMarkdownPreviewGUI(),
-                            $this->lng->txt('cloze_text')
-                        )->withRequired(true)
-                        ->withValue($this->type->getClozeText()),
-                        'matching_method' => $ff->select(
-                            $this->lng->txt('text_rating'),
-                            TextMatchingOptions::buildOptionsList($this->lng)
-                        )->withRequired(true)
-                        ->withValue($this->type->getMatchingMethod()->value),
-                        'min_autocomplete' => $ff->numeric($this->lng->txt('min_auto_complete'))
-                            ->withRequired(true)
-                            ->withValue($this->type->getAutocompleteLength()),
-                        'identical_responses' => $ff->select(
-                            $this->lng->txt('scoring_of_identical_responses'),
-                            ScoringIdentical::buildOptionsList($this->lng)
-                        )->withRequired(true)
-                        ->withValue($this->type->getScoringIdentical()->value),
-                        'max_chars' => $ff->numeric($this->lng->txt('cloze_fixed_textlength')),
-                        'enable_combinations' => $ff->checkbox($this->lng->txt('cloze_enable_combinations'))
-                    ],
-                    $this->lng->txt('create_answer_form')
+                self::MAIN_SECTION_NAME => $this->type->getProperties()->buildBasicEditingInputs(
+                    $this->lng,
+                    $this->ui_factory->input()->field(),
+                    $this->refinery,
+                    $this->properties_factory,
+                    $this->cloze_text_factory
                 )
             ]
         )->withSubmitLabel($this->lng->txt('next'));
@@ -123,13 +121,165 @@ class Edit implements EditViewInterface
     private function processBasicEditingForm(
         URLBuilder $url_builder,
         URLBuilderToken $step_token
-    ): StandardForm {
-        $form = $this->buildBasicEditingForm($url_builder, $step_token)->withRequest($this->request);
+    ): array {
+        $form = $this->buildBasicEditingForm($url_builder, $step_token)->withRequest($this->http->request());
         $data = $form->getData();
         if ($data === null) {
-            return $form;
+            return [$form];
         }
 
-        $this->buildGapTypesForm($url_builder, $step_token, $data);
+        return $this->buildOutputWithPanel(
+            $this->buildGapTypesForm($url_builder, $step_token, $data['form']),
+            $data[self::MAIN_SECTION_NAME]->getClozeText()
+        );
+    }
+
+    private function buildOutputWithPanel(
+        StandardForm $form,
+        ClozeText $cloze_text
+    ): array {
+        return [
+            $this->ui_factory->panel()->standard(
+                $this->lng->txt('cloze_text'),
+                $this->ui_factory->legacy()->content($cloze_text->getRenderedMarkdown())
+            ),
+            $form
+        ];
+    }
+
+    private function buildGapTypesForm(
+        URLBuilder $url_builder,
+        URLBuilderToken $step_token,
+        Properties $properties
+    ): StandardForm {
+        $ff = $this->ui_factory->input()->field();
+        $gaps = $properties->getClozeText()->extractGapsFromMarkdown($properties->getGaps());
+        return $this->ui_factory->input()->container()->form()->standard(
+            $url_builder->withParameter($step_token, self::STEP_SET_ANSWER_OPTIONS)->buildURI()->__toString(),
+            [
+                self::MAIN_SECTION_NAME => $properties->getGaps()->buildGapsTypeInputs($this->lng, $ff),
+                self::PROPERTIES_SECTION_NAME => $properties
+                    ->withClozeText(
+                        $properties->getClozeText()->addIdsOfNewGapsToClozeText($gaps)
+                    )->buildBasicEditingInputsHidden($ff)
+                    ->withDedicatedName(self::PROPERTIES_SECTION_NAME)
+
+            ]
+        )->withSubmitLabel($this->lng->txt('next'));
+    }
+
+    private function processGapTypesForm(
+        URLBuilder $url_builder,
+        URLBuilderToken $step_token
+    ): array {
+        $properties = $this->retrievePropertiesFromPost();
+        $form = $this->buildGapTypesForm(
+            $url_builder,
+            $step_token,
+            $properties
+        )->withRequest($this->http->request());
+        $data = $form->getData();
+        if ($data === null) {
+            return [$form];
+        }
+
+        return $this->buildOutputWithPanel(
+            $this->buildAnswerOptionsForm($url_builder, $step_token, $properties, $data[self::MAIN_SECTION_NAME]),
+            $properties->getClozeText()
+        );
+    }
+
+    private function buildAnswerOptionsForm(
+        URLBuilder $url_builder,
+        URLBuilderToken $step_token,
+        Properties $properties,
+        array $data
+    ): StandardForm {
+        $ff = $this->ui_factory->input()->field();
+        return $this->ui_factory->input()->container()->form()->standard(
+            $url_builder->withParameter($step_token, self::STEP_SET_POINTS)->buildURI()->__toString(),
+            [
+                self::MAIN_SECTION_NAME => $properties->getGaps()->buildAnswerOptionsInputs($this->lng, $ff),
+                self::PROPERTIES_SECTION_NAME => $properties->buildBasicEditingInputsHidden($ff)
+                    ->withDedicatedName(self::PROPERTIES_SECTION_NAME)
+            ]
+        )->withSubmitLabel($this->lng->txt('next'));
+    }
+
+    private function processAnswerOptionsForm(
+        URLBuilder $url_builder,
+        URLBuilderToken $step_token
+    ): array {
+        $properties = $this->retrievePropertiesFromPost();
+        $form = $this->buildAnswerOptionsForm(
+            $url_builder,
+            $step_token,
+            $properties
+        )->withRequest($this->http->request());
+        $data = $form->getData();
+        if ($data === null) {
+            return [$form];
+        }
+
+        return $this->buildOutputWithPanel(
+            $this->buildAssignPointsForm(
+                $url_builder,
+                $step_token,
+                $properties->withGaps(data[self::MAIN_SECTION_NAME])
+            ),
+            $properties->getClozeText()
+        );
+    }
+
+    private function buildAssignPointsForm(
+        URLBuilder $url_builder,
+        URLBuilderToken $step_token,
+        Properties $properties
+    ): StandardForm {
+        $gaps = $properties->getGaps();
+        $ff = $this->ui_factory->input()->field();
+        return $this->ui_factory->input()->container()->form()->standard(
+            $url_builder->withParameter($step_token, self::STEP_SAVE)->buildURI()->__toString(),
+            [
+                self::MAIN_SECTION_NAME => $ff->section(
+                    array_reduce(
+                        array_keys($data),
+                        function (array $c, string $v) use ($ff, $cloze_text, $data): array {
+                            $answer_input_id = $this->uuid_factory->fromString($v);
+                            $gap = $this->gap_factory->getEmptyGapByIdentifier($data[$v])
+                                ->withAnswerInputId($answer_input_id);
+                            if ($gap === null) {
+                                return $c;
+                            }
+                            $c[$v] = $gap->getEditSection(
+                                $this->lng,
+                                $this->ui_factory->input()->field(),
+                                $this->refinery,
+                                $cloze_text->buildShortenedGapName($answer_input_id)
+                            );
+                            return $c;
+                        },
+                        []
+                    ),
+                    $this->lng->txt('add_answer_options')
+                ),
+                self::PROPERTIES_SECTION_NAME => $properties->buildBasicEditingInputsHidden($ff)
+                    ->withDedicatedName(self::PROPERTIES_SECTION_NAME)
+            ]
+        )->withSubmitLabel($this->lng->txt('save'));
+    }
+
+    private function retrievePropertiesFromPost(): Properties
+    {
+        $properties = $this->type->getProperties();
+        return $this->properties_factory->fromPost(
+            $this->refinery,
+            $this->http->wrapper()->post(),
+            'form/' . self::PROPERTIES_SECTION_NAME,
+            $properties->getAnswerFormId(),
+            $properties->getLegacyClozeText(),
+            $properties->getScoringOfIdenticalResponses(),
+            $properties->areCombinationsActivated()
+        );
     }
 }

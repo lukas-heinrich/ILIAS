@@ -18,16 +18,36 @@
 
 declare(strict_types=1);
 
-namespace ILIAS\Questions\AnswerFormTypes\Cloze\Definitions;
+namespace ILIAS\Questions\AnswerFormTypes\Cloze\Properties\Definitions;
 
 use ILIAS\Language\Language;
+use ILIAS\Refinery\Factory as Refinery;
+use ILIAS\UI\Component\Input\Field\Factory as FieldFactory;
+use ILIAS\UI\Component\Input\Field\Select;
 
 enum ScoringIdentical: string
 {
     case ScoreAll = 'score_all';
     case OnlyScoreDistinct = 'score_distinct';
 
-    public static function buildOptionsList(Language $lng): array
+    public static function buildInput(
+        Language $lng,
+        FieldFactory $ff,
+        Refinery $refinery,
+        self $default_value
+    ): Select {
+        return $ff->select(
+            $lng->txt('scoring_of_identical_responses'),
+            self::buildOptionsList($lng)
+        )->withRequired(true)
+        ->withAdditionalTransformation(
+            $refinery->custom()->transformation(
+                fn(string $v): self => self::tryFrom($v) ?? $default_value
+            )
+        );
+    }
+
+    private static function buildOptionsList(Language $lng): array
     {
         return array_reduce(
             self::cases(),

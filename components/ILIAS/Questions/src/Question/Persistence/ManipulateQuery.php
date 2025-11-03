@@ -20,7 +20,7 @@ declare(strict_types=1);
 
 namespace ILIAS\Questions\Question\Persistence;
 
-class UpdateQuery
+class ManipulateQuery
 {
     private array $tables = [];
     private array $columns = [];
