@@ -40,7 +40,6 @@ class Factory
         return new Text(
             $this->refinery,
             $this->mustache_engine,
-            $this->uuid_factory,
             $this->text_factory,
             $this->text_factory->markdown($text)
         );

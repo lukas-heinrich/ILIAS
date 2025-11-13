@@ -41,11 +41,11 @@ class Factory
     ): array {
         return array_map(
             fn(string $v) => $lng->txt("{$v}_gap"),
-            array_keys($this->available_gap_type_classes)
+            array_keys($this->available_gap_types)
         );
     }
 
-    public function getNewGap(): ?Undefined
+    public function getNewGap(): Gap
     {
         return new Gap(
             $this->uuid_factory->uuid4()
@@ -62,6 +62,14 @@ class Factory
         }
         return (new $class())->withAnswerInputId(
             $this->uuid_factory->fromString($answer_input_id)
+        );
+    }
+
+    public function getEmptyGapsObject(): Gaps
+    {
+        return new Gaps(
+            $this,
+            []
         );
     }
 

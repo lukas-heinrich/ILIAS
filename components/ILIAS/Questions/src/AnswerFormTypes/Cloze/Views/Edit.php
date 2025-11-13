@@ -141,7 +141,11 @@ class Edit implements EditViewInterface
         return [
             $this->ui_factory->panel()->standard(
                 $this->lng->txt('cloze_text'),
-                $this->ui_factory->legacy()->content($cloze_text->getRenderedMarkdown())
+                $this->ui_factory->legacy()->content(
+                    $cloze_text->getRenderedMarkdown(
+                        $cloze_text->getGaps()
+                    )
+                )
             ),
             $form
         ];
@@ -153,15 +157,18 @@ class Edit implements EditViewInterface
         Properties $properties
     ): StandardForm {
         $ff = $this->ui_factory->input()->field();
-        $gaps = $properties->getClozeText()->extractGapsFromMarkdown($properties->getGaps());
         return $this->ui_factory->input()->container()->form()->standard(
             $url_builder->withParameter($step_token, self::STEP_SET_ANSWER_OPTIONS)->buildURI()->__toString(),
             [
-                self::MAIN_SECTION_NAME => $properties->getGaps()->buildGapsTypeInputs($this->lng, $ff),
+                self::MAIN_SECTION_NAME => $properties->getGaps()->buildGapsTypeInputs(
+                    $this->lng,
+                    $ff,
+                    $this->refinery,
+                    $this->gap_factory->getAvailableGapTypesOptionsArray($this->lng)
+                ),
                 self::PROPERTIES_SECTION_NAME => $properties
-                    ->withClozeText(
-                        $properties->getClozeText()->addIdsOfNewGapsToClozeText($gaps)
-                    )->buildBasicEditingInputsHidden($ff)
+                    ->withClozeText($properties->getClozeText())
+                    ->buildBasicEditingInputsHidden($ff)
                     ->withDedicatedName(self::PROPERTIES_SECTION_NAME)
 
             ]

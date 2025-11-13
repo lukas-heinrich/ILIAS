@@ -20,12 +20,9 @@ declare(strict_types=1);
 
 namespace ILIAS\Questions\AnswerFormTypes\Cloze\Properties\Gaps;
 
-use ILIAS\Questions\Question\Persistence\ManipulateQuery;
 use ILIAS\Data\UUID\Uuid;
 use ILIAS\Language\Language;
 use ILIAS\Refinery\Factory as Refinery;
-use ILIAS\Refinery\Constraint;
-use ILIAS\Refinery\Transformation;
 use ILIAS\UI\Component\Input\Field\Factory as FieldFactory;
 use ILIAS\UI\Component\Input\Field\Section;
 
@@ -47,11 +44,16 @@ class Gaps
         return $this->gaps[mb_substr($v['name'], 4)] ?? null;
     }
 
+    public function hasAtLeastOneGap(): bool
+    {
+        return $this->gaps !== [];
+    }
+
     public function withNewGap(): self
     {
         $new_gap = $this->factory->getNewGap();
         $clone = clone $this;
-        $clone->gaps[$new_gap->getAnswerInputId()] = $new_gap;
+        $clone->gaps[$new_gap->getAnswerInputId()->toString()] = $new_gap;
         return $clone;
     }
 
@@ -70,22 +72,35 @@ class Gaps
     {
         return array_filter(
             $this->gaps,
-            fn(Gap $v): bool => $v instanceof Undefined
+            fn(Gap $v): bool => $v->isUndefined()
+        );
+    }
+
+    public function getPlaceholderArrayForPreview()
+    {
+        array_reduce(
+            $this->gaps,
+            function (array $c, Gap $v): array {
+                $c[$v->buildGapPlaceholderNameWithId($v)] = $v->buildShortenedGapRepresentation($v);
+                return $c;
+            },
+            []
         );
     }
 
     public function buildGapsTypeInputs(
         Language $lng,
         FieldFactory $ff,
-        Refinery $refinery
+        Refinery $refinery,
+        array $available_gap_types
     ): Section {
         return $ff->section(
             array_reduce(
                 $this->gaps,
-                function (array $c, Gap $v) use ($ff): array {
+                function (array $c, Gap $v) use ($ff, $available_gap_types): array {
                     $c[$v->getAnswerInputId()->toString()] = $ff->select(
                         $v->getShortenedGapName(),
-                        $this->gap_factory->getAvailableGapTypesOptionsArray($this->lng)
+                        $available_gap_types
                     )->withRequired(true);
                     return $c;
                 },

@@ -81,12 +81,16 @@ class LocalDIC extends PimpleContainer
                 $c[UuidFactory::class],
                 $c[DataFactory::class]->text()
             );
-        $dic[Cloze\Properties\Gaps\Factory::class] = static fn($c): Cloze\Properties\Gaps\Factory => new Cloze\Properties\Gaps\Factory([
-            new Cloze\Properties\Gaps\Text(),
-            new Cloze\Properties\Gaps\Numeric(),
-            new Cloze\Properties\Gaps\Select(),
-            new Cloze\Properties\Gaps\LongMenu()
-        ]);
+        $dic[Cloze\Properties\Gaps\Factory::class] = static fn($c): Cloze\Properties\Gaps\Factory =>
+            new Cloze\Properties\Gaps\Factory(
+                $c[UuidFactory::class],
+                [
+                    new Cloze\Properties\Gaps\Text(),
+                    new Cloze\Properties\Gaps\Numeric(),
+                    new Cloze\Properties\Gaps\Select(),
+                    new Cloze\Properties\Gaps\LongMenu()
+                ]
+            );
         $dic[Cloze\Properties\AnswerForm\Factory::class] = static fn($c): Cloze\Properties\AnswerForm\Factory
             => new Cloze\Properties\AnswerForm\Factory(
                 $c[Cloze\Properties\ClozeText\Factory::class],

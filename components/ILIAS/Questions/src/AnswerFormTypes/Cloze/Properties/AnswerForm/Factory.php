@@ -59,6 +59,7 @@ class Factory
         return new Properties(
             $answer_form_id,
             $cloze_text,
+            $cloze_text->getGaps(),
             $legacy_cloze_text,
             $scoring_of_identical_responses,
             $combinations_enabled
@@ -105,7 +106,8 @@ class Factory
     {
         return new Properties(
             null,
-            $this->cloze_text_factory->buildFromTextString('')
+            $this->cloze_text_factory->buildFromTextString(''),
+            $this->gaps_factory->getEmptyGapsObject()
         );
     }
 }

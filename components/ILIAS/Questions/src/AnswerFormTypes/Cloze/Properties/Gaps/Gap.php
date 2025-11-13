@@ -31,7 +31,7 @@ use ILIAS\UI\Component\Input\Field\Section;
 
 class Gap
 {
-    private const string GAP_PLACEHOLDER_NAME = 'GAP';
+    public const string GAP_PLACEHOLDER_NAME = 'GAP';
 
     public function __construct(
         private Uuid $answer_input_id,
@@ -55,18 +55,19 @@ class Gap
         return $clone;
     }
 
+    public function isUndefined(): bool
+    {
+        return $this->type === null;
+    }
+
     public function getGapPlaceholder(): string
     {
-        if ($this->answer_input_id === null) {
-            return '{{' . self::GAP_PLACEHOLDER_NAME . '}}';
-        }
-
         return "{{{$this->buildGapPlaceholderNameWithId()}}}";
     }
 
     public function getShortenedGapName(): string
     {
-        return self::GAP_PLACEHOLDER_NAME . '_' . mb_substr($this->answer_input_id, 0, 4);
+        return self::GAP_PLACEHOLDER_NAME . '_' . mb_substr($this->answer_input_id->toString(), 0, 4);
     }
 
     public function getShortenedGapRepresentation(): string

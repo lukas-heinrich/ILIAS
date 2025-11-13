@@ -107,7 +107,8 @@ class Properties
                 self::FORM_KEY_CLOZE_TEXT => $this->getClozeText()->getInput(
                     $lng,
                     $ff,
-                    $cloze_text_factory
+                    $cloze_text_factory,
+                    $this->gaps
                 ),
                 self::FORM_KEY_IDENTICAL_SCORING => ScoringIdentical::buildInput(
                     $lng,
