@@ -37,6 +37,7 @@ class Properties
     public const string FORM_KEY_CLOZE_TEXT = 'cloze_text';
     public const string FORM_KEY_IDENTICAL_SCORING = 'identical_scoring';
     public const string FORM_KEY_ENABLE_COMBINATIONS = 'enable_combinations';
+    public const string FORM_KEY_GAPS_TO_EDIT = 'gaps';
 
     /**
      * @param array<string, \ILIAS\Questions\AnswerFormTypes\Cloze\Gap> $gaps
@@ -95,6 +96,17 @@ class Properties
         return $clone;
     }
 
+    public function withNewGapsFromClozeText(): self
+    {
+        $clone = clone $this;
+        $clone->gaps = $clone->cloze_text->updateGapsFromMarkdown($this->gaps);
+        $clone->cloze_text = $this->addIdsOfNewGapsToClozeText(
+            $clone->cloze_text,
+            $clone->gaps->getUndefinedGaps()
+        );
+        return $clone;
+    }
+
     public function buildBasicEditingInputs(
         Language $lng,
         FieldFactory $ff,
@@ -107,8 +119,7 @@ class Properties
                 self::FORM_KEY_CLOZE_TEXT => $this->getClozeText()->getInput(
                     $lng,
                     $ff,
-                    $cloze_text_factory,
-                    $this->gaps
+                    $cloze_text_factory
                 ),
                 self::FORM_KEY_IDENTICAL_SCORING => ScoringIdentical::buildInput(
                     $lng,
@@ -123,7 +134,7 @@ class Properties
         )->withAdditionalTransformation(
             $refinery->custom()->transformation(
                 fn(array $vs): self => $propteries_factory->fromForm(
-                    $this->answer_form_id,
+                    $this,
                     $vs[self::FORM_KEY_CLOZE_TEXT],
                     $this->legacy_cloze_text,
                     $vs[self::FORM_KEY_IDENTICAL_SCORING],
@@ -140,6 +151,8 @@ class Properties
             [
                 self::FORM_KEY_CLOZE_TEXT => $this->getClozeText()->getHiddenInput($ff)
                     ->withDedicatedName(self::FORM_KEY_CLOZE_TEXT),
+                self::FORM_KEY_GAPS_TO_EDIT => $this->gaps->getHiddenInput($ff)
+                    ->withDedicatedName(self::FORM_KEY_GAPS_TO_EDIT),
                 self::FORM_KEY_IDENTICAL_SCORING => $ff->hidden()
                     ->withDedicatedName(self::FORM_KEY_IDENTICAL_SCORING)
                     ->withValue($this->getScoringOfIdenticalResponses()->value),

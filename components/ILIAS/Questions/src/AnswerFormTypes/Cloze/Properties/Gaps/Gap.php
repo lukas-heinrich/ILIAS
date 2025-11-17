@@ -24,14 +24,15 @@ use ILIAS\Questions\Question\Persistence\ManipulateQuery;
 use ILIAS\Data\UUID\Uuid;
 use ILIAS\Language\Language;
 use ILIAS\Refinery\Factory as Refinery;
-use ILIAS\Refinery\Constraint;
-use ILIAS\Refinery\Transformation;
 use ILIAS\UI\Component\Input\Field\Factory as FieldFactory;
 use ILIAS\UI\Component\Input\Field\Section;
 
 class Gap
 {
     public const string GAP_PLACEHOLDER_NAME = 'GAP';
+
+    private const string FORM_KEY_INPUT_ID = 'input_id';
+    private const string FORM_KEY_TYPE = 'type';
 
     public function __construct(
         private Uuid $answer_input_id,
@@ -65,14 +66,19 @@ class Gap
         return "{{{$this->buildGapPlaceholderNameWithId()}}}";
     }
 
-    public function getShortenedGapName(): string
+    public function buildShortenedGapName(): string
     {
         return self::GAP_PLACEHOLDER_NAME . '_' . mb_substr($this->answer_input_id->toString(), 0, 4);
     }
 
-    public function getShortenedGapRepresentation(): string
+    public function buildShortenedGapRepresentation(): string
     {
         return "[{$this->buildShortenedGapName()}]";
+    }
+
+    public function buildGapPlaceholderNameWithId(): string
+    {
+        return self::GAP_PLACEHOLDER_NAME . '_' . $this->answer_input_id->toString();
     }
 
     public function getEditSection(
@@ -81,31 +87,28 @@ class Gap
         Refinery $refinery
     ): Section {
         $section = $ff->section(
-            $this->getEditInputs($lng, $ff, $refinery),
-            "{$this->getShortenedGapName()} ({$lng->txt("{$this->getIdentifier()}_gap")})"
+            $this->type->getEditInputs($lng, $ff, $refinery),
+            "{$this->buildShortenedGapName()} ({$lng->txt("{$this->getIdentifier()}_gap")})"
         );
 
-        $edit_section_constraint = $this->getEditSectionConstraint($refinery, $lng);
+        $edit_section_constraint = $this->type->getEditSectionConstraint($refinery, $lng);
         if ($edit_section_constraint !== null) {
             $section = $section->withAdditionalTransformation($edit_section_constraint);
         }
 
 
         return $section->withAdditionalTransformation(
-            $this->getBuildGapTransformation($refinery, $this->answer_input_id)
+            $this->type->getBuildGapTransformation($refinery, $this->answer_input_id)
         );
     }
 
-    protected function buildTagsArrayfromAnswerOptions(array $answer_options): array
-    {
-        return array_map(
-            fn(AnswerOption $v): string => $v->getValue(),
-            $answer_options
-        );
-    }
-
-    private function buildGapPlaceholderNameWithId(): string
-    {
-        return self::GAP_PLACEHOLDER_NAME . '_' . $this->answer_input_id->toString();
+    public function getHiddenInput(
+        FieldFactory $ff,
+        Refinery $refinery
+    ): Group {
+        return $ff->group([
+            self::FORM_KEY_INPUT_ID => $this->answer_input_id->toString(),
+            self::FORM_KEY_TYPE => $this->type?->getIdentifier() ?? ''
+        ]);
     }
 }

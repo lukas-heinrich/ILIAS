@@ -26,12 +26,12 @@ use ILIAS\Questions\AnswerFormTypes\Cloze\Properties\AnswerForm\Properties;
 use ILIAS\Questions\AnswerFormTypes\Cloze\Properties\ClozeText\Factory as ClozeTextFactory;
 use ILIAS\Questions\AnswerFormTypes\Cloze\Properties\ClozeText\Text as ClozeText;
 use ILIAS\Questions\AnswerFormTypes\Cloze\Properties\Gaps\Factory as GapFactory;
+use ILIAS\Questions\AnswerFormTypes\Cloze\Properties\Gaps\Gaps;
 use ILIAS\Questions\AnswerFormTypes\Cloze\Type;
 use ILIAS\Questions\Question\Persistence\ManipulateQuery;
 use ILIAS\HTTP\Services as HTTPServices;
 use ILIAS\Data\Factory as DataFactory;
 use ILIAS\Data\UUID\Factory as UuidFactory;
-use ILIAS\Data\UUID\Uuid;
 use ILIAS\Language\Language;
 use ILIAS\UI\URLBuilder;
 use ILIAS\UI\URLBuilderToken;
@@ -129,21 +129,26 @@ class Edit implements EditViewInterface
         }
 
         return $this->buildOutputWithPanel(
-            $this->buildGapTypesForm($url_builder, $step_token, $data['form']),
+            $this->buildGapTypesForm(
+                $url_builder,
+                $step_token,
+                $data['form']->withNewGapsFromClozeText()
+            ),
             $data[self::MAIN_SECTION_NAME]->getClozeText()
         );
     }
 
     private function buildOutputWithPanel(
         StandardForm $form,
-        ClozeText $cloze_text
+        ClozeText $cloze_text,
+        ?Gaps $gaps = null
     ): array {
         return [
             $this->ui_factory->panel()->standard(
                 $this->lng->txt('cloze_text'),
                 $this->ui_factory->legacy()->content(
                     $cloze_text->getRenderedMarkdown(
-                        $cloze_text->getGaps()
+                        $gaps ?? $cloze_text->getGaps()
                     )
                 )
             ),
@@ -192,7 +197,8 @@ class Edit implements EditViewInterface
 
         return $this->buildOutputWithPanel(
             $this->buildAnswerOptionsForm($url_builder, $step_token, $properties, $data[self::MAIN_SECTION_NAME]),
-            $properties->getClozeText()
+            $properties->getClozeText(),
+            $data
         );
     }
 
@@ -206,7 +212,7 @@ class Edit implements EditViewInterface
         return $this->ui_factory->input()->container()->form()->standard(
             $url_builder->withParameter($step_token, self::STEP_SET_POINTS)->buildURI()->__toString(),
             [
-                self::MAIN_SECTION_NAME => $properties->getGaps()->buildAnswerOptionsInputs($this->lng, $ff),
+                self::MAIN_SECTION_NAME => $properties->getGaps()->buildAnswerOptionsInputs($this->lng, $ff, $this->refinery),
                 self::PROPERTIES_SECTION_NAME => $properties->buildBasicEditingInputsHidden($ff)
                     ->withDedicatedName(self::PROPERTIES_SECTION_NAME)
             ]
@@ -284,6 +290,7 @@ class Edit implements EditViewInterface
             $this->http->wrapper()->post(),
             'form/' . self::PROPERTIES_SECTION_NAME,
             $properties->getAnswerFormId(),
+            $properties->getGaps(),
             $properties->getLegacyClozeText(),
             $properties->getScoringOfIdenticalResponses(),
             $properties->areCombinationsActivated()

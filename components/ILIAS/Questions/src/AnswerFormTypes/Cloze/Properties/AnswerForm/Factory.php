@@ -24,6 +24,7 @@ use ILIAS\Questions\AnswerFormTypes\Cloze\Properties\ClozeText\Factory as ClozeT
 use ILIAS\Questions\AnswerFormTypes\Cloze\Properties\ClozeText\Text as ClozeText;
 use ILIAS\Questions\AnswerFormTypes\Cloze\Properties\Definitions\ScoringIdentical;
 use ILIAS\Questions\AnswerFormTypes\Cloze\Properties\Gaps\Factory as GapsFactory;
+use ILIAS\Questions\AnswerFormTypes\Cloze\Properties\Gaps\Gaps;
 use ILIAS\Data\UUID\Uuid;
 use ILIAS\HTTP\Wrapper\ArrayBasedRequestWrapper;
 use ILIAS\Refinery\Factory as Refinery;
@@ -71,6 +72,7 @@ class Factory
         ArrayBasedRequestWrapper $post_wrapper,
         string $form_input_path,
         ?Uuid $answer_form_id,
+        Gaps $gaps,
         string $legacy_cloze_text,
         ScoringIdentical $default_scoring_identical
     ): Properties {
@@ -96,6 +98,7 @@ class Factory
         return new Properties(
             $answer_form_id,
             $cloze_text,
+            $cloze_text->updateGapsFromMarkdown($gaps),
             $legacy_cloze_text,
             $scoring_of_identical_responses,
             $combinations_enabled

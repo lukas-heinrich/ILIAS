@@ -24,7 +24,6 @@ use ILIAS\Questions\AnswerFormTypes\Cloze\Properties\Gaps\Gaps;
 use ILIAS\Questions\AnswerFormTypes\Cloze\Properties\Gaps\Gap;
 use ILIAS\Data\Text\Markdown;
 use ILIAS\Data\Text\Factory as TextFactory;
-use ILIAS\Data\UUID\Uuid;
 use ILIAS\Language\Language;
 use ILIAS\Refinery\Factory as Refinery;
 use ILIAS\UI\Component\Input\Field\Factory as FieldFactory;
@@ -34,8 +33,6 @@ use Mustache\Engine;
 
 class Text
 {
-    private ?Gaps $gaps = null;
-
     public function __construct(
         private readonly Refinery $refinery,
         private readonly Engine $mustache_engine,
@@ -47,8 +44,7 @@ class Text
     public function getInput(
         Language $lng,
         FieldFactory $ff,
-        Factory $cloze_text_factory,
-        Gaps $current_gaps
+        Factory $cloze_text_factory
     ): MarkdownInput {
         return $ff->markdown(
             new \ilUIMarkdownPreviewGUI(),
@@ -58,11 +54,10 @@ class Text
         ])->withAdditionalTransformation(
             $this->refinery->custom()->transformation(
                 fn(string $v): self => $cloze_text_factory->buildFromTextString($v)
-                    ->withGapsFromMarkdown($current_gaps)
             )
         )->withAdditionalTransformation(
             $this->refinery->custom()->constraint(
-                fn(self $v): bool => $v->getGaps()->hasAtLeastOneGap(),
+                fn(self $v): bool => $v->hasAtLeastOneGap(),
                 $lng->txt('no_gaps')
             )
         )->withRequired(true)
@@ -83,26 +78,15 @@ class Text
         );
     }
 
-    public function getGaps(): Gaps
-    {
-        if ($this->gaps === null) {
-            throw new \Exception('You have to call `self::withGapsFromMarkdown()` first to initialize gaps.');
-        }
-
-        return $this->gaps;
-    }
-
-    public function withGapsFromMarkdown(
+    public function updateGapsFromMarkdown(
         Gaps $pre_existing_gaps
-    ): self {
-        $clone = clone $this;
+    ): Gaps {
         if ($this->cloze_text->getRawRepresentation() === '') {
-            $clone->gaps = $pre_existing_gaps->withResetGaps();
-            return $clone;
+            return $pre_existing_gaps->withResetGaps();
         }
 
         $position = 0;
-        $clone->gaps = array_reduce(
+        return array_reduce(
             $this->mustache_engine->getTokenizer()->scan($this->cloze_text->getRawRepresentation()),
             function (Gaps $c, array $v) use (&$position): Gaps {
                 if ($v['type'] !== '_v'
@@ -124,15 +108,9 @@ class Text
             },
             $pre_existing_gaps
         );
-        $clone->cloze_text = $this->addIdsOfNewGapsToClozeText(
-            $clone->cloze_text,
-            $clone->gaps->getUndefinedGaps()
-        );
-
-        return $clone;
     }
 
-    private function addIdsOfNewGapsToClozeText(Markdown $cloze_text, array $new_gaps): Markdown
+    public function addIdsOfNewGapsToClozeText(Markdown $cloze_text, array $new_gaps): Markdown
     {
         if ($new_gaps === []) {
             return $cloze_text;
@@ -147,6 +125,23 @@ class Text
                 $cloze_text->getRawRepresentation()
             )
         );
+    }
+
+    private function hasAtLeastOneGap(): bool
+    {
+        if ($this->cloze_text->getRawRepresentation() === '') {
+            return false;
+        }
+
+        foreach ($this->mustache_engine->getTokenizer()
+            ->scan($this->cloze_text->getRawRepresentation()) as $token) {
+            if ($token['type'] === '_v'
+                || str_starts_with($token['name'], Gap::GAP_PLACEHOLDER_NAME)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function getTextForOutputInHiddenInput(): string

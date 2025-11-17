@@ -41,12 +41,19 @@ class Gaps
 
     public function getGapByTagName(string $tag_name): ?Gap
     {
-        return $this->gaps[mb_substr($v['name'], 4)] ?? null;
+        return $this->gaps[mb_substr($tag_name, 4)] ?? null;
     }
 
     public function hasAtLeastOneGap(): bool
     {
         return $this->gaps !== [];
+    }
+
+    public function withGap(Gap $gap): self
+    {
+        $clone = clone $this;
+        $clone->gaps[$gap->getAnswerInputId()->toString()] = $gap;
+        return $clone;
     }
 
     public function withNewGap(): self
@@ -60,7 +67,7 @@ class Gaps
     public function withResetGaps(): self
     {
         if ($this->gaps === []) {
-            return self;
+            return $this;
         }
 
         $clone = clone $this;
@@ -76,9 +83,9 @@ class Gaps
         );
     }
 
-    public function getPlaceholderArrayForPreview()
+    public function getPlaceholderArrayForPreview(): array
     {
-        array_reduce(
+        return array_reduce(
             $this->gaps,
             function (array $c, Gap $v): array {
                 $c[$v->buildGapPlaceholderNameWithId($v)] = $v->buildShortenedGapRepresentation($v);
@@ -96,10 +103,10 @@ class Gaps
     ): Section {
         return $ff->section(
             array_reduce(
-                $this->gaps,
+                $this->getUndefinedGaps(),
                 function (array $c, Gap $v) use ($ff, $available_gap_types): array {
                     $c[$v->getAnswerInputId()->toString()] = $ff->select(
-                        $v->getShortenedGapName(),
+                        $v->buildShortenedGapName(),
                         $available_gap_types
                     )->withRequired(true);
                     return $c;
@@ -109,9 +116,9 @@ class Gaps
             $lng->txt('select_gap_types')
         )->withAdditionalTransformation(
             $refinery->custom()->transformation(
-                fn(array $vs): Gaps => array_reduce(
+                fn(array $vs): self => array_reduce(
                     array_keys($vs),
-                    fn(Gaps $c, string $v): Gaps => $c->withGap(
+                    fn(self $c, string $v): self => $c->withGap(
                         $this->factory->getGapOfType($vs[$v], $v)
                     ),
                     $this
@@ -138,9 +145,30 @@ class Gaps
                 },
                 []
             ),
-            $this->lng->txt('add_answer_options')
+            $lng->txt('add_answer_options')
         )->withAdditionalTransformation(
+            $refinery->custom()->transformation(
+                fn(array $vs): self => array_reduce(
+                    array_keys($vs),
+                    fn(self $c, string $v): self => $c->withGap($v),
+                    $this
+                )
+            )
+        );
+    }
 
+    public function getHiddenInput(FieldFactory $ff): Group
+    {
+        return $ff->group(
+            array_reduce(
+                $this->gaps,
+                function (array $c, Gap $v) use ($lng, $ff, $refinery): array {
+                    $c[$v->getAnswerInputId()->toString()] = $v->getHiddenInput($ff);
+                    return $c;
+                },
+                []
+            ),
+            $lng->txt('add_answer_options')
         );
     }
 }
