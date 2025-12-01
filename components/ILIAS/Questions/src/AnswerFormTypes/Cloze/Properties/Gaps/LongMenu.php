@@ -20,95 +20,139 @@ declare(strict_types=1);
 
 namespace ILIAS\Questions\AnswerFormTypes\Cloze\Properties\Gaps;
 
-use ILIAS\Data\UUID\Uuid;
+use ILIAS\Questions\AnswerFormTypes\Cloze\Properties\Gaps\Data\AnswerOptions;
+use ILIAS\Questions\AnswerFormTypes\Cloze\Properties\Gaps\Data\AnswerOption;
+use ILIAS\Questions\AnswerFormTypes\Cloze\Properties\Gaps\Data\Data;
+use ILIAS\FileUpload\MimeType;
 use ILIAS\Language\Language;
 use ILIAS\Refinery\Factory as Refinery;
 use ILIAS\Refinery\Constraint;
 use ILIAS\Refinery\Transformation;
-use ILIAS\UI\Component\Input\Field\Factory as FieldFactory;
+use ILIAS\UI\Factory as UIFactory;
 
-class LongMenu implements Type
+class LongMenu extends Type
 {
-    private int $min_autocomplete = 3;
+    private const int DEFAULT_MIN_AUTOCOMPLETE = 3;
+    private const array ACCEPTED_MIME_TYPES = [MimeType::TEXT__PLAIN];
+
+    public function __construct(
+        Refinery $refinery,
+        private readonly Language $lng,
+        private readonly UIFactory $ui_factory
+    ) {
+        parent::__construct($refinery);
+    }
 
     public function getIdentifier(): string
     {
         return 'long_menu';
     }
 
-    public function withData(Data $data): self
+    public function getEditAnswerOptionsInputs(Data $data): array
     {
-        if ($data->getMinAutocomplete() === null) {
-            return $this;
-        }
-
-        $clone = clone $this;
-        $clone->min_autocomplete = $data->getMinAutocomplete();
-        return $clone;
-    }
-
-    public function getEditInputs(
-        Language $lng,
-        FieldFactory $ff,
-        Refinery $refinery
-    ): array {
+        $ff = $this->ui_factory->input()->field();
         return [
             'answer_options' => $ff->tag(
-                $lng->txt('answer_options'),
+                $this->lng->txt('answer_options'),
                 []
-            )->withValue($this->buildTagsArrayFromAnswerOptions($this->answer_options)),
+            )->withValue($data->getAnswerOptions()->getTagsArrayFromAnswerOptions()),
+            'upload_answer_options' => $ff->file(
+                new UploadAnswerOptionsGUI(),
+                $this->lng->txt('upload_answer_options'),
+                $this->lng->txt('upload_answer_options_info')
+            )->withAcceptedMimeTypes(self::ACCEPTED_MIME_TYPES),
             'min_autocomplete' => $ff->numeric(
-                $lng->txt('min_autocomplete')
+                $this->lng->txt('min_autocomplete')
             )->withRequired(true)
-            ->withValue($this->min_autocomplete),
+            ->withValue($data->getMinAutocomplete() ?? self::DEFAULT_MIN_AUTOCOMPLETE),
             'options_awarding_points' => $ff->tag(
-                $lng->txt('answer_options'),
-                []
-            )->withValue(
-                array_reduce(
-                    $this->answer_options,
-                    static function (array $c, AnswerOption $v): array {
-                        if ($v->getAvailablePoints() > 0.0) {
-                            $c[] = $v->getValue();
-                        }
-                        return $c;
-                    },
-                    []
+                $this->lng->txt('answer_options'),
+                $data->getAnswerOptions()->getTagsArrayFromAnswerOptions()
+            )
+            ->withRequired(true)
+            ->withValue(
+                array_map(
+                    fn(AnswerOption $v): string => $v->getTextValue(),
+                    $data->getAnswerOptions()->getAnswerOptionsAwardingPoints()
                 )
             )
         ];
     }
 
-    public function getEditSectionConstraint(
-        Refinery $refinery,
-        Language $lng
-    ): ?Constraint {
-        return $refinery->custom()->constraint(
-            fn(array $v): bool => $vs['answer_options'] !== [],
-            $lng->txt('error')
+    public function getEditAnswerOptionsSectionConstraint(): ?Constraint
+    {
+        return $this->refinery->custom()->constraint(
+            function (array $vs): bool {
+                $values = array_merge(
+                    $vs['answer_options'],
+                    $this->retrieveAnswerOptionsArrayFromUpload($vs['upload_answer_options'])
+                );
+
+                return $values !== [] && array_filter(
+                    $vs['options_awarding_points'],
+                    fn(string $v): bool => !in_array($v, $values)
+                ) === [];
+            },
+            $this->lng->txt('error')
         );
     }
 
-    public function getBuildGapTransformation(
-        Refinery $refinery,
-        Uuid $answer_input_id
-    ): Transformation {
-        return $refinery->custom()->transformation(
-            fn(array $vs): self => new self(
-                $answer_input_id,
-                $vs['min_autocomplete'],
-                $vs['answer_options']
+    public function getEditPointsInputs(AnswerOptions $answer_options): array
+    {
+        return $answer_options->getEditPointsInputs(
+            $this->ui_factory->input()->field(),
+            fn(AnswerOption $v): string => $v->getTextValue(),
+            $answer_options->getAnswerOptionsAwardingPoints()
+        );
+    }
+
+    public function getEditPointsSectionConstraint(): ?Constraint
+    {
+        return $this->refinery->custom()->constraint(
+            function (array $vs): bool {
+                foreach ($vs as $v) {
+                    if ($v > 0.0) {
+                        return true;
+                    }
+                }
+                return false;
+            },
+            $this->lng->txt('at_least_one_gap_positiv_points')
+        );
+    }
+
+    public function getBuildGapTransformation(Gap $gap): Transformation
+    {
+        return $this->refinery->custom()->transformation(
+            fn(array $vs): Gap => $gap->withData(
+                $gap->getData()
+                    ->withMinAutocomplete($vs['min_autocomplete'])
+                    ->withAnswerOptions(
+                        $gap->getData()->getAnswerOptions()->withAnswerOptionsFromTags(
+                            array_merge(
+                                $vs['answer_options'],
+                                $this->retrieveAnswerOptionsArrayFromUpload($vs['upload_answer_options'])
+                            )
+                        )->withAnswerOptionsAwardingPoints($vs['options_awarding_points'])
+                    )
             )
         );
-    }
-
-    public function addValuesToData(Data $data): Data
-    {
-        return $data->withMinAutocomplete($this->min_autocomplete);
     }
 
     public function getAnswerInput(): \ilFormPropertyGUI
     {
         ;
+    }
+
+    private function retrieveAnswerOptionsArrayFromUpload(?array $upload_value): array
+    {
+        if ($upload_value === null
+            || ($decoded_value = base64_decode($upload_value[0] ?? '')) === '') {
+            return [];
+        }
+
+        return array_filter(
+            mb_split('\R', $decoded_value)
+        );
     }
 }

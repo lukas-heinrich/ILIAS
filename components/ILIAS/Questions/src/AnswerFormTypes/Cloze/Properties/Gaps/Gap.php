@@ -20,28 +20,28 @@ declare(strict_types=1);
 
 namespace ILIAS\Questions\AnswerFormTypes\Cloze\Properties\Gaps;
 
-use ILIAS\Questions\Question\Persistence\ManipulateQuery;
+use ILIAS\Questions\AnswerFormTypes\Cloze\Properties\Gaps\Data\Data;
 use ILIAS\Data\UUID\Uuid;
 use ILIAS\Language\Language;
+use ILIAS\HTTP\Wrapper\ArrayBasedRequestWrapper;
 use ILIAS\Refinery\Factory as Refinery;
 use ILIAS\UI\Component\Input\Field\Factory as FieldFactory;
 use ILIAS\UI\Component\Input\Field\Section;
+use ILIAS\UI\Component\Input\Field\Group;
 
 class Gap
 {
     public const string GAP_PLACEHOLDER_NAME = 'GAP';
 
-    private const string FORM_KEY_INPUT_ID = 'input_id';
     private const string FORM_KEY_TYPE = 'type';
+    private const string FORM_KEY_DATA = 'data';
 
     public function __construct(
         private Uuid $answer_input_id,
-        private ?Type $type = null,
-        ?ManipulateQuery $data = null
+        private int $position,
+        private Data $data,
+        private ?Type $type = null
     ) {
-        if ($this->type !== null && $data !== null) {
-            $this->type = $this->type->withData($data);
-        }
     }
 
     public function getAnswerInputId(): ?Uuid
@@ -53,6 +53,37 @@ class Gap
     {
         $clone = clone $this;
         $clone->answer_input_id = $answer_input_id;
+        return $clone;
+    }
+
+    public function getPosition(): int
+    {
+        return $this->position;
+    }
+
+    public function withPosition(int $position): self
+    {
+        $clone = clone $this;
+        $clone->position = $position;
+        return $clone;
+    }
+
+    public function withType(Type $type): self
+    {
+        $clone = clone $this;
+        $clone->type = $type;
+        return $clone;
+    }
+
+    public function getData(): Data
+    {
+        return $this->data;
+    }
+
+    public function withData(Data $data): self
+    {
+        $clone = clone $this;
+        $clone->data = $data;
         return $clone;
     }
 
@@ -68,7 +99,7 @@ class Gap
 
     public function buildShortenedGapName(): string
     {
-        return self::GAP_PLACEHOLDER_NAME . '_' . mb_substr($this->answer_input_id->toString(), 0, 4);
+        return self::GAP_PLACEHOLDER_NAME . '_' . $this->getShortenedAnswerInputId();
     }
 
     public function buildShortenedGapRepresentation(): string
@@ -81,34 +112,85 @@ class Gap
         return self::GAP_PLACEHOLDER_NAME . '_' . $this->answer_input_id->toString();
     }
 
-    public function getEditSection(
+    public function getEditAnswerOptionsSection(
         Language $lng,
-        FieldFactory $ff,
-        Refinery $refinery
+        FieldFactory $ff
     ): Section {
         $section = $ff->section(
-            $this->type->getEditInputs($lng, $ff, $refinery),
-            "{$this->buildShortenedGapName()} ({$lng->txt("{$this->getIdentifier()}_gap")})"
+            $this->type->getEditAnswerOptionsInputs($this->data),
+            "{$this->buildShortenedGapName()} ({$lng->txt("{$this->type->getIdentifier()}_gap")})"
         );
 
-        $edit_section_constraint = $this->type->getEditSectionConstraint($refinery, $lng);
+        $edit_section_constraint = $this->type->getEditAnswerOptionsSectionConstraint();
         if ($edit_section_constraint !== null) {
             $section = $section->withAdditionalTransformation($edit_section_constraint);
         }
 
 
         return $section->withAdditionalTransformation(
-            $this->type->getBuildGapTransformation($refinery, $this->answer_input_id)
+            $this->type->getBuildGapTransformation($this)
+        );
+    }
+
+    public function getEditPointsSection(
+        Language $lng,
+        FieldFactory $ff
+    ): Section {
+        $section = $ff->section(
+            $this->type->getEditPointsInputs($this->data->getAnswerOptions()),
+            "{$this->buildShortenedGapName()} ({$lng->txt("{$this->type->getIdentifier()}_gap")})"
+        );
+
+        $edit_section_constraint = $this->type->getEditPointsSectionConstraint();
+        if ($edit_section_constraint !== null) {
+            $section = $section->withAdditionalTransformation($edit_section_constraint);
+        }
+
+
+        return $section->withAdditionalTransformation(
+            $this->type->getAddPointsTransformation($this)
         );
     }
 
     public function getHiddenInput(
-        FieldFactory $ff,
-        Refinery $refinery
+        FieldFactory $ff
     ): Group {
         return $ff->group([
-            self::FORM_KEY_INPUT_ID => $this->answer_input_id->toString(),
-            self::FORM_KEY_TYPE => $this->type?->getIdentifier() ?? ''
+            self::FORM_KEY_TYPE => $ff->hidden()->withValue($this->type?->getIdentifier() ?? '')
+                ->withDedicatedName(self::FORM_KEY_TYPE . $this->getShortenedAnswerInputId()),
+            self::FORM_KEY_DATA => $this->data->getHiddenInput($ff)
+            ->withDedicatedName(self::FORM_KEY_DATA . $this->getShortenedAnswerInputId())
         ]);
+    }
+
+    public function withValuesFromPost(
+        Refinery $refinery,
+        ArrayBasedRequestWrapper $post_wrapper,
+        Factory $gaps_factory,
+        string $form_input_path
+    ): self {
+        $available_gap_types = $gaps_factory->getAvailableGapTypes();
+        return $post_wrapper->retrieve(
+            $form_input_path . '/' . self::FORM_KEY_TYPE . $this->getShortenedAnswerInputId(),
+            $refinery->byTrying([
+                $refinery->custom()->transformation(
+                    fn(?string $v): self => $available_gap_types[$v]
+                        ? $this->withType($available_gap_types[$v])
+                        : $this
+                ),
+                $refinery->always($this)
+            ])
+        )->withData(
+            $this->data->withValuesFromPost(
+                $refinery,
+                $post_wrapper,
+                $form_input_path . '/' . self::FORM_KEY_DATA . $this->getShortenedAnswerInputId()
+            )
+        );
+    }
+
+    private function getShortenedAnswerInputId(): string
+    {
+        return mb_substr($this->answer_input_id->toString(), 0, 4);
     }
 }

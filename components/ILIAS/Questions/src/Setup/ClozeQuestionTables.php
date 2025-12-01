@@ -79,6 +79,11 @@ class ClozeQuestionTables implements \ilDatabaseUpdateSteps
                     'length' => 64,
                     'notnull' => true
                 ],
+                'position' => [
+                    'type' => \ilDBConstants::T_INTEGER,
+                    'length' => 2,
+                    'notnull' => true
+                ],
                 'gap_type' => [
                     'type' => \ilDBConstants::T_TEXT,
                     'length' => 32,
@@ -106,14 +111,6 @@ class ClozeQuestionTables implements \ilDatabaseUpdateSteps
                 'shuffle_answer_options' => [
                     'type' => \ilDBConstants::T_INTEGER,
                     'length' => 1,
-                    'notnull' => false
-                ],
-                'lower_limit' => [
-                    'type' => \ilDBConstants::T_FLOAT,
-                    'notnull' => false
-                ],
-                'upper_limit' => [
-                    'type' => \ilDBConstants::T_FLOAT,
                     'notnull' => false
                 ]
             ]);
@@ -148,10 +145,18 @@ class ClozeQuestionTables implements \ilDatabaseUpdateSteps
                     'length' => 2,
                     'notnull' => true
                 ],
-                 'value' => [
+                'text_value' => [
                     'type' => \ilDBConstants::T_TEXT,
                     'length' => 4000,
-                    'notnull' => true
+                    'notnull' => false
+                ],
+                'lower_limit' => [
+                    'type' => \ilDBConstants::T_FLOAT,
+                    'notnull' => false
+                ],
+                'upper_limit' => [
+                    'type' => \ilDBConstants::T_FLOAT,
+                    'notnull' => false
                 ],
                 'points' => [
                     'type' => \ilDBConstants::T_FLOAT,

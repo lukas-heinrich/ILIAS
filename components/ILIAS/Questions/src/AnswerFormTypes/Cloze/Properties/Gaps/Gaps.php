@@ -22,9 +22,11 @@ namespace ILIAS\Questions\AnswerFormTypes\Cloze\Properties\Gaps;
 
 use ILIAS\Data\UUID\Uuid;
 use ILIAS\Language\Language;
+use ILIAS\HTTP\Wrapper\ArrayBasedRequestWrapper;
 use ILIAS\Refinery\Factory as Refinery;
 use ILIAS\UI\Component\Input\Field\Factory as FieldFactory;
 use ILIAS\UI\Component\Input\Field\Section;
+use ILIAS\UI\Component\Input\Field\Group;
 
 class Gaps
 {
@@ -41,7 +43,7 @@ class Gaps
 
     public function getGapByTagName(string $tag_name): ?Gap
     {
-        return $this->gaps[mb_substr($tag_name, 4)] ?? null;
+        return $this->gaps[$this->extractIdFromTagName($tag_name)] ?? null;
     }
 
     public function hasAtLeastOneGap(): bool
@@ -56,11 +58,19 @@ class Gaps
         return $clone;
     }
 
-    public function withNewGap(): self
+    public function withNewGap(int $position): self
     {
-        $new_gap = $this->factory->getNewGap();
+        $new_gap = $this->factory->getNewGap($position);
         $clone = clone $this;
         $clone->gaps[$new_gap->getAnswerInputId()->toString()] = $new_gap;
+        return $clone;
+    }
+
+    public function withAdditionalGapFromTagName(string $tag_name, $position): self
+    {
+        $id = $this->extractIdFromTagName($tag_name);
+        $clone = clone $this;
+        $clone->gaps[$id] = $this->factory->getNewGap($position, $id);
         return $clone;
     }
 
@@ -119,7 +129,9 @@ class Gaps
                 fn(array $vs): self => array_reduce(
                     array_keys($vs),
                     fn(self $c, string $v): self => $c->withGap(
-                        $this->factory->getGapOfType($vs[$v], $v)
+                        $c->gaps[$v]->withType(
+                            $this->factory->getGapTypeByIdentifier($vs[$v])
+                        )
                     ),
                     $this
                 )
@@ -135,11 +147,10 @@ class Gaps
         return $ff->section(
             array_reduce(
                 $this->gaps,
-                function (array $c, Gap $v) use ($lng, $ff, $refinery): array {
-                    $c[$v->getAnswerInputId()->toString()] = $v->getEditSection(
+                function (array $c, Gap $v) use ($lng, $ff): array {
+                    $c[$v->getAnswerInputId()->toString()] = $v->getEditAnswerOptionsSection(
                         $lng,
-                        $ff,
-                        $refinery
+                        $ff
                     );
                     return $c;
                 },
@@ -150,7 +161,36 @@ class Gaps
             $refinery->custom()->transformation(
                 fn(array $vs): self => array_reduce(
                     array_keys($vs),
-                    fn(self $c, string $v): self => $c->withGap($v),
+                    fn(self $c, string $v): self => $c->withGap($vs[$v]),
+                    $this
+                )
+            )
+        );
+    }
+
+    public function buildPointInputs(
+        Language $lng,
+        FieldFactory $ff,
+        Refinery $refinery
+    ): Section {
+        return $ff->section(
+            array_reduce(
+                $this->gaps,
+                function (array $c, Gap $v) use ($lng, $ff): array {
+                    $c[$v->getAnswerInputId()->toString()] = $v->getEditPointsSection(
+                        $lng,
+                        $ff
+                    );
+                    return $c;
+                },
+                []
+            ),
+            $lng->txt('add_points')
+        )->withAdditionalTransformation(
+            $refinery->custom()->transformation(
+                fn(array $vs): self => array_reduce(
+                    array_keys($vs),
+                    fn(self $c, string $v): self => $c->withGap($vs[$v]),
                     $this
                 )
             )
@@ -162,13 +202,37 @@ class Gaps
         return $ff->group(
             array_reduce(
                 $this->gaps,
-                function (array $c, Gap $v) use ($lng, $ff, $refinery): array {
-                    $c[$v->getAnswerInputId()->toString()] = $v->getHiddenInput($ff);
+                function (array $c, Gap $v) use ($ff): array {
+                    $c[$v->getAnswerInputId()->toString()] = $v->getHiddenInput($ff)
+                        ->withDedicatedName($v->getAnswerInputId()->toString());
                     return $c;
                 },
                 []
-            ),
-            $lng->txt('add_answer_options')
+            )
         );
+    }
+
+    public function withValuesFromPost(
+        Refinery $refinery,
+        ArrayBasedRequestWrapper $post_wrapper,
+        Factory $gaps_factory,
+        string $form_input_path
+    ): self {
+        $clone = clone $this;
+        $clone->gaps = array_map(
+            fn(Gap $v): Gap => $v->withValuesFromPost(
+                $refinery,
+                $post_wrapper,
+                $gaps_factory,
+                $form_input_path . '/' . $v->getAnswerInputId()->toString()
+            ),
+            $this->gaps
+        );
+        return $clone;
+    }
+
+    private function extractIdFromTagName(string $tag_name): string
+    {
+        return mb_substr($tag_name, mb_strlen(Gap::GAP_PLACEHOLDER_NAME) + 1);
     }
 }

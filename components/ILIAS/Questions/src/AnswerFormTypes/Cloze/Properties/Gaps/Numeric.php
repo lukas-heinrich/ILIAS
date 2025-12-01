@@ -20,86 +20,106 @@ declare(strict_types=1);
 
 namespace ILIAS\Questions\AnswerFormTypes\Cloze\Properties\Gaps;
 
-use ILIAS\Data\UUID\Uuid;
+use ILIAS\Questions\AnswerFormTypes\Cloze\Properties\Gaps\Data\AnswerOptions;
+use ILIAS\Questions\AnswerFormTypes\Cloze\Properties\Gaps\Data\AnswerOption;
+use ILIAS\Questions\AnswerFormTypes\Cloze\Properties\Gaps\Data\Data;
 use ILIAS\Language\Language;
 use ILIAS\Refinery\Factory as Refinery;
 use ILIAS\Refinery\Constraint;
 use ILIAS\Refinery\Transformation;
-use ILIAS\UI\Component\Input\Field\Factory as FieldFactory;
+use ILIAS\UI\Factory as UIFactory;
+use ILIAS\UI\Component\Input\Field\Numeric as NumericInput;
 
-class Numeric implements Type
+class Numeric extends Type
 {
-    private float $step_size = 0.0001;
-    private ?float $lower_limit = null;
-    private ?float $upper_limit = null;
+    private const float DEFAULT_STEP_SIZE = 0.0001;
+
+    public function __construct(
+        Refinery $refinery,
+        private readonly Language $lng,
+        private readonly UIFactory $ui_factory
+    ) {
+        parent::__construct($refinery);
+    }
 
     public function getIdentifier(): string
     {
         return 'numeric';
     }
 
-    public function withData(Data $data): Type
+    public function getEditAnswerOptionsInputs(Data $data): array
     {
-        $clone = clone $this;
-        $clone->lower_limit = $data->getLowerLimit();
-        $clone->upper_limit = $data->getUpperLimit();
-        if ($data->getStepSize() !== null) {
-            return $this->step_size = $data->getStepSize();
-        }
-        return $clone;
-    }
-
-    public function getEditInputs(
-        Language $lng,
-        FieldFactory $ff,
-        Refinery $refinery
-    ): array {
+        $answer_option = $data->getAnswerOptions()->getAnswerOptionForPositionOrNew(0);
+        $ff = $this->ui_factory->input()->field();
         return [
-            'lower_limit' => $ff->numeric('lower_limit')
-                ->withStepSize($this->step_size)
+            'lower_limit' => $ff->numeric($this->lng->txt('lower_limit'))
+                ->withStepSize($data->getStepSize() ?? self::DEFAULT_STEP_SIZE)
                 ->withRequired(true)
-                ->withValue($this->lower_limit),
-            'upper_limit' => $ff->numeric('upper_limit')
-                ->withStepSize(0.00000001)
-                ->withValue($this->upper_limit),
-            'step_size' => $ff->numeric('step_size')
-                ->withStepSize($this->step_size)
+                ->withValue($answer_option->getLowerLimit()),
+            'upper_limit' => $ff->numeric($this->lng->txt('upper_limit'))
+                ->withStepSize($data->getStepSize() ?? self::DEFAULT_STEP_SIZE)
+                ->withValue($answer_option->getUpperLimit()),
+            'step_size' => $ff->numeric($this->lng->txt('step_size'))
+                ->withStepSize(0.000001)
                 ->withRequired(true)
-                ->withValue($this->step_size)
+                ->withValue($data->getStepSize() ?? self::DEFAULT_STEP_SIZE)
         ];
     }
 
-    public function getEditSectionConstraint(
-        Refinery $refinery,
-        Language $lng
-    ): ?Constraint {
-        return $refinery->custom()->constraint(
-            fn(array $v): bool => $vs['upper_limit'] === null
+    public function getEditAnswerOptionsSectionConstraint(): ?Constraint
+    {
+        return $this->refinery->custom()->constraint(
+            fn(array $vs): bool => $vs['upper_limit'] === null
                 || $vs['upper_limit'] >= $vs['lower_limit']
                     && $vs['upper_limit'] >= $vs['step_size'],
-            $lng->txt('error')
+            $this->lng->txt('upper_limit_bigger_than_lower')
         );
     }
 
-    public function getBuildGapTransformation(
-        Refinery $refinery,
-        Uuid $answer_input_id
-    ): Transformation {
-        return $refinery->custom()->transformation(
-            fn(array $vs): self => new self(
-                $answer_input_id,
-                $vs['lower_limit'],
-                $vs['upper_limit'],
-                $vs['step_size']
+    public function getEditPointsInputs(AnswerOptions $answer_options): array
+    {
+        $inputs = $answer_options->getEditPointsInputs(
+            $this->ui_factory->input()->field(),
+            function (AnswerOption $v): string {
+                if ($v->getUpperLimit() === null) {
+                    return sprintf(
+                        $this->lng->txt('equal'),
+                        $v->getLowerLimit()
+                    );
+                }
+
+                return sprintf(
+                    $this->lng->txt('between'),
+                    $v->getLowerLimit(),
+                    $v->getUpperLimit()
+                );
+            }
+        );
+        return array_map(
+            fn(NumericInput $v): NumericInput => $v->withRequired(true),
+            $inputs
+        );
+    }
+
+    public function getEditPointsSectionConstraint(): ?Constraint
+    {
+        return null;
+    }
+
+    public function getBuildGapTransformation(Gap $gap): Transformation
+    {
+        $data = $gap->getData();
+        return $this->refinery->custom()->transformation(
+            fn(array $vs): Gap => $gap->withData(
+                $data->withAnswerOptions(
+                    $data->getAnswerOptions()->withAnswerOptions([
+                        $data->getAnswerOptions()->getAnswerOptionForPositionOrNew(0)
+                            ->withLowerLimit($vs['lower_limit'])
+                            ->withUpperLimit($vs['upper_limit'])
+                        ])
+                )->withStepSize($vs['step_size'])
             )
         );
-    }
-
-    public function addValuesToData(Data $data): Data
-    {
-        return $data->withLowerLimit($this->lower_limit)
-            ->withUpperLimit($this->upper_limit)
-            ->withStepSize($this->step_size);
     }
 
     public function getAnswerInput(): \ilFormPropertyGUI

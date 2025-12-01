@@ -20,81 +20,99 @@ declare(strict_types=1);
 
 namespace ILIAS\Questions\AnswerFormTypes\Cloze\Properties\Gaps;
 
+use ILIAS\Questions\AnswerFormTypes\Cloze\Properties\Gaps\Data\AnswerOptions;
+use ILIAS\Questions\AnswerFormTypes\Cloze\Properties\Gaps\Data\AnswerOption;
+use ILIAS\Questions\AnswerFormTypes\Cloze\Properties\Gaps\Data\Data;
 use ILIAS\Questions\Question\Definitions\TextMatchingOptions;
-use ILIAS\Data\UUID\Uuid;
 use ILIAS\Language\Language;
 use ILIAS\Refinery\Factory as Refinery;
 use ILIAS\Refinery\Constraint;
 use ILIAS\Refinery\Transformation;
-use ILIAS\UI\Component\Input\Field\Factory as FieldFactory;
+use ILIAS\UI\Factory as UIFactory;
 
-class Text implements Type
+class Text extends Type
 {
-    private ?int $max_chars = null;
-    private TextMatchingOptions $text_matching_method = TextMatchingOptions::CaseInsensitive;
+    private const TextMatchingOptions DEFAULT_TECT_MATCHING_METHOD = TextMatchingOptions::CaseInsensitive;
+
+    public function __construct(
+        Refinery $refinery,
+        private readonly Language $lng,
+        private readonly UIFactory $ui_factory
+    ) {
+        parent::__construct($refinery);
+    }
 
     public function getIdentifier(): string
     {
         return 'text';
     }
 
-    public function withData(Data $data): self
+    public function getEditAnswerOptionsInputs(Data $data): array
     {
-        $clone = clone $this;
-        $clone->max_chars = $data->getMaxChars();
-        if ($data->getTextMatchingMethod() !== null) {
-            return $clone->text_matching_method = $data->getTextMatchingMethod();
-        }
-        return $clone;
-    }
-
-    public function getEditInputs(
-        Language $lng,
-        FieldFactory $ff,
-        Refinery $refinery
-    ): array {
+        $ff = $this->ui_factory->input()->field();
         return [
             'answer_options' => $ff->tag(
-                $lng->txt('answer_options'),
+                $this->lng->txt('answer_options'),
                 []
             )->withRequired(true)
-            ->withValue($this->buildTagsArrayFromAnswerOptions($this->answer_options)),
+            ->withValue($data->getAnswerOptions()->getTagsArrayFromAnswerOptions()),
             'matching_method' => $ff->select(
-                $lng->txt('matching_method'),
-                TextMatchingOptions::buildOptionsList($lng)
+                $this->lng->txt('matching_method'),
+                TextMatchingOptions::buildOptionsList($this->lng)
             )->withRequired(true)
-            ->withValue($this->text_matching_method->value),
+            ->withValue($data->getTextMatchingMethod()?->value ?? self::DEFAULT_TECT_MATCHING_METHOD->value),
             'max_chars' => $ff->numeric(
-                $lng->txt('max_chars'),
-            )->withValue($this->max_chars)
+                $this->lng->txt('max_chars'),
+            )->withValue($data->getMaxChars())
         ];
     }
 
-    public function getEditSectionConstraint(
-        Refinery $refinery,
-        Language $lng
-    ): ?Constraint {
-        return null;
-    }
-
-    public function getBuildGapTransformation(
-        Refinery $refinery,
-        Uuid $answer_input_id
-    ): Transformation {
-        return $refinery->custom()->transformation(
-            fn(array $vs): self => new self(
-                $answer_input_id,
-                $vs['max_chars'],
-                $vs['matching_method'],
-                $vs['answer_options']
-            )
+    public function getEditAnswerOptionsSectionConstraint(): ?Constraint
+    {
+        return $this->refinery->custom()->constraint(
+            fn(array $vs): bool => array_filter(
+                $vs['answer_options'],
+                fn(string $v): bool => in_array($v, $vs['answer_options'])
+            ) !== [],
+            $this->lng->txt('answer_options_must_be_unique')
         );
     }
 
-    public function addValuesToData(Data $data): Data
+    public function getEditPointsInputs(AnswerOptions $answer_options): array
     {
-        return $data->withMaxChars($this->max_chars)
-            ->withTextMatchingMethods($this->text_matching_method);
+        return $answer_options->getEditPointsInputs(
+            $this->ui_factory->input()->field(),
+            fn(AnswerOption $v): string => $v->getTextValue()
+        );
+    }
+
+    public function getEditPointsSectionConstraint(): ?Constraint
+    {
+        return $this->refinery->custom()->constraint(
+            function (array $vs): bool {
+                foreach ($vs as $v) {
+                    if ($v > 0.0) {
+                        return true;
+                    }
+                }
+                return false;
+            },
+            $this->lng->txt('at_least_one_gap_positiv_points')
+        );
+    }
+
+    public function getBuildGapTransformation(Gap $gap): Transformation
+    {
+        $data = $gap->getData();
+        return $this->refinery->custom()->transformation(
+            fn(array $vs): Gap => $gap->withData(
+                $data->withMaxChars($vs['max_chars'])
+                    ->withTextMatchingMethod(TextMatchingOptions::tryFrom($vs['matching_method']) ?? self::DEFAULT_TECT_MATCHING_METHOD)
+                    ->withAnswerOptions(
+                        $data->getAnswerOptions()->withAnswerOptionsFromTags($vs['answer_options'])
+                    )
+            )
+        );
     }
 
     public function getAnswerInput(): \ilFormPropertyGUI

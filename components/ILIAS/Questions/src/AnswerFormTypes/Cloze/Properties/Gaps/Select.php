@@ -20,69 +20,85 @@ declare(strict_types=1);
 
 namespace ILIAS\Questions\AnswerFormTypes\Cloze\Properties\Gaps;
 
-use ILIAS\Data\UUID\Uuid;
+use ILIAS\Questions\AnswerFormTypes\Cloze\Properties\Gaps\Data\AnswerOptions;
+use ILIAS\Questions\AnswerFormTypes\Cloze\Properties\Gaps\Data\AnswerOption;
+use ILIAS\Questions\AnswerFormTypes\Cloze\Properties\Gaps\Data\Data;
 use ILIAS\Language\Language;
 use ILIAS\Refinery\Factory as Refinery;
 use ILIAS\Refinery\Constraint;
 use ILIAS\Refinery\Transformation;
-use ILIAS\UI\Component\Input\Field\Factory as FieldFactory;
+use ILIAS\UI\Factory as UIFactory;
 
-class Select implements Type
+class Select extends Type
 {
-    private bool $shuffle_answer_options = false;
+    private const bool DEFAULT_SHUFFLE_ANSWER_OPTIONS = false;
+
+    public function __construct(
+        Refinery $refinery,
+        private readonly Language $lng,
+        private readonly UIFactory $ui_factory
+    ) {
+        parent::__construct($refinery);
+    }
 
     public function getIdentifier(): string
     {
         return 'select';
     }
 
-    public function withData(Data $data): self
+    public function getEditAnswerOptionsInputs(Data $data): array
     {
-        if ($data->getShuffleAnswerOptions() === null) {
-            return $this;
-        }
-
-        $clone = clone $this;
-        $clone->shuffle_answer_options = $data->getShuffleAnswerOptions();
-        return $clone;
-    }
-
-    public function getEditInputs(
-        Language $lng,
-        FieldFactory $ff,
-        Refinery $refinery
-    ): array {
+        $ff = $this->ui_factory->input()->field();
         return [
             'answer_options' => $ff->tag(
-                $lng->txt('answer_options'),
+                $this->lng->txt('answer_options'),
                 []
             )->withRequired(true)
-            ->withValue($this->buildTagsArrayFromAnswerOptions($this->answer_options))
+            ->withValue($data->getAnswerOptions()->getTagsArrayFromAnswerOptions()),
+            'shuffle_answer_options' => $ff->checkbox(
+                $this->lng->txt('shuffle_answers')
+            )->withValue($data?->getShuffleAnswerOptions() ?? self::DEFAULT_SHUFFLE_ANSWER_OPTIONS)
         ];
     }
 
-    public function getEditSectionConstraint(
-        Refinery $refinery,
-        Language $lng
-    ): ?Constraint {
+    public function getEditAnswerOptionsSectionConstraint(): ?Constraint
+    {
         return null;
     }
 
-    public function getBuildGapTransformation(
-        Refinery $refinery,
-        Uuid $answer_input_id
-    ): Transformation {
-        return $refinery->custom()->transformation(
-            fn(array $vs): self => new self(
-                $answer_input_id,
-                $vs['answer_options']
-            )
+    public function getEditPointsInputs(AnswerOptions $answer_options): array
+    {
+        return $answer_options->getEditPointsInputs(
+            $this->ui_factory->input()->field(),
+            fn(AnswerOption $v): string => $v->getTextValue()
         );
     }
 
-    public function addValuesToData(Data $data): Data
+    public function getEditPointsSectionConstraint(): ?Constraint
     {
-        return $data->withShuffleAnswerOptions($this->shuffle_answer_options);
+        return $this->refinery->custom()->constraint(
+            function (array $vs): bool {
+                foreach ($vs as $v) {
+                    if ($v > 0.0) {
+                        return true;
+                    }
+                }
+                return false;
+            },
+            $this->lng->txt('at_least_one_gap_positiv_points')
+        );
+    }
+
+    public function getBuildGapTransformation(Gap $gap): Transformation
+    {
+        $data = $gap->getData();
+        return $this->refinery->custom()->transformation(
+            fn(array $vs): Gap => $gap->withData(
+                $data->withAnswerOptions(
+                    $data->getAnswerOptions()->withAnswerOptionsFromTags($vs['answer_options'])
+                )
+            )
+        );
     }
 
     public function getAnswerInput(): \ilFormPropertyGUI

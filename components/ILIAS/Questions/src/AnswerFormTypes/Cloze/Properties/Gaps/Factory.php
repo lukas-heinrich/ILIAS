@@ -20,6 +20,7 @@ declare(strict_types=1);
 
 namespace ILIAS\Questions\AnswerFormTypes\Cloze\Properties\Gaps;
 
+use ILIAS\Questions\AnswerFormTypes\Cloze\Properties\Gaps\Data\Factory as DataFactory;
 use ILIAS\Language\Language;
 use ILIAS\Data\UUID\Factory as UuidFactory;
 
@@ -29,6 +30,7 @@ class Factory
 
     public function __construct(
         private readonly UuidFactory $uuid_factory,
+        private readonly DataFactory $data_factory,
         array $available_gap_types
     ) {
         foreach ($available_gap_types as $type) {
@@ -36,32 +38,31 @@ class Factory
         }
     }
 
+    public function getAvailableGapTypes(): array
+    {
+        return $this->available_gap_types;
+    }
+
     public function getAvailableGapTypesOptionsArray(
         Language $lng
     ): array {
         return array_map(
-            fn(string $v) => $lng->txt("{$v}_gap"),
-            array_keys($this->available_gap_types)
+            fn(Type $v) => $lng->txt("{$v->getIdentifier()}_gap"),
+            $this->available_gap_types
         );
     }
 
-    public function getNewGap(): Gap
-    {
+    public function getNewGap(
+        int $position,
+        string $id = ''
+    ): Gap {
+        $answer_input_id = $id !== ''
+            ? $this->uuid_factory->fromString($id)
+            : $this->uuid_factory->uuid4();
         return new Gap(
-            $this->uuid_factory->uuid4()
-        );
-    }
-
-    public function getGapOfType(
-        string $type_identifier,
-        string $answer_input_id
-    ): ?Gap {
-        $class = $this->available_gap_type_classes[$type_identifier];
-        if ($class === null) {
-            return $class;
-        }
-        return (new $class())->withAnswerInputId(
-            $this->uuid_factory->fromString($answer_input_id)
+            $answer_input_id,
+            $position,
+            $this->data_factory->getDefaultDataObject($answer_input_id)
         );
     }
 
@@ -73,12 +74,17 @@ class Factory
         );
     }
 
-    /**
-     * @return array<string, \ILIAS\Questions\AnswerFormTypes\Cloze\Properties\Gaps\Gap>
-     */
+    public function getGapTypeByIdentifier(string $identifier): Type
+    {
+        if (!array_key_exists($identifier, $this->available_gap_types)) {
+            throw new \InvalidArgumentException('Gap type does not exist.');
+        }
+        return $this->available_gap_types[$identifier];
+    }
+
     public function fromDatabase(
         array $data
-    ): array {
+    ): Gaps {
 
     }
 }

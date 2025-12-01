@@ -21,6 +21,7 @@ declare(strict_types=1);
 use ILIAS\Questions\Legacy\LocalDIC;
 use ILIAS\Questions\Presentation\Edit;
 use ILIAS\Questions\Units\GlobalConfigurationGUI;
+use ILIAS\Questions\AnswerFormTypes\Cloze\Properties\Gaps\UploadAnswerOptionsGUI;
 use ILIAS\Data\Factory as DataFactory;
 use ILIAS\Data\URI;
 
@@ -66,6 +67,10 @@ class ilObjQuestionsGUI extends ilObjectGUI
         $this->prepareOutput();
 
         switch ($next_class) {
+            case strtolower(UploadAnswerOptionsGUI::class):
+                $this->ctrl->forwardCommand(new UploadAnswerOptionsGUI());
+                break;
+
             case strtolower(ilPermissionGUI::class):
                 $this->tabs_gui->activateTab('perm_settings');
                 $this->ctrl->forwardCommand(new \ilPermissionGUI($this));

@@ -95,36 +95,37 @@ class Text
                 }
 
                 if ($v['name'] === Gap::GAP_PLACEHOLDER_NAME) {
-                    return $c->withNewGap();
+                    return $c->withNewGap($position++);
                 }
 
-                $gap = $c->getGapByTagName($v['name'])?->withPosition($position);
-
-                if ($gap === null) {
-                    return $c;
+                $gap = $c->getGapByTagName($v['name']);
+                if ($gap !== null) {
+                    return $c->withPosition($position++);
                 }
 
-                return $c->withUpdatedGap($gap);
+                return $c->withAdditionalGapFromTagName($v['name'], $position++);
             },
             $pre_existing_gaps
         );
     }
 
-    public function addIdsOfNewGapsToClozeText(Markdown $cloze_text, array $new_gaps): Markdown
+    public function withIdsOfNewGapsInClozeText(array $new_gaps): self
     {
         if ($new_gaps === []) {
-            return $cloze_text;
+            return self;
         }
 
-        return $this->text_factory->markdown(
+        $clone = clone $this;
+        $clone->cloze_text = $this->text_factory->markdown(
             mb_ereg_replace_callback(
                 '{{' . Gap::GAP_PLACEHOLDER_NAME . '}}',
                 function (array $matches) use (&$new_gaps): string {
                     return array_shift($new_gaps)->getGapPlaceholder();
                 },
-                $cloze_text->getRawRepresentation()
+                $this->cloze_text->getRawRepresentation()
             )
         );
+        return $clone;
     }
 
     private function hasAtLeastOneGap(): bool
@@ -136,7 +137,7 @@ class Text
         foreach ($this->mustache_engine->getTokenizer()
             ->scan($this->cloze_text->getRawRepresentation()) as $token) {
             if ($token['type'] === '_v'
-                || str_starts_with($token['name'], Gap::GAP_PLACEHOLDER_NAME)) {
+                && str_starts_with($token['name'], Gap::GAP_PLACEHOLDER_NAME)) {
                 return true;
             }
         }

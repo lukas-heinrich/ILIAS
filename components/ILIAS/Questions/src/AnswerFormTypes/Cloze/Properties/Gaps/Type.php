@@ -20,34 +20,37 @@ declare(strict_types=1);
 
 namespace ILIAS\Questions\AnswerFormTypes\Cloze\Properties\Gaps;
 
-use ILIAS\Data\UUID\Uuid;
-use ILIAS\Language\Language;
+use ILIAS\Questions\AnswerFormTypes\Cloze\Properties\Gaps\Data\AnswerOptions;
+use ILIAS\Questions\AnswerFormTypes\Cloze\Properties\Gaps\Data\Data;
 use ILIAS\Refinery\Factory as Refinery;
 use ILIAS\Refinery\Constraint;
 use ILIAS\Refinery\Transformation;
-use ILIAS\UI\Component\Input\Field\Factory as FieldFactory;
 
-interface Type
+abstract class Type
 {
-    public function getIdentifier(): string;
-    public function withData(Data $data): self;
-    public function getEditInputs(
-        Language $lng,
-        FieldFactory $ff,
-        Refinery $refinery
-    ): array;
+    public function __construct(
+        protected readonly Refinery $refinery
+    ) {
+    }
 
-    public function getEditSectionConstraint(
-        Refinery $refinery,
-        Language $lng
-    ): ?Constraint;
+    abstract public function getIdentifier(): string;
+    abstract public function getEditAnswerOptionsInputs(Data $data): array;
+    abstract public function getEditAnswerOptionsSectionConstraint(): ?Constraint;
+    abstract public function getEditPointsInputs(AnswerOptions $answer_options): array;
+    abstract public function getEditPointsSectionConstraint(): ?Constraint;
+    abstract public function getBuildGapTransformation(Gap $gap): Transformation;
+    abstract public function getAnswerInput(): \ilFormPropertyGUI;
 
-    public function getBuildGapTransformation(
-        Refinery $refinery,
-        Uuid $answer_input_id
-    ): Transformation;
-
-    public function addValuesToData(Data $data): Data;
-
-    public function getAnswerInput(): \ilFormPropertyGUI;
+    public function getAddPointsTransformation(Gap $gap): Transformation
+    {
+        $data = $gap->getData();
+        return $this->refinery->custom()->transformation(
+            fn(array $vs): Gap => $gap->withData(
+                $data->withAnswerOptions(
+                    $data->getAnswerOptions()
+                        ->withAnswerOptionsWithAddedPointsFromForm($this->refinery, $vs)
+                )
+            )
+        );
+    }
 }

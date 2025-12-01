@@ -24,14 +24,14 @@ use ILIAS\Questions\AnswerFormTypes\Cloze\Properties\ClozeText\Factory as ClozeT
 use ILIAS\Questions\AnswerFormTypes\Cloze\Properties\ClozeText\Text as ClozeText;
 use ILIAS\Questions\AnswerFormTypes\Cloze\Properties\Definitions\ScoringIdentical;
 use ILIAS\Questions\AnswerFormTypes\Cloze\Properties\Gaps\Factory as GapsFactory;
-use ILIAS\Questions\AnswerFormTypes\Cloze\Properties\Gaps\Gaps;
-use ILIAS\Data\UUID\Uuid;
+use ILIAS\Data\UUID\Factory as UuidFactory;
 use ILIAS\HTTP\Wrapper\ArrayBasedRequestWrapper;
 use ILIAS\Refinery\Factory as Refinery;
 
 class Factory
 {
     public function __construct(
+        private readonly UuidFactory $uuid_factory,
         private readonly ClozeTextFactory $cloze_text_factory,
         private readonly GapsFactory $gaps_factory
     ) {
@@ -51,57 +51,20 @@ class Factory
     }
 
     public function fromForm(
-        ?string $answer_form_id,
+        Properties $properties,
         ClozeText $cloze_text,
         string $legacy_cloze_text,
         ScoringIdentical $scoring_of_identical_responses,
         bool $combinations_enabled
     ): Properties {
+        $updated_gaps = $cloze_text->updateGapsFromMarkdown($properties->getGaps());
         return new Properties(
-            $answer_form_id,
-            $cloze_text,
-            $cloze_text->getGaps(),
-            $legacy_cloze_text,
+            $properties->getAnswerFormId(),
+            $cloze_text->withIdsOfNewGapsInClozeText($updated_gaps->getUndefinedGaps()),
+            $updated_gaps,
             $scoring_of_identical_responses,
-            $combinations_enabled
-        );
-    }
-
-    public function fromPost(
-        Refinery $refinery,
-        ArrayBasedRequestWrapper $post_wrapper,
-        string $form_input_path,
-        ?Uuid $answer_form_id,
-        Gaps $gaps,
-        string $legacy_cloze_text,
-        ScoringIdentical $default_scoring_identical
-    ): Properties {
-        $cloze_text = $post_wrapper->retrieve(
-            $form_input_path . '/' . Properties::FORM_KEY_CLOZE_TEXT,
-            $refinery->custom()->transformation(
-                fn(string $v): ClozeText => $this->cloze_text_factory->buildFromHiddenInputString($v)
-            )
-        );
-
-        $scoring_of_identical_responses = $post_wrapper->retrieve(
-            $form_input_path . '/' . Properties::FORM_KEY_IDENTICAL_SCORING,
-            $refinery->custom()->transformation(
-                static fn(string $v): ScoringIdentical => ScoringIdentical::tryFrom($v) ?? $default_scoring_identical
-            )
-        );
-
-        $combinations_enabled = $post_wrapper->retrieve(
-            $form_input_path . '/' . Properties::FORM_KEY_ENABLE_COMBINATIONS,
-            $refinery->kindlyTo()->bool()
-        );
-
-        return new Properties(
-            $answer_form_id,
-            $cloze_text,
-            $cloze_text->updateGapsFromMarkdown($gaps),
-            $legacy_cloze_text,
-            $scoring_of_identical_responses,
-            $combinations_enabled
+            $combinations_enabled,
+            $legacy_cloze_text
         );
     }
 

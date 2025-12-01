@@ -81,18 +81,41 @@ class LocalDIC extends PimpleContainer
                 $c[UuidFactory::class],
                 $c[DataFactory::class]->text()
             );
-        $dic[Cloze\Properties\Gaps\Factory::class] = static fn($c): Cloze\Properties\Gaps\Factory =>
-            new Cloze\Properties\Gaps\Factory(
+        $dic[Cloze\Properties\Gaps\Data\Factory::class] = static fn($c): Cloze\Properties\Gaps\Data\Factory
+            => new Cloze\Properties\Gaps\Data\Factory(
                 $c[UuidFactory::class],
+                $DIC['refinery']
+            );
+        $dic[Cloze\Properties\Gaps\Factory::class] = static fn($c): Cloze\Properties\Gaps\Factory
+            => new Cloze\Properties\Gaps\Factory(
+                $c[UuidFactory::class],
+                $c[Cloze\Properties\Gaps\Data\Factory::class],
                 [
-                    new Cloze\Properties\Gaps\Text(),
-                    new Cloze\Properties\Gaps\Numeric(),
-                    new Cloze\Properties\Gaps\Select(),
-                    new Cloze\Properties\Gaps\LongMenu()
+                    new Cloze\Properties\Gaps\Text(
+                        $DIC['refinery'],
+                        $DIC['lng'],
+                        $DIC['ui.factory']
+                    ),
+                    new Cloze\Properties\Gaps\Numeric(
+                        $DIC['refinery'],
+                        $DIC['lng'],
+                        $DIC['ui.factory']
+                    ),
+                    new Cloze\Properties\Gaps\Select(
+                        $DIC['refinery'],
+                        $DIC['lng'],
+                        $DIC['ui.factory']
+                    ),
+                    new Cloze\Properties\Gaps\LongMenu(
+                        $DIC['refinery'],
+                        $DIC['lng'],
+                        $DIC['ui.factory']
+                    )
                 ]
             );
         $dic[Cloze\Properties\AnswerForm\Factory::class] = static fn($c): Cloze\Properties\AnswerForm\Factory
             => new Cloze\Properties\AnswerForm\Factory(
+                $c[UuidFactory::class],
                 $c[Cloze\Properties\ClozeText\Factory::class],
                 $c[Cloze\Properties\Gaps\Factory::class]
             );
@@ -106,8 +129,6 @@ class LocalDIC extends PimpleContainer
                 $DIC['ui.factory'],
                 $DIC['refinery'],
                 $DIC['http'],
-                $c[UuidFactory::class],
-                $c[DataFactory::class],
                 $c[Cloze\Properties\AnswerForm\Factory::class],
                 $c[Cloze\Properties\ClozeText\Factory::class],
                 $c[Cloze\Properties\Gaps\Factory::class]
