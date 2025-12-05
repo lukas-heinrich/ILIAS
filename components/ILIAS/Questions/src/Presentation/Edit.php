@@ -20,8 +20,8 @@ declare(strict_types=1);
 
 namespace ILIAS\Questions\Presentation;
 
-use ILIAS\Questions\AnswerForm\Type;
-use ILIAS\Questions\AnswerFormTypes\Factory as AnswerFormTypesFactory;
+use ILIAS\Questions\AnswerForm\Definition;
+use ILIAS\Questions\AnswerForm\Factory as AnswerFormFactory;
 use ILIAS\Questions\Question\Persistence\Repository;
 use ILIAS\Questions\Question\QuestionImplementation;
 use ILIAS\Data\Factory as DataFactory;
@@ -71,7 +71,7 @@ class Edit
         private readonly \ilUIService $ui_services,
         private readonly DataFactory $data_factory,
         private readonly UuidFactory $uuid_factory,
-        private readonly AnswerFormTypesFactory $answer_form_types_factory,
+        private readonly AnswerFormFactory $answer_form_factory,
         private readonly Repository $questions_repository
     ) {
 
@@ -182,7 +182,7 @@ class Edit
         $answer_form_type_class_hash = $this->retrieveStringValueForToken($type_hash_token);
         if ($answer_form_type_class_hash !== '') {
             return $this->forwardCreateAnswerFormCmd(
-                $this->answer_form_types_factory->getAnswerFormTypeByClassHash($answer_form_type_class_hash),
+                $this->answer_form_types_factory->buildAnswerFormFromSelectValue($answer_form_type_class_hash),
                 $url_builder_with_params->withParameter($type_hash_token, $answer_form_type_class_hash),
                 $step_token
             );
@@ -344,7 +344,7 @@ class Edit
     }
 
     private function forwardCreateAnswerFormCmd(
-        Type $type,
+        Definition $type,
         URLBuilder $url_builder,
         URLBuilderToken $step_token
     ): array {
@@ -526,20 +526,13 @@ class Edit
                     [
                         $if->field()->select(
                             $this->lng->txt('select_answer_form_type'),
-                            array_reduce(
-                                $this->answer_form_types_factory->getAvailableAnswerFormTypes(),
-                                function (array $c, Type $v): array {
-                                    $c[$this->answer_form_types_factory->getHashedClass($v::class)] = $v->getLabel($this->lng);
-                                    return $c;
-                                },
-                                []
-                            )
+                            $this->answer_form_factory->getAnswerFormTypesArrayForSelect()
                         )->withRequired(true)
                     ],
                     $this->lng->txt('create_answer_form')
                 )->withAdditionalTransformation(
                     $this->refinery->custom()->transformation(
-                        fn(array $vs): ?Type => $this->answer_form_types_factory->getAnswerFormTypeByClassHash($vs[0])
+                        fn(array $vs): ?Form => $this->answer_form_factory->buildAnswerFormFromSelectValue($vs[0])
                     )
                 )
             ]

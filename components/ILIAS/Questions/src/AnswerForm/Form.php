@@ -25,16 +25,17 @@ use ILIAS\Data\UUID\Uuid;
 class Form
 {
     public function __construct(
-        private readonly Type $type,
+        private readonly Definition $type_definition,
         private readonly Uuid $question_id,
         private ?Uuid $id = null,
+        private ?TypeSpecificData $type_specific_data = null,
         private ?Skills $skills = null
     ) {
     }
 
-    public function getType(): Type
+    public function getTypeDefinition(): Definition
     {
-        return $this->type;
+        return $this->type_definition;
     }
 
     public function getQuestionId(): Uuid

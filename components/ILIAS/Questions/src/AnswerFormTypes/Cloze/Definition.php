@@ -20,7 +20,7 @@ declare(strict_types=1);
 
 namespace ILIAS\Questions\AnswerFormTypes\Cloze;
 
-use ILIAS\Questions\AnswerForm\Type as TypeInterface;
+use ILIAS\Questions\AnswerForm\Definition as DefinitionInterface;
 use ILIAS\Questions\AnswerForm\Capabilities\Capability;
 use ILIAS\Questions\AnswerFormTypes\Cloze\Properties\AnswerForm\Factory as PropertiesFactory;
 use ILIAS\Questions\AnswerFormTypes\Cloze\Properties\AnswerForm\Properties;
@@ -28,7 +28,7 @@ use ILIAS\Questions\AnswerFormTypes\Cloze\Views\Edit;
 use ILIAS\Questions\AnswerFormTypes\Cloze\Views\Participant;
 use ILIAS\Language\Language;
 
-class Type implements TypeInterface
+class Definition implements DefinitionInterface
 {
     private Properties $properties;
 
@@ -85,16 +85,16 @@ class Type implements TypeInterface
 
     public function getCapability(string $capability_class_name): ?Capability
     {
-        return $this->available_capabilities[$capability_class_name]?->withAnswerForm($this);
+        return $this->available_capabilities[$capability_class_name];
     }
 
     public function getEditView(): Edit
     {
-        return $this->edit_view->withAnswerForm($this);
+        return $this->edit_view;
     }
 
     public function getParticipantView(): Participant
     {
-        return $this->participant_view->withAnswerForm($this);
+        return $this->participant_view;
     }
 }

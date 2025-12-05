@@ -18,19 +18,19 @@
 
 declare(strict_types=1);
 
-namespace ILIAS\Questions\AnswerFormTypes;
+namespace ILIAS\Questions\AnswerForm;
 
-use ILIAS\Questions\AnswerForm\Type;
+use ILIAS\Questions\AnswerForm\Definition;
 
 class Factory
 {
     /**
-     * @var array<string, \ILIAS\Questions\AnswerForm\Type> $available_answer_form_types
+     * @var array<string, \ILIAS\Questions\AnswerForm\Definition> $available_answer_form_types
      */
     private readonly array $available_answer_form_types;
 
     /**
-     * @param array<\ILIAS\Questions\AnswerForm\Type> $available_answer_form_types
+     * @param array<\ILIAS\Questions\AnswerForm\Definition> $available_answer_form_types
      */
     public function __construct(
         array $available_answer_form_types
@@ -46,11 +46,18 @@ class Factory
     }
 
     /**
-     * @return array<string, \ILIAS\Questions\AnswerForm\Type>
+     * @return array<string, \ILIAS\Questions\AnswerForm\Definition>
      */
-    public function getAvailableAnswerFormTypes(): array
+    public function getAnswerFormTypesArrayForSelect(): array
     {
-        return $this->available_answer_form_types;
+        return array_reduce(
+            $this->available_answer_form_types,
+            function (array $c, Definition $v): array {
+                $c[$this->getHashedClass($v::class)] = $v->getLabel($this->lng);
+                return $c;
+            },
+            []
+        );
     }
 
     public function getHashedClass(string $class): string
@@ -58,8 +65,14 @@ class Factory
         return md5($class);
     }
 
-    public function getAnswerFormTypeByClassHash(string $class_hash): ?Type
+    public function buildAnswerFormFromSelectValue(string $value): Form
     {
-        return $this->available_answer_form_types[$class_hash] ?? null;
+        $type = $this->available_answer_form_types[$value] ?? null;
+        if ($type === null) {
+            throw new InvalidArgumentException('This type of answer form does not exist.');
+        }
+        return new Form(
+            $type,
+        );
     }
 }

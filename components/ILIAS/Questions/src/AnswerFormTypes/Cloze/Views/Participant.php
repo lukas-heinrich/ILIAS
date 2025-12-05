@@ -26,8 +26,6 @@ use ILIAS\Questions\Response\Response;
 
 class Participant implements ParticipantViewInterface
 {
-    private ?Type $type = null;
-
     public function isAsyncPresentationAvailable(): bool
     {
         return true;
@@ -37,12 +35,5 @@ class Participant implements ParticipantViewInterface
         ?Response $response
     ): array {
 
-    }
-
-    public function withAnswerForm(Type $type): self
-    {
-        $clone = clone $this;
-        $clone->type = $type;
-        return $clone;
     }
 }

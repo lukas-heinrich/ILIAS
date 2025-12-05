@@ -25,7 +25,6 @@ use ILIAS\Questions\AnswerFormTypes\Cloze\Properties\AnswerForm\Factory as Prope
 use ILIAS\Questions\AnswerFormTypes\Cloze\Properties\AnswerForm\Properties;
 use ILIAS\Questions\AnswerFormTypes\Cloze\Properties\ClozeText\Factory as ClozeTextFactory;
 use ILIAS\Questions\AnswerFormTypes\Cloze\Properties\Gaps\Factory as GapFactory;
-use ILIAS\Questions\AnswerFormTypes\Cloze\Type;
 use ILIAS\Questions\Question\Persistence\ManipulateQuery;
 use ILIAS\HTTP\Services as HTTPServices;
 use ILIAS\Language\Language;
@@ -45,8 +44,6 @@ class Edit implements EditViewInterface
     private const string MAIN_SECTION_NAME = 'form';
     private const string PROPERTIES_SECTION_NAME = 'properties';
 
-    private ?Type $type = null;
-
     public function __construct(
         private readonly Language $lng,
         private readonly UIFactory $ui_factory,
@@ -61,7 +58,7 @@ class Edit implements EditViewInterface
     public function create(
         URLBuilder $url_builder,
         URLBuilderToken $step_token,
-        string $step
+        string $step,
     ): array|ManipulateQuery {
         return match($step) {
             self::STEP_SET_GAP_TYPES => $this->processBasicEditingForm($url_builder, $step_token),
@@ -86,13 +83,6 @@ class Edit implements EditViewInterface
         string $step
     ): array|ManipulateQuery {
 
-    }
-
-    public function withAnswerForm(Type $type): self
-    {
-        $clone = clone $this;
-        $clone->type = $type;
-        return $clone;
     }
 
     private function buildBasicEditingForm(

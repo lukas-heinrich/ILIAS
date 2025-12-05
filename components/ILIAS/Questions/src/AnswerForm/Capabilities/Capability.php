@@ -20,10 +20,7 @@ declare(strict_types=1);
 
 namespace ILIAS\Questions\AnswerForm\Capabilities;
 
-use ILIAS\Questions\AnswerForm;
-
 interface Capability
 {
     public function isConfigured(): bool;
-    public function withAnswerForm(AnswerForm $answer_form): self;
 }

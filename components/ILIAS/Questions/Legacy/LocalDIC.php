@@ -23,7 +23,7 @@ namespace ILIAS\Questions\Legacy;
 use ILIAS\Questions\Question\Persistence\Repository as QuestionsRepository;
 use ILIAS\Questions\AnswerFormTypes\Cloze;
 use ILIAS\Questions\Question\Persistence\TableNameSpaceCore;
-use ILIAS\Questions\AnswerFormTypes\Factory as AnswerFormTypesFactory;
+use ILIAS\Questions\AnswerForm\Factory as AnswerFormFactory;
 use ILIAS\Questions\Presentation\Edit;
 use ILIAS\Data\Factory as DataFactory;
 use ILIAS\Data\UUID\Factory as UuidFactory;
@@ -49,8 +49,8 @@ class LocalDIC extends PimpleContainer
         $dic[DataFactory::class] = static fn($c): DataFactory => new DataFactory();
         $dic[UuidFactory::class] = static fn($c): UuidFactory => new UuidFactory();
 
-        $dic[AnswerFormTypesFactory::class] = static fn($c): AnswerFormTypesFactory
-            => new AnswerFormTypesFactory([
+        $dic[AnswerFormFactory::class] = static fn($c): AnswerFormFactory
+            => new AnswerFormFactory([
                 $c[Cloze\Type::class]
             ]);
         $dic[QuestionsRepository::class] = static fn($c): QuestionsRepository =>
@@ -70,7 +70,7 @@ class LocalDIC extends PimpleContainer
             $DIC->uiService(),
             $c[DataFactory::class],
             $c[UuidFactory::class],
-            $c[AnswerFormTypesFactory::class],
+            $c[AnswerFormFactory::class],
             $c[QuestionsRepository::class]
         );
 

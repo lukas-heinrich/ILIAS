@@ -20,7 +20,7 @@ declare(strict_types=1);
 
 namespace ILIAS\Questions\Question\Persistence;
 
-use ILIAS\Questions\AnswerForm\Type;
+use ILIAS\Questions\AnswerForm\Definition;
 use ILIAS\Questions\AnswerFormTypes\Factory as FormTypesFactory;
 use ILIAS\Questions\Question\Definitions\Lifecycle;
 use ILIAS\Questions\Question\QuestionImplementation;

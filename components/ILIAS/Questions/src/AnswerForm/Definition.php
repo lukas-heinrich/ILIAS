@@ -25,20 +25,9 @@ use ILIAS\Questions\AnswerForm\Views\Edit;
 use ILIAS\Questions\AnswerForm\Views\Participant;
 use ILIAS\Language\Language;
 
-interface Type
+interface Definition
 {
-    public function withData(
-        string $id,
-        ?float $available_points,
-        ?int $image_size,
-        ?bool $shuffle_answer_options,
-        string $additional_text,
-        string $additional_text_legacy,
-        ?array $data
-    ): static;
-
     public function getLabel(Language $lng): string;
-
     public function getPersistence(): Persistence;
     public function hasCapability(string $capability_class_name): bool;
     public function getCapability(string $capability_class_name): ?Capability;

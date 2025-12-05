@@ -20,9 +20,7 @@ declare(strict_types=1);
 
 namespace ILIAS;
 
-use ILIAS\Questions\AnswerForm\Type as AnswerFormType;
-use ILIAS\Questions\AnswerFormTypes\Cloze;
-use ILIAS\Questions\Question\Persistence\TableNameSpaceCore;
+use ILIAS\Questions\AnswerForm\Definition as AnswerFormDefinition;
 use ILIAS\Questions\Setup\Agent;
 use ILIAS\Refinery\Factory as Refinery;
 use ILIAS\Setup\Agent as AgentInterface;
@@ -39,18 +37,10 @@ class Questions implements Component\Component
         array | \ArrayAccess &$pull,
         array | \ArrayAccess &$internal,
     ): void {
-        $define[] = AnswerFormType::class;
+        $define[] = AnswerFormDefinition::class;
         $contribute[AgentInterface::class] = static fn() =>
             new Agent(
                 $pull[Refinery::class]
             );
-        /*        $contribute[AnswerFormType::class] = fn() => new Cloze\Type(
-                    new Cloze\Persistence(
-                        new TableNameSpaceCore('cloze')
-                    ),
-                    new Cloze\Marking(),
-                    new Cloze\Views\Edit(),
-                    new Cloze\Views\ParticipantView()
-                ); */
     }
 }
