@@ -28,6 +28,10 @@ use ILIAS\Language\Language;
 interface Definition
 {
     public function getLabel(Language $lng): string;
+    public function buildProperties(
+        TypeGenericData $type_generic_properties,
+        array $type_specific_data
+    ): Properties;
     public function getPersistence(): Persistence;
     public function hasCapability(string $capability_class_name): bool;
     public function getCapability(string $capability_class_name): ?Capability;

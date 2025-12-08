@@ -22,6 +22,7 @@ namespace ILIAS\Questions\AnswerFormTypes\Cloze;
 
 use ILIAS\Questions\AnswerForm\Definition as DefinitionInterface;
 use ILIAS\Questions\AnswerForm\Capabilities\Capability;
+use ILIAS\Questions\AnswerForm\TypeGenericData;
 use ILIAS\Questions\AnswerFormTypes\Cloze\Properties\AnswerForm\Factory as PropertiesFactory;
 use ILIAS\Questions\AnswerFormTypes\Cloze\Properties\AnswerForm\Properties;
 use ILIAS\Questions\AnswerFormTypes\Cloze\Views\Edit;
@@ -30,8 +31,6 @@ use ILIAS\Language\Language;
 
 class Definition implements DefinitionInterface
 {
-    private Properties $properties;
-
     /**
      * @param array<string, \ILIAS\Questions\AnswerForm\Capabilities\Capability> $available_capabilities
      */
@@ -42,30 +41,18 @@ class Definition implements DefinitionInterface
         private readonly Edit $edit_view,
         private readonly Participant $participant_view
     ) {
-        $this->properties = $this->properties_factory->buildDefault();
-    }
-
-    public function withData(
-        string $id,
-        ?float $available_points,
-        ?int $image_size,
-        ?bool $shuffle_answer_options,
-        string $additional_text,
-        string $additional_text_legacy,
-        ?array $data
-    ): static {
-        $this->properties = $this->properties_factory->fromData(
-            $id,
-            $additional_text,
-            $additional_text_legacy,
-            $data
-        );
-
     }
 
     public function getLabel(Language $lng): string
     {
         return $lng->txt('assClozeTest');
+    }
+
+    public function buildProperties(
+        TypeGenericData $type_generic_data,
+        array $type_specific_data
+    ): Properties {
+        return $this->properties_factory->fromData($type_generic_data, $type_specific_data);
     }
 
     public function getProperties(): Properties

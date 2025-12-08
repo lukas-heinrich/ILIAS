@@ -20,6 +20,8 @@ declare(strict_types=1);
 
 namespace ILIAS\Questions\AnswerFormTypes\Cloze\Properties\AnswerForm;
 
+use ILIAS\Questions\AnswerForm\Properties as PropertiesInterface;
+use ILIAS\Questions\AnswerForm\TypeGenericProperties;
 use ILIAS\Questions\AnswerFormTypes\Cloze\Properties\ClozeText\Text;
 use ILIAS\Questions\AnswerFormTypes\Cloze\Properties\ClozeText\Factory as ClozeTextFactory;
 use ILIAS\Questions\AnswerFormTypes\Cloze\Properties\Definitions\ScoringIdentical;
@@ -31,7 +33,7 @@ use ILIAS\UI\Component\Input\Field\Factory as FieldFactory;
 use ILIAS\UI\Component\Input\Field\Section;
 use ILIAS\UI\Component\Input\Field\Group;
 
-class Properties
+class Properties implements PropertiesInterface
 {
     private const string FORM_KEY_ID = 'id';
     private const string FORM_KEY_CLOZE_TEXT = 'cloze_text';
@@ -44,12 +46,26 @@ class Properties
      */
     public function __construct(
         private readonly ?Uuid $answer_form_id,
+        private readonly ?Uuid $question_id,
         private Text $cloze_text,
         private Gaps $gaps,
         private ScoringIdentical $scoring_identical = ScoringIdentical::ScoreAll,
         private bool $combinations_enabled = false,
         private readonly string $legacy_cloze_text = ''
     ) {
+    }
+
+    public function getTypeGenericData(): TypeGenericProperties
+    {
+        return new TypeGenericProperties(
+            $this->answer_form_id,
+            $this->question_id,
+            null,
+            null,
+            null,
+            $this->cloze_text->getRawRepresentationForPersistence(),
+            $this->legacy_cloze_text
+        );
     }
 
     public function getAnswerFormId(): ?Uuid
@@ -139,7 +155,6 @@ class Properties
                 fn(array $vs): self => $propteries_factory->fromForm(
                     $this,
                     $vs[self::FORM_KEY_CLOZE_TEXT],
-                    $this->legacy_cloze_text,
                     $vs[self::FORM_KEY_IDENTICAL_SCORING],
                     $vs[self::FORM_KEY_ENABLE_COMBINATIONS]
                 )

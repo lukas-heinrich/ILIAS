@@ -22,22 +22,27 @@ namespace ILIAS\Questions\AnswerForm;
 
 use ILIAS\Data\UUID\Uuid;
 
-class TypeSpecificData
+class TypeGenericProperties
 {
     public function __construct(
-        private Uuid $answer_form_id,
-        private ?float $available_points,
-        private ?int $image_size,
-        private ?bool $shuffle_answer_options,
-        private string $additional_text,
-        private string $additional_text_legacy,
-        private array $additional_data,
+        private readonly Uuid $answer_form_id,
+        private readonly Uuid $question_id,
+        private ?float $available_points = null,
+        private ?int $image_size = null,
+        private ?bool $shuffle_answer_options = null,
+        private string $additional_text = '',
+        private string $additional_text_legacy = ''
     ) {
     }
 
     public function getAnswerFormId(): Uuid
     {
         return $this->answer_form_id;
+    }
+
+    public function getQuestionId(): Uuid
+    {
+        return $this->question_id;
     }
 
     public function getAvailablePoints(): ?float
@@ -63,10 +68,5 @@ class TypeSpecificData
     public function getAdditionalTextLegacy(): string
     {
         return $this->additional_text_legacy;
-    }
-
-    public function getAdditionalData(): array
-    {
-        return $this->additional_data;
     }
 }

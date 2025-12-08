@@ -21,6 +21,7 @@ declare(strict_types=1);
 namespace ILIAS\Questions\AnswerForm;
 
 use ILIAS\Questions\AnswerForm\Definition;
+use ILIAS\Data\UUID\Factory as UuidFactory;
 
 class Factory
 {
@@ -33,6 +34,7 @@ class Factory
      * @param array<\ILIAS\Questions\AnswerForm\Definition> $available_answer_form_types
      */
     public function __construct(
+        private readonly UuidFactory $uuid_factory,
         array $available_answer_form_types
     ) {
         $this->available_answer_form_types = array_reduce(
@@ -65,14 +67,20 @@ class Factory
         return md5($class);
     }
 
-    public function buildAnswerFormFromSelectValue(string $value): Form
+    public function buildTypeDefinitionFromSelectValue(string $value): Definition
     {
         $type = $this->available_answer_form_types[$value] ?? null;
         if ($type === null) {
             throw new InvalidArgumentException('This type of answer form does not exist.');
         }
-        return new Form(
-            $type,
+        return $type;
+    }
+
+    public function getDefaultTypeGenericProperties(Uuid $question_id): TypeGenericProperties
+    {
+        return new TypeGenericProperties(
+            $this->uuid_factory->uuid4(),
+            $question_id
         );
     }
 }

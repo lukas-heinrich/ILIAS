@@ -22,6 +22,7 @@ namespace ILIAS\Questions\Presentation;
 
 use ILIAS\Questions\AnswerForm\Definition;
 use ILIAS\Questions\AnswerForm\Factory as AnswerFormFactory;
+use ILIAS\Questions\AnswerForm\TypeGenericProperties;
 use ILIAS\Questions\Question\Persistence\Repository;
 use ILIAS\Questions\Question\QuestionImplementation;
 use ILIAS\Data\Factory as DataFactory;
@@ -174,15 +175,17 @@ class Edit
             $page_id_token,
             $type_hash_token
         ] = $this->acquireURLBuilderAndParameters($base_uri);
+        $question_id = $this->retrieveQuestionId($question_id_token);
         $url_builder_with_params = $url_builder
-                ->withParameter($question_id_token, $this->retrieveQuestionId($question_id_token)->toString())
+                ->withParameter($question_id_token, $question_id->toString())
                 ->withParameter($page_id_token, (string) $this->retrievePageId($page_id_token))
                 ->withParameter($action_token, self::CMD_CREATE_ANSWER_FORM);
 
         $answer_form_type_class_hash = $this->retrieveStringValueForToken($type_hash_token);
         if ($answer_form_type_class_hash !== '') {
             return $this->forwardCreateAnswerFormCmd(
-                $this->answer_form_types_factory->buildAnswerFormFromSelectValue($answer_form_type_class_hash),
+                $this->answer_form_types_factory->buildTypeDefinitionFromSelectValue($answer_form_type_class_hash),
+                $this->answer_form_factory->getDefaultTypeGenericProperties($question_id),
                 $url_builder_with_params->withParameter($type_hash_token, $answer_form_type_class_hash),
                 $step_token
             );
@@ -345,10 +348,12 @@ class Edit
 
     private function forwardCreateAnswerFormCmd(
         Definition $type,
+        TypeGenericProperties $type_generic_properties,
         URLBuilder $url_builder,
         URLBuilderToken $step_token
     ): array {
         return $type->getEditView()->create(
+            $type->buildProperties($type_generic_properties, []),
             $url_builder,
             $step_token,
             $this->retrieveStringValueForToken($step_token)
@@ -532,7 +537,7 @@ class Edit
                     $this->lng->txt('create_answer_form')
                 )->withAdditionalTransformation(
                     $this->refinery->custom()->transformation(
-                        fn(array $vs): ?Form => $this->answer_form_factory->buildAnswerFormFromSelectValue($vs[0])
+                        fn(array $vs): ?Form => $this->answer_form_factory->buildTypeDefinitionFromSelectValue($vs[0])
                     )
                 )
             ]

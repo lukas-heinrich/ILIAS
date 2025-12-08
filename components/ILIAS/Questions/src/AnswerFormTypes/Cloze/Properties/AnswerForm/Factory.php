@@ -20,6 +20,7 @@ declare(strict_types=1);
 
 namespace ILIAS\Questions\AnswerFormTypes\Cloze\Properties\AnswerForm;
 
+use ILIAS\Questions\AnswerForm\TypeGenericProperties;
 use ILIAS\Questions\AnswerFormTypes\Cloze\Properties\ClozeText\Factory as ClozeTextFactory;
 use ILIAS\Questions\AnswerFormTypes\Cloze\Properties\ClozeText\Text as ClozeText;
 use ILIAS\Questions\AnswerFormTypes\Cloze\Properties\Definitions\ScoringIdentical;
@@ -38,34 +39,30 @@ class Factory
     }
 
     public function fromData(
-        ?string $answer_form_id,
-        string $cloze_text,
-        string $legay_cloze_text,
-        array $data
+        TypeGenericProperties $type_generic_properties,
+        array $type_specific_data
     ): Properties {
         return new Properties(
-            $answer_form_id,
-            $this->cloze_text_factory->buildFromTextString($cloze_text),
-            $legay_cloze_text
+            $type_generic_properties->getAnswerFormId(),
+            $type_generic_properties->getQuestionId(),
+            $this->cloze_text_factory->buildFromTextString($type_generic_properties->getAdditionalText()),
+            $type_generic_properties->getAdditionalTextLegacy()
         );
     }
 
     public function fromForm(
         Properties $properties,
         ClozeText $cloze_text,
-        string $legacy_cloze_text,
         ScoringIdentical $scoring_of_identical_responses,
         bool $combinations_enabled
     ): Properties {
         $updated_gaps = $cloze_text->updateGapsFromMarkdown($properties->getGaps());
-        return new Properties(
-            $properties->getAnswerFormId(),
-            $cloze_text->withIdsOfNewGapsInClozeText($updated_gaps->getUndefinedGaps()),
-            $updated_gaps,
-            $scoring_of_identical_responses,
-            $combinations_enabled,
-            $legacy_cloze_text
-        );
+        return $properties
+            ->withClozeText(
+                $cloze_text->withIdsOfNewGapsInClozeText($updated_gaps->getUndefinedGaps())
+            )->withGaps($updated_gaps)
+            ->withScoringOfIdenticalResponses($scoring_of_identical_responses)
+            ->withCombinationsEnabled($combinations_enabled);
     }
 
     public function buildDefault(): Properties

@@ -69,6 +69,11 @@ class Text
         return $ff->hidden()->withValue($this->getTextForOutputInHiddenInput());
     }
 
+    public function getRawRepresentationForPersistence(): string
+    {
+        return $this->cloze_text->getRawRepresentation();
+    }
+
     public function getRenderedMarkdown(
         Gaps $gaps
     ): string {
