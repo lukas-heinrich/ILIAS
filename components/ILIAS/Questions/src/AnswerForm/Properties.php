@@ -20,7 +20,11 @@ declare(strict_types=1);
 
 namespace ILIAS\Questions\AnswerForm;
 
+use ILIAS\Data\UUID\Uuid;
+
 interface Properties
 {
-    public function getTypeGenericData(): TypeGenericData;
+    public function getAnswerFormId(): ?Uuid;
+    public function getQuestionId(): ?Uuid;
+    public function getTypeGenericProperties(): TypeGenericProperties;
 }

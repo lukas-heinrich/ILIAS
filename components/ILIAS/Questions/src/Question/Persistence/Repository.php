@@ -64,6 +64,13 @@ class Repository
     ) {
     }
 
+    public function getNew(): QuestionImplementation
+    {
+        return new QuestionImplementation(
+            $this->buildAvailableUuid()
+        );
+    }
+
     /**
      * @return \Generator<\ILIAS\Questions\Question\QuestionImplementation>
      */
@@ -135,42 +142,34 @@ class Repository
      */
     public function store(
         QuestionImplementation|array $questions
-    ): array {
+    ): void {
         if ($questions instanceof QuestionImplementation) {
-            return [$this->storeQuestion($questions)];
+            $this->storeQuestion($questions);
+            return;
         }
 
-        return array_map(
+        array_map(
             fn(QuestionImplementation $v) => $this->storeQuestion($v),
             $questions
         );
     }
 
-    private function storeQuestion(QuestionImplementation $question): Uuid
+    private function storeQuestion(QuestionImplementation $question): void
     {
         if ($question->getPageId() === null) {
             $question = $question->withPageId($this->buildQuestionPage());
         }
 
-        if ($question->getId() === null) {
-            $question = $question->withQuestionId($this->buildAvailableUuid());
-            $this->db->insert(
-                self::QUESTION_TABLE,
-                $question->toStorage()
-            );
-            return $question->getId();
-        }
-        $this->db->update(
+        $this->db->replace(
             self::QUESTION_TABLE,
-            $question->toStorage(),
             [
                 'id' => [
                     \ilDBConstants::T_TEXT,
                     $question->getId()->toString()
                 ]
-            ]
+            ],
+            $question->toStorage()
         );
-        return $question->getId();
     }
 
     private function buildAvailableUuid(): Uuid

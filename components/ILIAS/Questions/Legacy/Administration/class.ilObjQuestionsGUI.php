@@ -19,7 +19,7 @@
 declare(strict_types=1);
 
 use ILIAS\Questions\Legacy\LocalDIC;
-use ILIAS\Questions\Presentation\Edit;
+use ILIAS\Questions\Presentation\Views\Edit;
 use ILIAS\Questions\Units\GlobalConfigurationGUI;
 use ILIAS\Questions\AnswerFormTypes\Cloze\Properties\Gaps\UploadAnswerOptionsGUI;
 use ILIAS\Data\Factory as DataFactory;
@@ -98,12 +98,10 @@ class ilObjQuestionsGUI extends ilObjectGUI
         $this->tabs_gui->activateTab('questions');
 
         $this->tpl->setContent(
-            $this->ui_renderer->render(
-                $this->edit_view->view(
-                    $this->toolbar,
-                    $this->buildEditQuestionsBaseUri()
-                )
-            )
+            $this->edit_view->view(
+                $this->toolbar,
+                $this->buildEditQuestionsBaseUri()
+            )->render($this->ui_renderer)
         );
     }
 

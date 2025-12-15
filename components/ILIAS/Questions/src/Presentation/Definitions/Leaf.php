@@ -18,48 +18,17 @@
 
 declare(strict_types=1);
 
-namespace ILIAS\HTTP\Wrapper;
+namespace ILIAS\Questions\Presentation\Definitions;
 
-use ILIAS\Refinery\Transformation;
-
-/**
- * Class ArrayBasedRequestWrapper
- *
- * @author Fabian Schmid <fs@studer-raimann.ch>
- */
-class ArrayBasedRequestWrapper implements RequestWrapper
+class Leaf
 {
-    /**
-     * GetRequestWrapper constructor.
-     * @param mixed[] $raw_values
-     */
-    public function __construct(private array $raw_values)
-    {
+    public function __construct(
+        private readonly mixed $value
+    ) {
     }
 
-
-    /**
-     * @inheritDoc
-     */
-    public function retrieve(string $key, Transformation $transformation)
+    public function get(): mixed
     {
-        return $transformation->transform($this->raw_values[$key] ?? null);
-    }
-
-
-    /**
-     * @inheritDoc
-     */
-    public function has(string $key): bool
-    {
-        return isset($this->raw_values[$key]);
-    }
-
-    /**
-     * @inheritDoc
-     */
-    public function keys(): array
-    {
-        return array_keys($this->raw_values);
+        return $this->value;
     }
 }

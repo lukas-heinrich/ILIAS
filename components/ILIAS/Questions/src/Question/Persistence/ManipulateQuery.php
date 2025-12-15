@@ -26,41 +26,8 @@ class ManipulateQuery
     private array $columns = [];
     private array $values = [];
 
-    private ?float $available_points = null;
-    private ?int $image_size = null;
-    private ?bool $shuffle_answer_options = null;
-    private string $additional_text = '';
-
     public function __construct()
     {
         ;
     }
-
-    public function withAvailablePoints(float $available_points): self
-    {
-        $clone = clone $this;
-        $clone->available_points = $available_points;
-        return $clone;
-    }
-
-    public function withImageSize(int $image_size): self
-    {
-        $clone = clone $this;
-        $clone->image_size = $image_size;
-        return $clone;
-    }
-
-    public function withShuffleAnswerOptions(bool $shuffle_answer_options): self
-    {
-        $clone = clone $this;
-        $clone->shuffle_answer_options = $shuffle_answer_options;
-        return $clone;
-    }
-    public function withAddtionalText(string $additional_text): self
-    {
-        $clone = clone $this;
-        $clone->additional_text = $additional_text;
-        return $clone;
-    }
-
 }

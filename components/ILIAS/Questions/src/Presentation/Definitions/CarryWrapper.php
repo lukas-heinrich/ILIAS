@@ -18,48 +18,41 @@
 
 declare(strict_types=1);
 
-namespace ILIAS\HTTP\Wrapper;
+namespace ILIAS\Questions\Presentation\Definitions;
 
 use ILIAS\Refinery\Transformation;
 
-/**
- * Class ArrayBasedRequestWrapper
- *
- * @author Fabian Schmid <fs@studer-raimann.ch>
- */
-class ArrayBasedRequestWrapper implements RequestWrapper
+class CarryWrapper
 {
-    /**
-     * GetRequestWrapper constructor.
-     * @param mixed[] $raw_values
-     */
-    public function __construct(private array $raw_values)
-    {
-    }
-
-
-    /**
-     * @inheritDoc
-     */
-    public function retrieve(string $key, Transformation $transformation)
-    {
-        return $transformation->transform($this->raw_values[$key] ?? null);
-    }
-
-
-    /**
-     * @inheritDoc
-     */
-    public function has(string $key): bool
-    {
-        return isset($this->raw_values[$key]);
+    public function __construct(
+        private array $raw_values
+    ) {
     }
 
     /**
-     * @inheritDoc
+     * The Transformation will receive either the value from $_POST or an instance
+     * of `CarrySectionData` containing the next nesting level if the value contains
+     * values from multiple variables from $_POST.
      */
-    public function keys(): array
+    public function retrieve(string $key, Transformation $transformation): mixed
     {
-        return array_keys($this->raw_values);
+        return $transformation->transform(
+            $this->retrieveValueFromArray($key)
+        );
+    }
+
+    private function retrieveValueFromArray(string $key): mixed
+    {
+        $value = $this->raw_values[$key] ?? null;
+
+        if ($value === null) {
+            return null;
+        }
+
+        if ($value instanceof Leaf) {
+            return $value->get();
+        }
+
+        return new self($value);
     }
 }

@@ -20,7 +20,9 @@ declare(strict_types=1);
 
 namespace ILIAS\Questions\AnswerForm\Views;
 
-use ILIAS\Questions\Question\Persistence\ManipulateQuery;
+use ILIAS\Questions\AnswerForm\Properties;
+use ILIAS\Questions\Presentation\Definitions\EditForm;
+use ILIAS\Questions\Presentation\Definitions\EditFormFactory;
 use ILIAS\UI\URLBuilder;
 use ILIAS\UI\URLBuilderToken;
 
@@ -29,18 +31,24 @@ interface Edit
     public function create(
         URLBuilder $url_builder,
         URLBuilderToken $step_token,
-        string $step
-    ): array|ManipulateQuery;
+        string $step,
+        EditFormFactory $edit_form_factory,
+        Properties $properties
+    ): EditForm|Properties;
 
     public function edit(
         URLBuilder $url_builder,
         URLBuilderToken $step_token,
-        string $step
-    ): array|ManipulateQuery;
+        string $step,
+        EditFormFactory $edit_form_factory,
+        Properties $properties
+    ): EditForm|Properties;
 
     public function other(
         URLBuilder $url_builder,
         URLBuilderToken $step_token,
-        string $cmd
-    ): array|ManipulateQuery;
+        string $cmd,
+        EditFormFactory $edit_form_factory,
+        Properties $properties,
+    ): EditForm|Properties;
 }
