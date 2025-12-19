@@ -18,15 +18,15 @@
 
 declare(strict_types=1);
 
-namespace ILIAS\Questions\Presentation\Definitions;
+namespace ILIAS\Questions\Presentation\Layout\Definitions;
 
-use ILIAS\Data\URI;
 use ILIAS\Language\Language;
 use ILIAS\UI\Component\Input\Container\Form\Factory as FormFactory;
 use ILIAS\UI\Component\Input\Container\Form\Standard as StandardForm;
 use ILIAS\UI\Component\Input\Field\Section;
 use ILIAS\UI\Component\Input\Field\Group;
 use ILIAS\UI\Component\Panel\Standard as StandardPanel;
+use ILIAS\UI\URLBuilder;
 use ILIAS\UI\Renderer as UIRenderer;
 use Psr\Http\Message\ServerRequestInterface;
 
@@ -43,7 +43,7 @@ class EditForm
     public function __construct(
         private readonly FormFactory $form_factory,
         private readonly Language $lng,
-        private readonly URI $target_uri,
+        private readonly URLBuilder $url_builder,
         private readonly Section $main_section_inputs,
         private readonly bool $is_final_step,
         private readonly ?Group $carry_inputs
@@ -105,7 +105,7 @@ class EditForm
     private function buildForm(): StandardForm
     {
         $form = $this->form_factory->standard(
-            $this->target_uri->__toString(),
+            $this->url_builder->buildURI()->__toString(),
             $this->buildFormInputs()
         );
 

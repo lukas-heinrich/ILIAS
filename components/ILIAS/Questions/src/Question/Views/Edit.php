@@ -20,8 +20,9 @@ declare(strict_types=1);
 
 namespace ILIAS\Questions\Question\Views;
 
-use ILIAS\Questions\Presentation\Definitions\EditForm;
-use ILIAS\Questions\Presentation\Definitions\EditFormFactory;
+use ILIAS\Questions\Presentation\Layout\Definitions\EditForm;
+use ILIAS\Questions\Presentation\Layout\Definitions\Factory as DefinitionsFactory;
+use ILIAS\Questions\Presentation\Layout\Definitions\Environment;
 use ILIAS\Questions\Question\Question;
 use ILIAS\Questions\Question\QuestionImplementation;
 use ILIAS\Questions\Question\Definitions\Lifecycle;
@@ -54,69 +55,40 @@ class Edit
     }
 
     public function create(
-        URLBuilder $url_builder,
-        URLBuilderToken $step_token,
-        string $step,
-        EditFormFactory $edit_form_factory
+        Environment $environment
     ): EditForm|Question {
-        return match ($step) {
-            self::CMD_SAVE_QUESTION => $this->processBasicPropertiesForm(
-                $url_builder,
-                $step_token,
-                $edit_form_factory
-            ),
-            default => $this->buildBasicPropertiesForm(
-                $url_builder,
-                $step_token,
-                $edit_form_factory
-            )
+        return match ($environment->getStep()) {
+            self::CMD_SAVE_QUESTION => $this->processBasicPropertiesForm($environment),
+            default => $this->buildBasicPropertiesForm($environment)
         };
     }
 
     public function edit(
-        URLBuilder $url_builder,
-        URLBuilderToken $step_token,
-        URLBuilderToken $page_id_token,
-        string $step,
-        EditFormFactory $edit_form_factory
+        Environment $environment
     ): EditForm|Question {
-        return match ($step) {
-            self::CMD_SAVE_QUESTION => $this->processBasicPropertiesForm(
-                $url_builder,
-                $step_token,
-                $edit_form_factory
-            ),
-            default => $this->buildBasicPropertiesForm(
-                $url_builder,
-                $step_token,
-                $edit_form_factory
-            )->withContentAfterForm(
-                $this->buildPreviewPanel($url_builder, $page_id_token)
+        return match ($environment->getStep()) {
+            self::CMD_SAVE_QUESTION => $this->processBasicPropertiesForm($environment),
+            default => $this->buildBasicPropertiesForm($environment)->withContentAfterForm(
+                $this->buildPreviewPanel($environment)
             )
         };
     }
 
     private function buildBasicPropertiesForm(
-        URLBuilder $url_builder,
-        URLBuilderToken $step_token,
-        EditFormFactory $edit_form_factory
+        Environment $environment
     ): EditForm {
-        return $edit_form_factory->getEditForm(
-            $url_builder->withParameter($step_token, self::CMD_SAVE_QUESTION)->buildURI(),
+        return $environment->getDefinitionsFactory()->getEditForm(
+            $environment->getUrlBuilderWithStepParameter(self::CMD_SAVE_QUESTION),
             $this->buildBasicPropertiesInputs(),
             true
         );
     }
 
     private function processBasicPropertiesForm(
-        URLBuilder $url_builder,
-        URLBuilderToken $step_token,
-        EditFormFactory $edit_form_factory
+        Environment $environment
     ): EditForm|Question {
         $form = $this->buildBasicPropertiesForm(
-            $url_builder,
-            $step_token,
-            $edit_form_factory
+            $environment
         )->withRequest($this->request);
 
         $data = $form->getData();
@@ -177,10 +149,8 @@ class Edit
         );
     }
 
-    private function buildPreviewPanel(
-        URLBuilder $url_builder,
-        URLBuilderToken $page_id_token
-    ): StandardPanel {
+    private function buildPreviewPanel(): StandardPanel
+    {
         return $this->ui_factory->panel()->standard(
             $this->lng->txt('preview'),
             $this->ui_factory->legacy()->content($this->question->getTitle())
@@ -188,13 +158,7 @@ class Edit
             $this->ui_factory->dropdown()->standard([
                 $this->ui_factory->link()->standard(
                     $this->lng->txt('edit'),
-                    $url_builder
-                        ->withURI(
-                            $this->data_factory->uri(
-                                ILIAS_HTTP_PATH . '/' . $this->ctrl->getLinkTargetByClass(\QstsQuestionPageGUI::class, 'edit')
-                            )
-                        )->withParameter($page_id_token, (string) $this->question->getPageId())
-                        ->buildURI()->__toString()
+                    $this->ctrl->getLinkTargetByClass(\QstsQuestionPageGUI::class, 'edit')
                 )
             ])
         );

@@ -21,6 +21,8 @@ declare(strict_types=1);
 namespace ILIAS\Questions\Question;
 
 use ILIAS\Questions\AnswerForm\Properties as AnswerFormProperties;
+use ILIAS\Questions\Question\Persistence\Manipulate;
+use ILIAS\Questions\Presentation\Layout\Definitions\EnvironmentImplementation;
 use ILIAS\Questions\Question\Definitions\Lifecycle;
 use ILIAS\Data\Factory as DataFactory;
 use ILIAS\Data\UUID\Uuid;
@@ -30,8 +32,6 @@ use ILIAS\UI\Component\Link\Factory as LinkFactory;
 use ILIAS\UI\Component\Link\Standard as StandardLink;
 use ILIAS\UI\Component\Table\DataRowBuilder;
 use ILIAS\UI\Component\Table\DataRow;
-use ILIAS\UI\URLBuilder;
-use ILIAS\UI\URLBuilderToken;
 use ILIAS\Refinery\Factory as Refinery;
 use Psr\Http\Message\RequestInterface;
 
@@ -200,43 +200,40 @@ class QuestionImplementation implements Question
 
     public function toEditLink(
         LinkFactory $link_factory,
-        URLBuilder $url_builder,
-        URLBuilderToken $row_id_token
+        EnvironmentImplementation $environment
     ): StandardLink {
         return $link_factory->standard(
             $this->title,
-            $url_builder->withParameter(
-                $row_id_token,
-                $this->id->toString()
-            )->buildURI()->__toString()
+            $environment->withQuestionIdParameter($this->id)
+                ->getUrlBuilder()
+                ->buildURI()
+                ->__toString()
         );
     }
 
     public function toTableRow(
         DataRowBuilder $row_builder,
         UIFactory $ui_factory,
-        URLBuilder $url_builder,
-        URLBuilderToken $row_id_token
+        EnvironmentImplementation $environment
     ): DataRow {
         return $row_builder->buildDataRow(
             $this->id->toString(),
             [
                 'title' => $ui_factory->link()->standard(
                     $this->title,
-                    $url_builder->withParameter(
-                        $row_id_token,
-                        $this->id->toString()
-                    )->buildURI()->__toString()
+                    $environment->withQuestionIdParameter(
+                        $this->id
+                    )->getUrlBuilder()
+                    ->buildURI()
+                    ->__toString()
                 )
             ]
         );
     }
 
-    /**
-     * @return array<string, mixed>
-     */
-    public function toStorage(): array
-    {
+    public function toStorage(
+        Manipulate $manipulate
+    ): Manipulate {
         return [
             'id' => [\ilDBConstants::T_TEXT, $this->id->toString()],
             'page_id' => [\ilDBConstants::T_INTEGER, $this->page_id],

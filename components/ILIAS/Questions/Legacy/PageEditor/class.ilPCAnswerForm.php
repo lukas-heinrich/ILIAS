@@ -41,6 +41,10 @@ class ilPCAnswerForm extends ilPageContent
         string $mode,
         bool $abstract_only = false
     ): string {
+        if ($this->pg_obj::class !== QstsQuestionPage::class) {
+            return $output;
+        }
+
         /** @var \ILIAS\Questions\Question\QuestionImplementation $question */
         $question = $this->pg_obj->getQuestion();
 

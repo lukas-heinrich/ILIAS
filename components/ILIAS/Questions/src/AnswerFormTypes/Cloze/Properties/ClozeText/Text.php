@@ -74,7 +74,7 @@ class Text
         return $this->cloze_text->getRawRepresentation();
     }
 
-    public function getRenderedMarkdown(
+    public function getRenderedMarkdownForEditingPresentation(
         Gaps $gaps
     ): string {
         return $this->mustache_engine->render(

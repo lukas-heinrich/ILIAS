@@ -18,16 +18,15 @@
 
 declare(strict_types=1);
 
-namespace ILIAS\Questions\Presentation\Definitions;
+namespace ILIAS\Questions\Presentation\Layout\Definitions;
 
 use ILIAS\Questions\AnswerForm\Factory as AnswerFormFactory;
 use ILIAS\Questions\Presentation\Views\Edit;
+use ILIAS\Questions\Presentation\Layout\Definitions\EnvironmentImplementation;
 use ILIAS\Questions\Question\Persistence\Repository;
 use ILIAS\Data\Range;
 use ILIAS\Data\Order;
 use ILIAS\UI\Component\Table;
-use ILIAS\UI\URLBuilder;
-use ILIAS\UI\URLBuilderToken;
 use ILIAS\UI\Factory as UIFactory;
 use ILIAS\UI\Renderer as UIRenderer;
 use ILIAS\UI\Component\Input\Container\Filter\Standard as Filter;
@@ -42,9 +41,7 @@ class QuestionsTable implements Table\DataRetrieval
         private readonly ServerRequestInterface $request,
         private readonly AnswerFormFactory $answer_form_factory,
         private readonly Repository $questions_repository,
-        private readonly URLBuilder $url_builder,
-        private readonly URLBuilderToken $action_token,
-        private readonly URLBuilderToken $row_id_token
+        private readonly EnvironmentImplementation $environment
     ) {
         $lng->loadLanguageModule('qpl');
     }
@@ -74,15 +71,14 @@ class QuestionsTable implements Table\DataRetrieval
         mixed $filter_data,
         mixed $additional_parameters
     ): \Generator {
+        $environment_with_action = $this->environment->withActionParameter(
+            Edit::CMD_EDIT_QUESTION
+        );
         foreach ($this->questions_repository->getAllQuestions() as $question) {
             yield $question->toTableRow(
                 $row_builder,
                 $this->ui_factory,
-                $this->url_builder->withParameter(
-                    $this->action_token,
-                    Edit::CMD_EDIT_QUESTION
-                ),
-                $this->row_id_token
+                $environment_with_action
             );
         }
     }
@@ -98,7 +94,7 @@ class QuestionsTable implements Table\DataRetrieval
     private function buildContent(): array
     {
         return [
-            $this->buildFilter($this->url_builder->buildURI()->__toString()),
+            $this->buildFilter($this->environment->getUrlBuilder()->buildURI()->__toString()),
             $this->ui_factory->table()->data(
                 $this,
                 $this->lng->txt('questions'),

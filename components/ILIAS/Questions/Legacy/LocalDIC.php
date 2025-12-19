@@ -25,7 +25,7 @@ use ILIAS\Questions\AnswerFormTypes\Cloze;
 use ILIAS\Questions\Question\Persistence\TableNameSpaceCore;
 use ILIAS\Questions\AnswerForm\Factory as AnswerFormFactory;
 use ILIAS\Questions\Presentation\Views\Edit;
-use ILIAS\Questions\Presentation\Definitions\EditFormFactory;
+use ILIAS\Questions\Presentation\Layout\Definitions\Factory as DefinitionsFactory;
 use ILIAS\Data\Factory as DataFactory;
 use ILIAS\Data\UUID\Factory as UuidFactory;
 use ILIAS\DI\Container as ILIASContainer;
@@ -61,9 +61,10 @@ class LocalDIC extends PimpleContainer
             new QuestionsRepository(
                 $DIC['ilDB'],
                 new UuidFactory(),
+                $c[AnswerFormFactory::class]
             );
-        $dic[EditFormFactory::class] = static fn($c): EditFormFactory =>
-            new EditFormFactory(
+        $dic[DefinitionsFactory::class] = static fn($c): DefinitionsFactory =>
+            new DefinitionsFactory(
                 $DIC['ui.factory'],
                 $DIC['lng']
             );
@@ -81,7 +82,7 @@ class LocalDIC extends PimpleContainer
             $c[UuidFactory::class],
             $c[AnswerFormFactory::class],
             $c[QuestionsRepository::class],
-            $c[EditFormFactory::class]
+            $c[DefinitionsFactory::class]
         );
 
         $dic[Cloze\Properties\ClozeText\Factory::class] = static fn($c): Cloze\Properties\ClozeText\Factory

@@ -20,14 +20,28 @@ declare(strict_types=1);
 
 namespace ILIAS\Questions\Question\Persistence;
 
-class ManipulateQuery
+enum TableTypes
 {
-    private array $tables = [];
-    private array $columns = [];
-    private array $values = [];
+    case TypeSpecificAnswerForms;
+    case AnswerInputs;
+    case AnswerOptions;
+    case Responses;
+    case Additional;
 
-    public function __construct()
-    {
-        ;
+    public function getTable(
+        TableNameBuilder $table_name_builder,
+        ?string $table_identifier = null
+    ): Table {
+        return match($this) {
+            self::Additional => new Table(
+                $this,
+                $table_name_builder,
+                $table_identifier
+            ),
+            default => new Table(
+                $this,
+                $table_name_builder
+            )
+        };
     }
 }

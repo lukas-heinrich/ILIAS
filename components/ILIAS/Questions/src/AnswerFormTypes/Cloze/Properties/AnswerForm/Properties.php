@@ -27,7 +27,7 @@ use ILIAS\Questions\AnswerFormTypes\Cloze\Properties\ClozeText\Factory as ClozeT
 use ILIAS\Questions\AnswerFormTypes\Cloze\Properties\Definitions\ScoringIdentical;
 use ILIAS\Questions\AnswerFormTypes\Cloze\Properties\Gaps\Gaps;
 use ILIAS\Questions\AnswerFormTypes\Cloze\Properties\Gaps\Factory as GapsFactory;
-use ILIAS\Questions\Presentation\Definitions\CarryWrapper;
+use ILIAS\Questions\Presentation\Layout\Definitions\CarryWrapper;
 use ILIAS\Data\UUID\Uuid;
 use ILIAS\Language\Language;
 use ILIAS\Refinery\Factory as Refinery;
@@ -131,6 +131,16 @@ class Properties implements PropertiesInterface
         $clone = clone $this;
         $clone->gaps = $gaps;
         return $clone;
+    }
+
+    public function getBasicPropertiesForListing(Language $lng): array
+    {
+        return [
+            $lng->txt('cloze_text') => $this->cloze_text
+                ->getRenderedMarkdownForEditingPresentation($this->gaps),
+            $lng->txt('score_identical') => $this->scoring_identical
+                ->getTranslatedOptionName($lng)
+        ];
     }
 
     public function buildBasicEditingInputs(

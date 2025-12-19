@@ -20,11 +20,12 @@ declare(strict_types=1);
 
 namespace ILIAS\Questions\Presentation\Views;
 
-use ILIAS\Questions\Presentation\Definitions\EditForm;
-use ILIAS\Questions\Presentation\Definitions\EditFormFactory;
+use ILIAS\Questions\Presentation\Layout\Definitions\EditForm;
+use ILIAS\Questions\Presentation\Layout\Definitions\Factory as DefinitionsFactory;
 use ILIAS\Questions\Presentation\Definitions\Editability;
-use ILIAS\Questions\Presentation\Definitions\QuestionsTable;
-use ILIAS\Questions\Presentation\Layout\LayoutProvider;
+use ILIAS\Questions\Presentation\Layout\Definitions\EnvironmentImplementation;
+use ILIAS\Questions\Presentation\Layout\Definitions\QuestionsTable;
+use ILIAS\Questions\Presentation\Layout\GlobalScreen\LayoutProvider;
 use ILIAS\Questions\AnswerForm\Definition;
 use ILIAS\Questions\AnswerForm\Factory as AnswerFormFactory;
 use ILIAS\Questions\AnswerForm\TypeGenericProperties;
@@ -33,27 +34,18 @@ use ILIAS\Questions\Question\QuestionImplementation;
 use ILIAS\Data\Factory as DataFactory;
 use ILIAS\Data\URI;
 use ILIAS\Data\UUID\Factory as UuidFactory;
-use ILIAS\Data\UUID\Uuid;
 use ILIAS\Language\Language;
 use ILIAS\Refinery\Factory as Refinery;
-use ILIAS\Refinery\Transformation;
 use ILIAS\HTTP\Services as HTTP;
 use ILIAS\UI\Factory as UIFactory;
 use ILIAS\UI\Renderer as UIRenderer;
 use ILIAS\UI\Component\Item\Standard as StandardItem;
 use ILIAS\UI\Component\Item\Group as ItemGroup;
 use ILIAS\UI\Component\MainControls\Slate\Legacy as LegacySlate;
-use ILIAS\UI\URLBuilder;
-use ILIAS\UI\URLBuilderToken;
 use ILIAS\GlobalScreen\Services as GlobalScreen;
 
 class Edit
 {
-    private const array QUERY_PARAMETER_NAME_SPACE = ['q'];
-    private const string TOKEN_STRING_ACTION = 'a';
-    private const string TOKEN_STRING_STEP = 's';
-    private const string TOKEN_STRING_QUESTION_ID = 'q';
-    private const string TOKEN_TYPE_HASH = 't';
     private const string CMD_CREATE_QUESTION = 'create';
     public const string CMD_EDIT_QUESTION = 'edit';
     private const string CMD_CREATE_ANSWER_FORM = 'create_af';
@@ -77,9 +69,8 @@ class Edit
         private readonly UuidFactory $uuid_factory,
         private readonly AnswerFormFactory $answer_form_factory,
         private readonly Repository $questions_repository,
-        private readonly EditFormFactory $edit_form_factory
+        private readonly DefinitionsFactory $definitions_factory
     ) {
-
     }
 
     public function withRequiredCapabilities(array $capability_class_names): self
@@ -108,34 +99,11 @@ class Edit
         \ilToolbarGUI $toolbar,
         URI $base_uri
     ): QuestionsTable|EditForm {
-        [
-            $url_builder,
-            $action_token,
-            $step_token,
-            $question_id_token,
-            $page_id_token
-        ] = $this->acquireURLBuilderAndParameters($base_uri);
-        return match($this->retrieveStringValueForToken($action_token)) {
-            self::CMD_CREATE_QUESTION => $this->createQuestion(
-                $url_builder,
-                $action_token,
-                $step_token,
-                $question_id_token,
-                $page_id_token
-            ),
-            self::CMD_EDIT_QUESTION => $this->editQuestion(
-                $url_builder,
-                $action_token,
-                $step_token,
-                $question_id_token,
-                $page_id_token
-            ),
-            default => $this->showTable(
-                $toolbar,
-                $url_builder,
-                $action_token,
-                $question_id_token
-            )
+        $environment = $this->buildEnvironment($base_uri);
+        return match($environment->getAction()) {
+            self::CMD_CREATE_QUESTION => $this->createQuestion($environment),
+            self::CMD_EDIT_QUESTION => $this->editQuestion($environment),
+            default => $this->showTable($toolbar, $environment)
         };
     }
 
@@ -143,25 +111,20 @@ class Edit
         \ilGlobalTemplateInterface $tpl,
         URI $base_uri,
     ): void {
-        [
-            0 => $url_builder,
-            1 => $action_token,
-            3 => $question_id_token,
-        ] = $this->acquireURLBuilderAndParameters($base_uri);
-
-        $this->initializeEditMode($url_builder, $action_token, $question_id_token);
-
-        $question_id = $this->retrieveQuestionId($question_id_token);
-        $this->setParametersForQuestionCmds($question_id_token, $question_id->toString());
+        $environment = $this->buildEnvironment($base_uri);
+        $this->initializeEditMode($environment);
+        $environment->setParametersForQuestionCmds();
 
         $tpl->setContent(
             $this->ctrl->forwardCommand(
                 new \QstsQuestionPageGUI(
-                    $url_builder->withParameter($action_token, self::CMD_EDIT_QUESTION)
-                        ->withParameter($question_id_token, $question_id->toString())
+                    $environment
+                        ->withActionParameter(self::CMD_EDIT_QUESTION)
+                        ->withQuestionIdParameter($environment->getQuestionId())
+                        ->getUrlBuilder()
                         ->buildURI(),
                     $this,
-                    $this->questions_repository->getForQuestionId($question_id)
+                    $this->questions_repository->getForQuestionId($environment->getQuestionId())
                 )
             )
         );
@@ -170,40 +133,29 @@ class Edit
     public function createAnswerForm(
         URI $base_uri,
         QuestionImplementation $question,
-        \ilPCAnswerForm $content_obj
+        \ilPCAnswerForm $content_object
     ): EditForm {
-        [
-            $url_builder,
-            $action_token,
-            $step_token,
-            $question_id_token,
-            $type_hash_token
-        ] = $this->acquireURLBuilderAndParameters($base_uri);
+        $environment = $this->buildEnvironment($base_uri)
+            ->withActionParameter(self::CMD_CREATE_ANSWER_FORM)
+            ->withQuestionIdParameter($question->getId());
 
-        $url_builder_with_params = $url_builder
-                ->withParameter($question_id_token, $question->getId()->toString())
-                ->withParameter($action_token, self::CMD_CREATE_ANSWER_FORM);
-
-        $answer_form_type_class_hash = $this->retrieveStringValueForToken($type_hash_token);
+        $answer_form_type_class_hash = $environment->getTypeClassHast();
         if ($answer_form_type_class_hash !== '') {
             return $this->forwardCreateAnswerFormCmd(
-                $url_builder_with_params->withParameter($type_hash_token, $answer_form_type_class_hash),
-                $step_token,
-                $content_obj,
+                $environment->withAnswerFormTypeHashParameter($answer_form_type_class_hash),
+                $content_object,
                 $this->answer_form_factory->buildTypeDefinitionFromSelectValue($answer_form_type_class_hash),
                 $this->answer_form_factory->getDefaultTypeGenericProperties($question->getId())
             );
         }
 
-        return match($this->retrieveStringValueForToken($action_token)) {
+        return match($environment->getAction()) {
             self::CMD_CREATE_ANSWER_FORM => $this->processCreateAnswerForm(
-                $url_builder_with_params,
-                $step_token,
-                $type_hash_token,
-                $content_obj,
+                $environment,
+                $content_object,
                 $this->answer_form_factory->getDefaultTypeGenericProperties($question->getId())
             ),
-            default => $this->buildCreateAnswerForm($url_builder_with_params)
+            default => $this->buildCreateAnswerForm($environment)
         };
     }
 
@@ -212,36 +164,20 @@ class Edit
         QuestionImplementation $question,
         \ilPCAnswerForm $content_obj
     ): EditForm|EditOverview {
-        [
-            $url_builder,
-            $action_token,
-            $step_token,
-            $question_id_token
-        ] = $this->acquireURLBuilderAndParameters($base_uri);
+        $environment = $this->buildEnvironment($base_uri)
+            ->withActionParameter(self::CMD_EDIT_ANSWER_FORM)
+            ->withQuestionIdParameter($question->getId());
 
-        $url_builder_with_params = $url_builder
-                ->withParameter($question_id_token, $question->getId()->toString())
-                ->withParameter($action_token, self::CMD_CREATE_ANSWER_FORM);
-
-        return match($this->retrieveStringValueForToken($action_token)) {
+        return match($environment->getAction()) {
             self::CMD_EDIT_ANSWER_FORM => $this->processCreateAnswerForm($url_builder),
-            default => $this->forwardEditAnswerFormCmd(
-                $url_builder_with_params,
-                $step_token,
-                $content_obj,
-                $this->answer_form_factory->getDefaultTypeGenericProperties($question->getId())
-            )
+            default => $this->forwardEditAnswerFormCmd($environment)
         };
     }
 
     private function createQuestion(
-        URLBuilder $url_builder,
-        URLBuilderToken $action_token,
-        URLBuilderToken $step_token,
-        URLBuilderToken $question_id_token,
-        URLBuilderToken $page_id_token
+        EnvironmentImplementation $environment
     ): EditForm {
-        $this->initializeEditMode($url_builder, $action_token, $question_id_token);
+        $this->initializeEditMode($environment);
 
         $create = $this->questions_repository->getNew()->getEditView(
             $this->lng,
@@ -252,10 +188,7 @@ class Edit
             $this->ctrl,
             $this->data_factory
         )->create(
-            $url_builder->withParameter($action_token, self::CMD_CREATE_QUESTION),
-            $step_token,
-            $this->retrieveStringValueForToken($step_token),
-            $this->edit_form_factory
+            $environment->withActionParameter(self::CMD_CREATE_QUESTION)
         );
 
         if ($create instanceof EditForm) {
@@ -264,26 +197,21 @@ class Edit
 
         $this->questions_repository->store($create);
         return $this->buildEditStartView(
-            $url_builder->withParameter($question_id_token, $create->getId()->toString()),
-            $step_token,
-            $page_id_token,
+            $environment
+                ->withDefaultStep()
+                ->withActionParameter(self::CMD_EDIT_QUESTION)
+                ->withQuestionIdParameter($create->getId()),
             $create
         );
 
     }
 
     private function editQuestion(
-        URLBuilder $url_builder,
-        URLBuilderToken $action_token,
-        URLBuilderToken $step_token,
-        URLBuilderToken $question_id_token,
-        URLBuilderToken $page_id_token
+        EnvironmentImplementation $environment
     ): EditForm {
-        $this->initializeEditMode($url_builder, $action_token, $question_id_token);
+        $this->initializeEditMode($environment);
 
-        $question_id = $this->retrieveQuestionId($question_id_token);
-
-        $url_builder_with_row_id = $url_builder->withParameter($question_id_token, $question_id->toString());
+        $question_id = $environment->getQuestionId();
 
         $edit = $this->questions_repository->getForQuestionId($question_id)->getEditView(
             $this->lng,
@@ -294,11 +222,9 @@ class Edit
             $this->ctrl,
             $this->data_factory
         )->edit(
-            $url_builder_with_row_id->withParameter($action_token, self::CMD_EDIT_QUESTION),
-            $step_token,
-            $page_id_token,
-            $this->retrieveStringValueForToken($step_token),
-            $this->edit_form_factory
+            $environment
+                ->withActionParameter(self::CMD_EDIT_QUESTION)
+                ->withQuestionIdParameter($question_id)
         );
 
         if ($edit instanceof EditForm) {
@@ -307,23 +233,22 @@ class Edit
 
         $this->questions_repository->store($edit);
         return $this->buildEditStartView(
-            $url_builder_with_row_id,
-            $step_token,
-            $page_id_token,
+            $environment->withQuestionIdParameter($question_id),
             $edit
         );
     }
 
     private function showTable(
         \ilToolbarGUI $toolbar,
-        URLBuilder $url_builder,
-        URLBuilderToken $action_token,
-        URLBuilderToken $question_id_token
+        EnvironmentImplementation $environment
     ): QuestionsTable {
         $toolbar->addComponent(
             $this->ui_factory->button()->standard(
                 $this->lng->txt('create'),
-                $url_builder->withParameter($action_token, self::CMD_CREATE_QUESTION)->buildURI()->__toString()
+                $environment->withActionParameter(self::CMD_CREATE_QUESTION)
+                    ->getUrlBuilder()
+                    ->buildURI()
+                    ->__toString()
             )
         );
 
@@ -334,27 +259,24 @@ class Edit
             $this->http->request(),
             $this->answer_form_factory,
             $this->questions_repository,
-            $url_builder,
-            $action_token,
-            $question_id_token
+            $environment
         );
     }
 
     private function processCreateAnswerForm(
-        URLBuilder $url_builder,
-        URLBuilderToken $step_token,
-        URLBuilderToken $type_hash_token,
+        EnvironmentImplementation $environment,
         \ilPCAnswerForm $content_obj,
         TypeGenericProperties $generic_answer_form_properties
     ): EditForm {
-        $form = $this->buildCreateAnswerForm($url_builder)->withRequest($this->http->request());
+        $form = $this->buildCreateAnswerForm($environment)->withRequest($this->http->request());
 
         $data = $form->getData();
         return $data === null
             ? $form
             : $this->forwardCreateAnswerFormCmd(
-                $url_builder->withParameter($type_hash_token, $this->answer_form_factory->getHashedClass($data::class)),
-                $step_token,
+                $environment->withAnswerFormTypeHashParameterParameter(
+                    $this->answer_form_factory->getHashedClass($data::class)
+                ),
                 $content_obj,
                 $data,
                 $generic_answer_form_properties
@@ -362,82 +284,30 @@ class Edit
     }
 
     private function forwardCreateAnswerFormCmd(
-        URLBuilder $url_builder,
-        URLBuilderToken $step_token,
+        EnvironmentImplementation $environment,
         \ilPCAnswerForm $content_obj,
         Definition $type,
         TypeGenericProperties $type_generic_properties,
     ): ?EditForm {
         $create = $type->getEditView()->create(
-            $url_builder,
-            $step_token,
-            $this->retrieveStringValueForToken($step_token),
-            $this->edit_form_factory,
-            $type->buildProperties($type_generic_properties, [])
+            $environment->withProperties(
+                $type->buildProperties($type_generic_properties, [])
+            )
         );
 
         if ($create instanceof EditForm) {
             return $create;
         }
 
-        $this->questions_repository->store(
-            $this->questions_repository->getForQuestionId(
-                $create->getTypeGenericProperties()->getQuestionId()
-            )->withAnswerForm($create)
-        );
+        $this->questions_repository->store($create);
         $content_obj->create($create->getAnswerFormId());
         $content_obj->getPage()->update();
 
         $this->ctrl->redirectByClass(\QstsQuestionPageGUI::class, 'edit');
     }
 
-    private function acquireURLBuilderAndParameters(URI $base_uri): array
-    {
-        return (new URLBuilder($base_uri))
-            ->acquireParameters(
-                self::QUERY_PARAMETER_NAME_SPACE,
-                self::TOKEN_STRING_ACTION,
-                self::TOKEN_STRING_STEP,
-                self::TOKEN_STRING_QUESTION_ID,
-                self::TOKEN_TYPE_HASH
-            );
-    }
-
-    private function retrieveStringValueForToken(
-        URLBuilderToken $token
-    ): string {
-        return $this->http->wrapper()->query()->retrieve(
-            $token->getName(),
-            $this->buildStringTrafo()
-        );
-    }
-
-    private function retrieveQuestionId(
-        URLBuilderToken $question_id_token
-    ): ?Uuid {
-        return $this->http->wrapper()->query()->retrieve(
-            $question_id_token->getName(),
-            $this->refinery->byTrying([
-                $this->refinery->custom()->transformation(
-                    fn($v): Uuid => $this->uuid_factory->fromString($v)
-                ),
-                $this->refinery->always(null)
-            ])
-        );
-    }
-
-    private function buildStringTrafo(): Transformation
-    {
-        return $this->refinery->byTrying([
-            $this->refinery->kindlyTo()->string(),
-            $this->refinery->always('')
-        ]);
-    }
-
     private function initializeEditMode(
-        URLBuilder $url_builder,
-        URLBuilderToken $action_token,
-        URLBuilderToken $question_id_token
+        EnvironmentImplementation $environment
     ): void {
         $this->global_screen->tool()->context()->current()->addAdditionalData(
             LayoutProvider::MODE_ENABLED,
@@ -445,33 +315,23 @@ class Edit
         );
         $this->global_screen->tool()->context()->current()->addAdditionalData(
             LayoutProvider::QUESTIONLIST_ENTRY,
-            $this->buildQuestionListSlate($url_builder, $action_token, $question_id_token)
+            $this->buildQuestionListSlate($environment)
         );
         $this->global_screen->tool()->context()->current()->addAdditionalData(
             LayoutProvider::URL_CLOSE_MODE_INFO,
-            $url_builder->buildURI()
+            $environment->getUrlBuilder()->buildURI()
         );
         $this->global_screen->tool()->context()->current()->addAdditionalData(
             LayoutProvider::URL_CREATE_QUESTION,
-            $url_builder->withParameter($action_token, self::CMD_CREATE_QUESTION)->buildURI()
-        );
-    }
-
-    private function setParametersForQuestionCmds(
-        URLBuilderToken $question_id_token,
-        string $question_id
-    ): void {
-        $this->ctrl->setParameterByClass(
-            \QstsQuestionPageGUI::class,
-            $question_id_token->getName(),
-            $question_id
+            $environment
+            ->withActionParameter(self::CMD_CREATE_QUESTION)
+            ->getUrlBuilder()
+            ->buildURI()
         );
     }
 
     private function buildQuestionListSlate(
-        URLBuilder $url_builder,
-        URLBuilderToken $action_token,
-        URLBuilderToken $question_id_token
+        EnvironmentImplementation $environment
     ): LegacySlate {
         return $this->ui_factory->mainControls()->slate()->legacy(
             $this->lng->txt('mainbar_button_label_questionlist'),
@@ -481,7 +341,7 @@ class Edit
                     $this->ui_factory->panel()->secondary()->listing(
                         $this->lng->txt('mainbar_button_label_questionlist'),
                         [
-                            $this->buildItemGroupForQuestionListSlate($url_builder, $action_token, $question_id_token)
+                            $this->buildItemGroupForQuestionListSlate($environment)
                         ]
                     )
                 )
@@ -490,9 +350,7 @@ class Edit
     }
 
     private function buildItemGroupForQuestionListSlate(
-        URLBuilder $url_builder,
-        URLBuilderToken $action_token,
-        URLBuilderToken $question_id_token
+        EnvironmentImplementation $environment
     ): ItemGroup {
         return $this->ui_factory->item()->group(
             '',
@@ -500,8 +358,7 @@ class Edit
                 fn(QuestionImplementation $v): StandardItem => $this->ui_factory->item()->standard(
                     $v->toEditLink(
                         $this->ui_factory->link(),
-                        $url_builder->withParameter($action_token, self::CMD_EDIT_QUESTION),
-                        $question_id_token
+                        $environment->withActionParameter(self::CMD_EDIT_QUESTION)
                     )
                 ),
                 iterator_to_array($this->questions_repository->getAllQuestions())
@@ -510,9 +367,7 @@ class Edit
     }
 
     private function buildEditStartView(
-        URLBuilder $url_builder,
-        URLBuilderToken $step_token,
-        URLBuilderToken $page_id_token,
+        EnvironmentImplementation $environment,
         QuestionImplementation $question
     ): EditForm {
         return $question->getEditView(
@@ -523,21 +378,15 @@ class Edit
             $this->http->request(),
             $this->ctrl,
             $this->data_factory
-        )->edit(
-            $url_builder,
-            $step_token,
-            $page_id_token,
-            '',
-            $this->edit_form_factory
-        );
+        )->edit($environment);
     }
 
     private function buildCreateAnswerForm(
-        URLBuilder $url_builder
+        EnvironmentImplementation $environemt
     ): EditForm {
         $if = $this->ui_factory->input();
         return $this->edit_form_factory->getEditForm(
-            $url_builder->buildURI(),
+            $environemt->getUrlBuilder(),
             $if->field()->section(
                 [
                         $if->field()->select(
@@ -562,5 +411,19 @@ class Edit
                 throw new \InvalidArgumentException('All provided capabilities must implement ILIAS\Questions\AnswerForm\Capabilities\Capability.');
             }
         }
+    }
+
+    public function buildEnvironment(
+        URI $base_uri
+    ): EnvironmentImplementation {
+        return new EnvironmentImplementation(
+            $this->ctrl,
+            $this->http,
+            $this->refinery,
+            $this->uuid_factory,
+            $this->definitions_factory,
+            $this->editability,
+            $base_uri
+        );
     }
 }

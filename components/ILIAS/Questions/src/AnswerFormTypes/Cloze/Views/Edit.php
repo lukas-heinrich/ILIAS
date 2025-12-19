@@ -20,24 +20,23 @@ declare(strict_types=1);
 
 namespace ILIAS\Questions\AnswerFormTypes\Cloze\Views;
 
-use ILIAS\Questions\AnswerForm\Properties as PropertiesInterface;
 use ILIAS\Questions\AnswerForm\Views\Edit as EditViewInterface;
 use ILIAS\Questions\AnswerFormTypes\Cloze\Properties\AnswerForm\Factory as PropertiesFactory;
 use ILIAS\Questions\AnswerFormTypes\Cloze\Properties\AnswerForm\Properties;
 use ILIAS\Questions\AnswerFormTypes\Cloze\Properties\ClozeText\Factory as ClozeTextFactory;
 use ILIAS\Questions\AnswerFormTypes\Cloze\Properties\Gaps\Factory as GapFactory;
-use ILIAS\Questions\Presentation\Definitions\EditForm;
-use ILIAS\Questions\Presentation\Definitions\EditFormFactory;
+use ILIAS\Questions\Presentation\Layout\Definitions\Environment;
+use ILIAS\Questions\Presentation\Layout\Definitions\EditForm;
+use ILIAS\Questions\Presentation\Layout\Definitions\EditOverview;
 use ILIAS\HTTP\Services as HTTPServices;
 use ILIAS\Language\Language;
-use ILIAS\UI\URLBuilder;
-use ILIAS\UI\URLBuilderToken;
 use ILIAS\UI\Factory as UIFactory;
 use ILIAS\UI\Component\Panel\Standard as StandardPanel;
 use ILIAS\Refinery\Factory as Refinery;
 
 class Edit implements EditViewInterface
 {
+    private const string STEP_EDIT_BASIC_PROPERTIES = 'ebp';
     private const string STEP_SET_GAP_TYPES = 'sgt';
     private const string STEP_SET_ANSWER_OPTIONS = 'sao';
     private const string STEP_SET_POINTS = 'sap';
@@ -55,107 +54,95 @@ class Edit implements EditViewInterface
     }
 
     public function create(
-        URLBuilder $url_builder,
-        URLBuilderToken $step_token,
-        string $step,
-        EditFormFactory $edit_form_factory,
-        PropertiesInterface $properties
+        Environment $environment
     ): EditForm|Properties {
-        return match($step) {
+        return match($environment->getStep()) {
             self::STEP_SET_GAP_TYPES => $this->processBasicEditingForm(
-                $url_builder,
-                $step_token,
-                $edit_form_factory,
-                $properties->withValuesFromCarry(
-                    $this->refinery,
-                    $this->cloze_text_factory,
-                    $this->gap_factory,
-                    $edit_form_factory->getCarrySectionData(
-                        $this->http->wrapper()->post(),
-                        $this->refinery
+                $environment->withProperties(
+                    $environment->getProperties()->withValuesFromCarry(
+                        $this->refinery,
+                        $this->cloze_text_factory,
+                        $this->gap_factory,
+                        $environment->getDefinitionsFactory()->getCarrySectionData(
+                            $this->http->wrapper()->post(),
+                            $this->refinery
+                        )
                     )
                 )
             ),
             self::STEP_SET_ANSWER_OPTIONS => $this->processGapTypesForm(
-                $url_builder,
-                $step_token,
-                $edit_form_factory,
-                $properties->withValuesFromCarry(
-                    $this->refinery,
-                    $this->cloze_text_factory,
-                    $this->gap_factory,
-                    $edit_form_factory->getCarrySectionData(
-                        $this->http->wrapper()->post(),
-                        $this->refinery
+                $environment->withProperties(
+                    $environment->getProperties()->withValuesFromCarry(
+                        $this->refinery,
+                        $this->cloze_text_factory,
+                        $this->gap_factory,
+                        $environment->getDefinitionsFactory()->getCarrySectionData(
+                            $this->http->wrapper()->post(),
+                            $this->refinery
+                        )
                     )
                 )
             ),
             self::STEP_SET_POINTS => $this->processAnswerOptionsForm(
-                $url_builder,
-                $step_token,
-                $edit_form_factory,
-                $properties->withValuesFromCarry(
-                    $this->refinery,
-                    $this->cloze_text_factory,
-                    $this->gap_factory,
-                    $edit_form_factory->getCarrySectionData(
-                        $this->http->wrapper()->post(),
-                        $this->refinery
+                $environment->withProperties(
+                    $environment->getProperties()->withValuesFromCarry(
+                        $this->refinery,
+                        $this->cloze_text_factory,
+                        $this->gap_factory,
+                        $environment->getDefinitionsFactory()->getCarrySectionData(
+                            $this->http->wrapper()->post(),
+                            $this->refinery
+                        )
                     )
                 )
             ),
             self::STEP_SAVE => $this->processAssignPointsForm(
-                $url_builder,
-                $step_token,
-                $edit_form_factory,
-                $properties->withValuesFromCarry(
-                    $this->refinery,
-                    $this->cloze_text_factory,
-                    $this->gap_factory,
-                    $edit_form_factory->getCarrySectionData(
-                        $this->http->wrapper()->post(),
-                        $this->refinery
+                $environment->withProperties(
+                    $environment->getProperties()->withValuesFromCarry(
+                        $this->refinery,
+                        $this->cloze_text_factory,
+                        $this->gap_factory,
+                        $environment->getDefinitionsFactory()->getCarrySectionData(
+                            $this->http->wrapper()->post(),
+                            $this->refinery
+                        )
                     )
                 )
             ),
-            default => $this->buildBasicEditingForm(
-                $url_builder,
-                $step_token,
-                $edit_form_factory,
-                $properties
-            )
+            default => $this->buildBasicEditingForm($environment)
         };
     }
 
     public function edit(
-        URLBuilder $url_builder,
-        URLBuilderToken $step_token,
-        string $step,
-        EditFormFactory $edit_form_factory,
-        PropertiesInterface $properties,
-    ): EditForm|Properties {
-
+        Environment $environment
+    ): EditOverview|EditForm|Properties {
+        return match ($step) {
+            default => $this->buildEditingOverview($environment)
+        };
     }
 
     public function other(
-        URLBuilder $url_builder,
-        URLBuilderToken $step_token,
-        string $step,
-        EditFormFactory $edit_form_factory,
-        PropertiesInterface $properties
+        Environment $environment
     ): EditForm|Properties {
 
     }
 
+    private function buildEditingOverview(
+        Environment $environment
+    ): EditOverview {
+        return $environment->getDefinitionsFactory()->getEditOverview(
+            $environment->getEditability(),
+            $environment->getUrlBuilderWithStepParameter(self::STEP_EDIT_BASIC_PROPERTIES),
+            $environment->getProperties()
+        );
+    }
+
     private function buildBasicEditingForm(
-        URLBuilder $url_builder,
-        URLBuilderToken $step_token,
-        EditFormFactory $edit_form_factory,
-        Properties $properties
+        Environment $environment
     ): EditForm {
-        return $edit_form_factory->getEditForm(
-            $url_builder->withParameter($step_token, self::STEP_SET_GAP_TYPES)->buildURI(),
-            $properties->buildBasicEditingInputs(
+        return $environment->getDefinitionsFactory()->getEditForm(
+            $environment->getUrlBuilderWithStepParameter(self::STEP_SET_GAP_TYPES),
+            $environment->getProperties()->buildBasicEditingInputs(
                 $this->lng,
                 $this->ui_factory->input()->field(),
                 $this->refinery,
@@ -167,38 +154,27 @@ class Edit implements EditViewInterface
     }
 
     private function processBasicEditingForm(
-        URLBuilder $url_builder,
-        URLBuilderToken $step_token,
-        EditFormFactory $edit_form_factory,
-        Properties $properties
+        Environment $environment
     ): EditForm {
         $form = $this->buildBasicEditingForm(
-            $url_builder,
-            $step_token,
-            $edit_form_factory,
-            $properties
+            $environment
         )->withRequest($this->http->request());
 
         $data = $form->getData();
         return $data === null
             ? $form
             : $this->buildGapTypesForm(
-                $url_builder,
-                $step_token,
-                $edit_form_factory,
-                $data
+                $environment->withProperties($data)
             );
     }
 
     private function buildGapTypesForm(
-        URLBuilder $url_builder,
-        URLBuilderToken $step_token,
-        EditFormFactory $edit_form_factory,
-        Properties $properties
+        Environment $environment
     ): EditForm {
+        $properties = $environment->getProperties();
         $ff = $this->ui_factory->input()->field();
-        return $edit_form_factory->getEditForm(
-            $url_builder->withParameter($step_token, self::STEP_SET_ANSWER_OPTIONS)->buildURI(),
+        return $environment->getDefinitionsFactory()->getEditForm(
+            $environment->getUrlBuilderWithStepParameter(self::STEP_SET_ANSWER_OPTIONS),
             $properties->getGaps()->buildGapsTypeInputs(
                 $this->lng,
                 $ff,
@@ -214,38 +190,29 @@ class Edit implements EditViewInterface
     }
 
     private function processGapTypesForm(
-        URLBuilder $url_builder,
-        URLBuilderToken $step_token,
-        EditFormFactory $edit_form_factory,
-        Properties $properties,
+        Environment $environment
     ): EditForm {
         $form = $this->buildGapTypesForm(
-            $url_builder,
-            $step_token,
-            $edit_form_factory,
-            $properties
+            $environment
         )->withRequest($this->http->request());
 
         $data = $form->getData();
         return $data === null
             ? $form
             : $this->buildAnswerOptionsForm(
-                $url_builder,
-                $step_token,
-                $edit_form_factory,
-                $properties->withGaps($data)
+                $environment->withProperties(
+                    $environment->getProperties()->withGaps($data)
+                )
             );
     }
 
     private function buildAnswerOptionsForm(
-        URLBuilder $url_builder,
-        URLBuilderToken $step_token,
-        EditFormFactory $edit_form_factory,
-        Properties $properties
+        Environment $environment
     ): EditForm {
+        $properties = $environment->getProperties();
         $ff = $this->ui_factory->input()->field();
-        return $edit_form_factory->getEditForm(
-            $url_builder->withParameter($step_token, self::STEP_SET_POINTS)->buildURI(),
+        return $environment->getDefinitionsFactory()->getEditForm(
+            $environment->getUrlBuilderWithStepParameter(self::STEP_SET_POINTS),
             $properties->getGaps()->buildAnswerOptionsInputs($this->lng, $ff, $this->refinery),
             false,
             $properties->buildCarryInputs($ff)
@@ -255,38 +222,29 @@ class Edit implements EditViewInterface
     }
 
     private function processAnswerOptionsForm(
-        URLBuilder $url_builder,
-        URLBuilderToken $step_token,
-        EditFormFactory $edit_form_factory,
-        Properties $properties
+        Environment $environment
     ): EditForm {
         $form = $this->buildAnswerOptionsForm(
-            $url_builder,
-            $step_token,
-            $edit_form_factory,
-            $properties
+            $environment
         )->withRequest($this->http->request());
 
         $data = $form->getData();
         return $data === null
             ? $form
             : $this->buildAssignPointsForm(
-                $url_builder,
-                $step_token,
-                $edit_form_factory,
-                $properties->withGaps($data)
+                $environment->withProperties(
+                    $environment->getProperties()->withGaps($data)
+                )
             );
     }
 
     private function buildAssignPointsForm(
-        URLBuilder $url_builder,
-        URLBuilderToken $step_token,
-        EditFormFactory $edit_form_factory,
-        Properties $properties
+        Environment $environment
     ): EditForm {
+        $properties = $environment->getProperties();
         $ff = $this->ui_factory->input()->field();
-        return $edit_form_factory->getEditForm(
-            $url_builder->withParameter($step_token, self::STEP_SAVE)->buildURI(),
+        return $environment->getDefinitionsFactory()->getEditForm(
+            $environment->getUrlBuilderWithStepParameter(self::STEP_SAVE),
             $properties->getGaps()->buildPointInputs($this->lng, $ff, $this->refinery),
             true,
             $properties->buildCarryInputs($ff)
@@ -296,18 +254,13 @@ class Edit implements EditViewInterface
     }
 
     private function processAssignPointsForm(
-        URLBuilder $url_builder,
-        URLBuilderToken $step_token,
-        EditFormFactory $edit_form_factory,
-        Properties $properties
+        Environment $environment
     ): EditForm|Properties {
         $form = $this->buildAssignPointsForm(
-            $url_builder,
-            $step_token,
-            $edit_form_factory,
-            $properties
+            $environment
         )->withRequest($this->http->request());
 
+        $properties = $environment->getProperties();
         $data = $form->getData();
         return $data === null
             ? $form->withContentBeforeForm(
@@ -321,7 +274,7 @@ class Edit implements EditViewInterface
         return $this->ui_factory->panel()->standard(
             $this->lng->txt('cloze_text'),
             $this->ui_factory->legacy()->content(
-                $properties->getClozeText()->getRenderedMarkdown(
+                $properties->getClozeText()->getRenderedMarkdownForEditingPresentation(
                     $properties->getGaps()
                 )
             )

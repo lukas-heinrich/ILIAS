@@ -72,6 +72,8 @@ class ilPCAnswerFormGUI extends ilPageContentGUI
     public function editCmd(): void
     {
         $this->setInsertTabs();
+        $content_obj = new ilPCAnswerForm($this->pg_obj);
+        $content_obj->setHierId($this->hier_id);
         $this->tpl->setContent(
             $this->edit_view->editAnswerForm(
                 $this->data_factory->uri(

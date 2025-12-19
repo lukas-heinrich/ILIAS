@@ -49,6 +49,11 @@ class Factory
         );
     }
 
+    public function getAvailableDefinitions(): array
+    {
+        return array_values($this->available_answer_form_types);
+    }
+
     /**
      * @return array<string, \ILIAS\Questions\AnswerForm\Definition>
      */

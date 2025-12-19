@@ -18,7 +18,7 @@
 
 declare(strict_types=1);
 
-namespace ILIAS\Questions\Presentation\Layout;
+namespace ILIAS\Questions\Presentation\Layout\GlobalScreen;
 
 use ILIAS\GlobalScreen\Scope\Layout\Factory\BreadCrumbsModification;
 use ILIAS\GlobalScreen\Scope\Layout\Factory\MainBarModification;

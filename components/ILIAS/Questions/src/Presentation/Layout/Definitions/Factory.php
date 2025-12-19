@@ -18,17 +18,20 @@
 
 declare(strict_types=1);
 
-namespace ILIAS\Questions\Presentation\Definitions;
+namespace ILIAS\Questions\Presentation\Layout\Definitions;
 
-use ILIAS\Data\URI;
+use ILIAS\Questions\AnswerForm\Properties;
 use ILIAS\HTTP\Wrapper\ArrayBasedRequestWrapper;
 use ILIAS\Language\Language;
 use ILIAS\Refinery\Factory as Refinery;
 use ILIAS\UI\Factory as UIFactory;
+use ILIAS\UI\URLBuilder;
 use ILIAS\UI\Component\Input\Field\Section;
 use ILIAS\UI\Component\Input\Field\Group;
+use ILIAS\UI\Component\Table\Data as DataTable;
+use ILIAS\UI\Component\Table\Ordering as OrderingTable;
 
-class EditFormFactory
+class Factory
 {
     public function __construct(
         private readonly UIFactory $ui_factory,
@@ -36,8 +39,24 @@ class EditFormFactory
     ) {
     }
 
+    public function getEditOverview(
+        Editability $editability,
+        URLBuilder $url_builder,
+        DataTable|OrderingTable $answer_elements_table,
+        Properties $answer_form_properties
+    ): EditOverview {
+        return new EditOverview(
+            $this->ui_factory,
+            $this->lng,
+            $editability,
+            $url_builder,
+            $answer_elements_table,
+            $answer_form_properties
+        );
+    }
+
     public function getEditForm(
-        URI $target_uri,
+        URLBuilder $url_builder,
         Section $main_section_inputs,
         bool $is_final_step,
         ?Group $carry_inputs = null
@@ -45,7 +64,7 @@ class EditFormFactory
         return new EditForm(
             $this->ui_factory->input()->container()->form(),
             $this->lng,
-            $target_uri,
+            $url_builder,
             $main_section_inputs,
             $is_final_step,
             $carry_inputs
