@@ -54,11 +54,22 @@ class Factory
         return array_values($this->available_answer_form_types);
     }
 
+    public function getDefinitionForClass(
+        string $class
+    ): Definition {
+        $definition = $this->available_answer_form_types[$this->getHashedClass($class)] ?? null;
+        if ($definition === null) {
+            throw new InvalidArgumentException('This type of answer form does not exist.');
+        }
+        return $definition;
+    }
+
     /**
      * @return array<string, \ILIAS\Questions\AnswerForm\Definition>
      */
-    public function getAnswerFormTypesArrayForSelect(Language $lng): array
-    {
+    public function getAnswerFormTypesArrayForSelect(
+        Language $lng
+    ): array {
         return array_reduce(
             $this->available_answer_form_types,
             function (array $c, Definition $v) use ($lng): array {
@@ -74,8 +85,9 @@ class Factory
         return md5($class);
     }
 
-    public function buildTypeDefinitionFromSelectValue(string $value): Definition
-    {
+    public function buildTypeDefinitionFromSelectValue(
+        string $value
+    ): Definition {
         $type = $this->available_answer_form_types[$value] ?? null;
         if ($type === null) {
             throw new InvalidArgumentException('This type of answer form does not exist.');
@@ -83,8 +95,9 @@ class Factory
         return $type;
     }
 
-    public function getDefaultTypeGenericProperties(Uuid $question_id): TypeGenericProperties
-    {
+    public function getDefaultTypeGenericProperties(
+        Uuid $question_id
+    ): TypeGenericProperties {
         return new TypeGenericProperties(
             $this->uuid_factory->uuid4(),
             $question_id

@@ -18,10 +18,10 @@
 
 declare(strict_types=1);
 
-namespace ILIAS\Questions\Question\Persistence;
+namespace ILIAS\Questions\Persistence;
 
-enum JoinType: string
+enum Junctor: string
 {
-    case Inner = 'INNER';
-    case Left = 'left';
+    case Conjunction = 'AND';
+    case Disjunction = 'OR';
 }

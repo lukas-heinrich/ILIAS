@@ -18,26 +18,37 @@
 
 declare(strict_types=1);
 
-namespace ILIAS\Questions\Question\Persistence;
+namespace ILIAS\Questions\Persistence;
 
-class Table
+class Value
 {
     public function __construct(
-        private readonly CoreTables|TableTypes $table_definition,
-        private readonly ?TableNameBuilder $table_name_builder = null,
-        private readonly string $table_identifier = ''
+        private readonly string $type,
+        private readonly null|string|int|array $value
     ) {
     }
 
-    public function getName(): string
+    public function getType(): string
     {
-        if ($this->table_definition instanceof CoreTables) {
-            return $this->table_definition->value;
+        return $this->type;
+    }
+
+    public function getValue(): string|int|array
+    {
+        return $this->value;
+    }
+
+    public function getQuotedValue(\ilDBInterface $db): string
+    {
+        return $db->quote($this->value, $this->type);
+    }
+
+    public function getNumberOfElements(): int
+    {
+        if (is_array($this->value)) {
+            return count($this->value);
         }
 
-        return $this->table_name_builder->getTableNameFor(
-            $this->table_definition,
-            $this->table_identifier
-        );
+        return 1;
     }
 }

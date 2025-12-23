@@ -77,20 +77,6 @@ class ilPCAnswerForm extends ilPageContent
         );
     }
 
-    private function getAnswerFormIds(): array
-    {
-        return array_reduce(
-            $this->dom_util->path(
-                $this->getPage()->getDomDoc(),
-                '//' . self::ANSWER_FORM_ELEMENT_TAG
-            ),
-            function (array $c, \DomNode $node): Uuid {
-                $node->getAttribute(self::ANSWER_FORM_ID_ATTRIBUT);
-            },
-            []
-        );
-    }
-
     public static function handleCopiedContent(
         DOMDocument $a_domdoc,
         bool $a_self_ass = true,

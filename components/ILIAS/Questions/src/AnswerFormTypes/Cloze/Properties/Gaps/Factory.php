@@ -22,6 +22,7 @@ namespace ILIAS\Questions\AnswerFormTypes\Cloze\Properties\Gaps;
 
 use ILIAS\Questions\AnswerFormTypes\Cloze\Properties\Gaps\Properties\Factory as PropertiesFactory;
 use ILIAS\Language\Language;
+use ILIAS\Data\UUID\Uuid;
 use ILIAS\Data\UUID\Factory as UuidFactory;
 
 class Factory
@@ -53,16 +54,19 @@ class Factory
     }
 
     public function getNewGap(
+        Uuid $answer_form_id,
         int $position,
         string $id = ''
     ): Gap {
         $answer_input_id = $id !== ''
             ? $this->uuid_factory->fromString($id)
             : $this->uuid_factory->uuid4();
+
         return new Gap(
             $answer_input_id,
+            $answer_form_id,
             $position,
-            $this->data_factory->getDefaultProperties($answer_input_id)
+            $this->data_factory->getDefaultAnswerOptions()
         );
     }
 

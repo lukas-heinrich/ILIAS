@@ -21,7 +21,13 @@ declare(strict_types=1);
 namespace ILIAS\Questions\Question;
 
 use ILIAS\Questions\AnswerForm\Properties as AnswerFormProperties;
-use ILIAS\Questions\Question\Persistence\Manipulate;
+use ILIAS\Questions\Persistence\CoreTables;
+use ILIAS\Questions\Persistence\Insert;
+use ILIAS\Questions\Persistence\Update;
+use ILIAS\Questions\Persistence\Manipulate;
+use ILIAS\Questions\Persistence\ManipulationType;
+use ILIAS\Questions\Persistence\Value;
+use ILIAS\Questions\Persistence\Where;
 use ILIAS\Questions\Presentation\Layout\Definitions\EnvironmentImplementation;
 use ILIAS\Questions\Question\Definitions\Lifecycle;
 use ILIAS\Data\Factory as DataFactory;
@@ -41,7 +47,7 @@ class QuestionImplementation implements Question
     public array $updated_answer_forms = [];
 
     /**
-     * @param array{string, \ILIAS\Questions\AnswerForm\Form} $answer_forms
+     * @param array{string, \ILIAS\Questions\AnswerForm\Properties} $answer_forms
      */
     public function __construct(
         private readonly Uuid $id,
@@ -166,7 +172,7 @@ class QuestionImplementation implements Question
     {
         $clone = clone $this;
         $clone->answer_forms[$answer_form->getAnswerFormId()->toString()] = $answer_form;
-        $clone->updated_answer_forms[] = $answer_form->getAnswerFormId();
+        $clone->updated_answer_forms[] = $answer_form;
         return $clone;
     }
 
@@ -234,17 +240,106 @@ class QuestionImplementation implements Question
     public function toStorage(
         Manipulate $manipulate
     ): Manipulate {
-        return [
-            'id' => [\ilDBConstants::T_TEXT, $this->id->toString()],
-            'page_id' => [\ilDBConstants::T_INTEGER, $this->page_id],
-            'title' => [\ilDBConstants::T_TEXT, $this->title],
-            'author' => [\ilDBConstants::T_TEXT, $this->author],
-            'lifecycle' => [\ilDBConstants::T_TEXT, $this->lifecycle->value],
-            'remarks' => [\ilDBConstants::T_TEXT, $this->remarks],
-            'original_id' => [\ilDBConstants::T_TEXT, $this->original_id?->toString()],
-            'last_update' => [\ilDBConstants::T_INTEGER, time()],
-            'created' => [\ilDBConstants::T_INTEGER, $this->created?->getTimestamp() ?? time()]
-        ];
+        return $manipulate->getManipulationType() === ManipulationType::Create
+            ? $this->addInsertStatementsToManipulation($manipulate)
+            : $this->addUpdateStatementsToManipulation($manipulate);
     }
 
+    private function addInsertStatementsToManipulation(
+        Manipulate $manipulate
+    ): Manipulate {
+        if ($this->created === null) {
+            $manipulate = $manipulate->withAdditionalStatement(
+                $this->buildInsertQuestionStatement()
+            );
+        }
+
+        if ($this->updated_answer_forms !== []) {
+            return $this->addAnswerFormStatementsToManipulate(
+                $manipulate,
+                $this->updated_answer_forms
+            );
+        }
+
+        if ($this->answer_forms !== []) {
+            return $this->addAnswerFormStatementsToManipulate(
+                $manipulate,
+                $this->answer_forms
+            );
+        }
+
+        return $manipulate;
+    }
+
+    private function addUpdateStatementsToManipulation(
+        Manipulate $manipulate
+    ): Manipulate {
+        if ($this->self_updated) {
+            $manipulate = $manipulate->withAdditionalStatement(
+                $this->buildUpdateQuestionStatement()
+            );
+        }
+
+        return $this->addAnswerFormStatementsToManipulate(
+            $manipulate,
+            $this->updated_answer_forms
+        );
+    }
+
+    private function buildInsertQuestionStatement(): Insert
+    {
+        return new Insert(
+            CoreTables::Questions->getColumns(),
+            [
+                new Value(\ilDBConstants::T_TEXT, $this->id->toString()),
+                new Value(\ilDBConstants::T_INTEGER, $this->page_id),
+                new Value(\ilDBConstants::T_TEXT, $this->title),
+                new Value(\ilDBConstants::T_TEXT, $this->author),
+                new Value(\ilDBConstants::T_TEXT, $this->lifecycle->value),
+                new Value(\ilDBConstants::T_TEXT, $this->remarks),
+                new Value(\ilDBConstants::T_TEXT, $this->original_id?->toString()),
+                new Value(\ilDBConstants::T_INTEGER, time()),
+                new Value(\ilDBConstants::T_INTEGER, time())
+            ]
+        );
+    }
+
+    private function addAnswerFormStatementsToManipulate(
+        Manipulate $manipulate,
+        array $answer_forms
+    ): Manipulate {
+        return array_reduce(
+            $answer_forms,
+            fn(Manipulate $c, AnswerFormProperties $v): Manipulate => $v->toStorage(
+                $v->getTypeGenericProperties()->toStorage($c)
+            ),
+            $manipulate
+        );
+    }
+
+    private function buildUpdateQuestionStatement(): Update
+    {
+        $questions_table_definition = CoreTables::Questions;
+        return new Update(
+            $questions_table_definition->getColumns([
+                CoreTables::ANSWER_FORM_TABLE_ID_COLUMN,
+                'page_id',
+                'created'
+            ]),
+            [
+                new Value(\ilDBConstants::T_TEXT, $this->title),
+                new Value(\ilDBConstants::T_TEXT, $this->author),
+                new Value(\ilDBConstants::T_TEXT, $this->lifecycle->value),
+                new Value(\ilDBConstants::T_TEXT, $this->remarks),
+                new Value(\ilDBConstants::T_TEXT, $this->original_id?->toString()),
+                new Value(\ilDBConstants::T_INTEGER, time())
+            ],
+            [
+                new Where(
+                    $questions_table_definition->getIdColumn(),
+                    new Value(\ilDBConstants::T_TEXT, $this->id->toString())
+                )
+            ]
+        );
+    }
 }

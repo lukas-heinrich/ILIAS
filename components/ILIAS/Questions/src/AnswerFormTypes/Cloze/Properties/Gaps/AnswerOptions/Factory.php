@@ -32,28 +32,28 @@ class Factory
     ) {
     }
 
-    public function getDefaultProperties(
-        Uuid $answer_input_id
-    ): Properties {
-        return new Properties(
-            $answer_input_id,
-            new AnswerOptions(
-                $this,
-                []
-            )
+    public function getDefaultAnswerOptions(): AnswerOptions
+    {
+        return new AnswerOptions(
+            $this,
+            []
         );
     }
 
-    public function getDefaultAnswerOptionForPosition(int $position): AnswerOption
-    {
+    public function getDefaultAnswerOptionForPosition(
+        Uuid $answer_input_id,
+        int $position
+    ): AnswerOption {
         return new AnswerOption(
             $this->uuid_factory->uuid4(),
+            $answer_input_id,
             $position
         );
     }
 
     public function buildAnswerOption(
         string $answer_option_id,
+        Uuid $answer_input_id,
         int $position,
         string $text_value,
         ?string $lower_limit,
@@ -62,6 +62,7 @@ class Factory
     ): AnswerOption {
         return new AnswerOption(
             $this->uuid_factory->fromString($answer_option_id),
+            $answer_input_id,
             $position,
             $text_value,
             $this->convertToFloatOrNull($lower_limit),

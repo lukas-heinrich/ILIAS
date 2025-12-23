@@ -18,21 +18,33 @@
 
 declare(strict_types=1);
 
-namespace ILIAS\Questions\Question\Persistence;
+namespace ILIAS\Questions\Persistence;
 
-class Select
+class Column
 {
     public function __construct(
         private readonly Table $table,
-        private readonly array $columns
+        private readonly string $identifier
     ) {
     }
 
-    public function toColumnsArray(): array
+    public function getTableName(): string
     {
-        return array_map(
-            fn(string $v): string => "{$this->table->getName()}.{$v}",
-            $this->columns
-        );
+        return $this->table->getName();
+    }
+
+    public function getColumnAlias(): string
+    {
+        return "{$this->table->getName()}_{$this->identifier}";
+    }
+
+    public function getColumnString(): string
+    {
+        return "{$this->table->getName()}.{$this->identifier}";
+    }
+
+    public function getAliasedColumnString(): string
+    {
+        return "{$this->table->getName()}.{$this->identifier} {$this->getColumnAlias()}";
     }
 }

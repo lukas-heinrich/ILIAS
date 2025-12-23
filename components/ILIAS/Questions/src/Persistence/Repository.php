@@ -18,19 +18,22 @@
 
 declare(strict_types=1);
 
-namespace ILIAS\Questions\Question\Persistence;
+namespace ILIAS\Questions\Persistence;
 
 use ILIAS\Questions\AnswerForm\Factory as AnswerFormFactory;
-use ILIAS\Questions\AnswerForm\Definition;
+use ILIAS\Questions\AnswerForm\Definition as AnswerFormDefinition;
+use ILIAS\Questions\AnswerForm\Properties as AnswerFormProperties;
 use ILIAS\Questions\Question\Definitions\Lifecycle;
 use ILIAS\Questions\Question\QuestionImplementation;
 use ILIAS\Data\UUID\Factory as UuidFactory;
 use ILIAS\Data\UUID\Uuid;
+use ILIAS\Refinery\Factory as Refinery;
 
 class Repository
 {
     public function __construct(
         private readonly \ilDBInterface $db,
+        private readonly Refinery $refinery,
         private readonly UuidFactory $uuid_factory,
         private readonly AnswerFormFactory $answer_form_factory
     ) {
@@ -96,61 +99,104 @@ class Repository
      */
     private function getForBaseQuery(Query $query): \Generator
     {
-        $result = array_reduce(
+        $query_with_answer_forms = array_reduce(
             $this->answer_form_factory->getAvailableDefinitions(),
-            fn(Query $c, Definition $v) => $v->getPersistence()->completeQuery(
+            fn(Query $c, AnswerFormDefinition $v) => $v->getPersistence()->completeQuery(
                 new TableNameBuilder($v->getPersistence()->getPublicNameSpace()),
                 $c,
                 CoreTables::Questions->getIdColumn()
             ),
             $query
-        )->toSql();
+        );
 
-        $question_records = [$this->db->fetchObject($result)];
-        if ($question_records[0] === null) {
-            return null;
+        foreach ($query_with_answer_forms->loadNextRecord() as $query_with_record) {
+            yield $this->retrieveQuestionFromQuery(
+                $query_with_record,
+                $this->retrieveAnswerFormsFromQuery($query_with_record)
+            );
         }
-        while (($db_record = $this->db->fetchObject($result)) !== null) {
-            if ($db_record->id === $question_records[0]->id) {
-                $question_records[] = $db_record;
-                continue;
-            }
-            yield $this->buildQuestionFromDBRecords($question_records);
-            $question_records = [$db_record];
-        }
-        yield $this->buildQuestionFromDBRecords($question_records);
     }
 
-    private function buildQuestionFromDBRecords(array $db_record): QuestionImplementation
-    {
-        $basic_properties = $db_record[0];
-        return new QuestionImplementation(
-            $this->uuid_factory->fromString($basic_properties->id),
-            $basic_properties->page_id,
-            $basic_properties->title,
-            $basic_properties->author,
-            Lifecycle::from($basic_properties->lifecycle),
-            $basic_properties->remarks,
-            $basic_properties->original_id === null
-                ? null
-                : $this->uuid_factory->fromString($basic_properties->original_id),
-            new \DateTimeImmutable('@' . $basic_properties->last_update, new \DateTimeZone('UTC')),
-            new \DateTimeImmutable('@' . $basic_properties->created, new \DateTimeZone('UTC'))
+    public function create(
+        array $storable
+    ): void {
+        $this->store(
+            $storable,
+            new Manipulate(
+                $this->db,
+                $this->answer_form_factory,
+                ManipulationType::Create
+            )
+        );
+    }
+
+    public function update(
+        array $storable
+    ): void {
+        $this->store(
+            $storable,
+            new Manipulate(
+                $this->db,
+                $this->answer_form_factory,
+                ManipulationType::Update
+            )
+        );
+    }
+
+    private function retrieveQuestionFromQuery(
+        Query $query,
+        array $answer_forms
+    ): QuestionImplementation {
+        return $query->retrieveCurrentRecord(
+            CoreTables::Questions->getTable(),
+            $this->refinery->custom()->transformation(
+                fn(array $vs): QuestionImplementation => new QuestionImplementation(
+                    $this->uuid_factory->fromString($vs[0]['id']),
+                    $vs[0]['page_id'],
+                    $vs[0]['title'],
+                    $vs[0]['author'],
+                    Lifecycle::from($vs[0]['lifecycle']),
+                    $vs[0]['remarks'],
+                    $vs[0]['original_id'] === null
+                        ? null
+                        : $this->uuid_factory->fromString($vs[0]['original_id']),
+                    new \DateTimeImmutable('@' . $vs[0]['last_update'], new \DateTimeZone('UTC')),
+                    new \DateTimeImmutable('@' . $vs[0]['created'], new \DateTimeZone('UTC')),
+                    $answer_forms
+                )
+            )
+        );
+    }
+
+    private function retrieveAnswerFormsFromQuery(
+        Query $query
+    ): array {
+        return $query->retrieveCurrentRecord(
+            CoreTables::AnswerForms->getTable(),
+            $this->refinery->custom()->transformation(
+                function (array $vs): array {
+                    if (count($vs) === 1 && $vs[0]['type'] === null) {
+                        return [];
+                    }
+                    $vs;
+                }
+            )
         );
     }
 
     /**
      *
-     * @param array<\ILIAS\Questions\Question\Persistence\Storable> $storable
+     * @param array<\ILIAS\Questions\Persistence\Storable> $storable
      * @return array<ILIAS\Data\UUID\Uuid>
      */
-    public function store(
-        array $storable
+    private function store(
+        array $storable,
+        Manipulate $manipulate
     ): void {
         array_reduce(
             $storable,
             fn(Manipulate $c, Storable $v): Manipulate => $v->toStorage($c),
-            new Manipulate($this->db)
+            $manipulate
         )->run();
     }
 

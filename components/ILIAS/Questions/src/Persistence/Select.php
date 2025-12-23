@@ -18,18 +18,23 @@
 
 declare(strict_types=1);
 
-namespace ILIAS\Questions\AnswerForm;
+namespace ILIAS\Questions\Persistence;
 
-use ILIAS\Questions\Persistence\Storable;
-use ILIAS\Data\UUID\Uuid;
-use ILIAS\Language\Language;
-
-interface Properties extends Storable
+/**
+ * @param array<\ILIAS\Questions\Persistence\Column> $columns
+ */
+class Select
 {
-    public function getAnswerFormId(): ?Uuid;
-    public function getQuestionId(): ?Uuid;
-    public function getTypeGenericProperties(): TypeGenericProperties;
-    public function getBasicPropertiesForListing(
-        Language $lng
-    ): array;
+    public function __construct(
+        private readonly array $columns
+    ) {
+    }
+
+    public function toColumnsArray(): array
+    {
+        return array_map(
+            fn(Column $v): string => $v->getAliasedColumnString(),
+            $this->columns
+        );
+    }
 }

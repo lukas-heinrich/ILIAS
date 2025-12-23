@@ -20,6 +20,12 @@ declare(strict_types=1);
 
 namespace ILIAS\Questions\AnswerFormTypes\Cloze\Properties\Gaps\Properties;
 
+use ILIAS\Questions\AnswerFormTypes\Cloze\Persistence;
+use ILIAS\Questions\AnswerFormTypes\Cloze\Properties\Gaps\Type;
+use ILIAS\Questions\Persistence\Replace;
+use ILIAS\Questions\Persistence\TableNameBuilder;
+use ILIAS\Questions\Persistence\TableTypes;
+use ILIAS\Questions\Persistence\Value;
 use ILIAS\Questions\Question\Definitions\TextMatchingOptions;
 use ILIAS\Questions\Presentation\Layout\Definitions\CarryWrapper;
 use ILIAS\Data\UUID\Uuid;
@@ -30,6 +36,7 @@ use ILIAS\UI\Implementation\Component\Input\Field\Group;
 
 class Properties
 {
+    private const string FORM_KEY_TYPE = 'type';
     private const string FORM_KEY_MAX_CHARS = 'max_chars';
     private const string FORM_KEY_STEP_SIZE = 'step_size';
     private const string FORM_KEY_TEXT_MATCHING_METHOD = 'matching_method';
@@ -42,7 +49,10 @@ class Properties
      */
     public function __construct(
         private readonly Uuid $answer_input_id,
+        private readonly Uuid $answer_form_id,
+        private int $position,
         private AnswerOptions $answer_options,
+        private ?Type $type = null,
         private ?int $max_chars = null,
         private ?float $step_size = null,
         private ?TextMatchingOptions $text_matching_method = null,
@@ -56,13 +66,40 @@ class Properties
         return $this->answer_input_id;
     }
 
+    public function getPosition(): int
+    {
+        return $this->position;
+    }
+
+    public function withPosition(
+        int $position
+    ): self {
+        $clone = clone $this;
+        $clone->position = $position;
+        return $clone;
+    }
+
+    public function getType(): ?Type
+    {
+        return $this->type;
+    }
+
+    public function withType(
+        Type $type
+    ): self {
+        $clone = clone $this;
+        $clone->type = $type;
+        return $clone;
+    }
+
     public function getMaxChars(): ?int
     {
         return $this->max_chars;
     }
 
-    public function withMaxChars(?int $max_chars): self
-    {
+    public function withMaxChars(
+        ?int $max_chars
+    ): self {
         $clone = clone $this;
         $clone->max_chars = $max_chars;
         return $clone;
@@ -73,8 +110,9 @@ class Properties
         return $this->step_size;
     }
 
-    public function withStepSize(float $step_size): self
-    {
+    public function withStepSize(
+        float $step_size
+    ): self {
         $clone = clone $this;
         $clone->step_size = $step_size;
         return $clone;
@@ -85,8 +123,9 @@ class Properties
         return $this->text_matching_method;
     }
 
-    public function withTextMatchingMethod(TextMatchingOptions $matching_method): self
-    {
+    public function withTextMatchingMethod(
+        TextMatchingOptions $matching_method
+    ): self {
         $clone = clone $this;
         $clone->text_matching_method = $matching_method;
         return $clone;
@@ -97,8 +136,9 @@ class Properties
         return $this->min_autocomplete;
     }
 
-    public function withMinAutocomplete(int $min_autocomplete): self
-    {
+    public function withMinAutocomplete(
+        int $min_autocomplete
+    ): self {
         $clone = clone $this;
         $clone->min_autocomplete = $min_autocomplete;
         return $clone;
@@ -109,8 +149,9 @@ class Properties
         return $this->shuffle_answer_options;
     }
 
-    public function withShuffleAnswerOptions(bool $shuffle_answer_options): self
-    {
+    public function withShuffleAnswerOptions(
+        bool $shuffle_answer_options
+    ): self {
         $clone = clone $this;
         $clone->shuffle_answer_options = $shuffle_answer_options;
         return $clone;
@@ -121,16 +162,23 @@ class Properties
         return $this->answer_options;
     }
 
-    public function withAnswerOptions(AnswerOptions $answer_options): self
-    {
+    public function withAnswerOptions(
+        AnswerOptions $answer_options
+    ): self {
         $clone = clone $this;
         $clone->answer_options = $answer_options;
         return $clone;
     }
 
-    public function getCarryInputs(FieldFactory $ff): Group
-    {
+    public function getCarryInputs(
+        FieldFactory $ff
+    ): Group {
         $inputs = [];
+        if ($this->type !== null) {
+            $inputs[self::FORM_KEY_TYPE] = $ff->hidden()->withValue($this->type?->getIdentifier() ?? '')
+                ->withDedicatedName(self::FORM_KEY_TYPE . $this->getShortenedAnswerInputId());
+        }
+
         if ($this->max_chars !== null) {
             $inputs[self::FORM_KEY_MAX_CHARS] = $ff->hidden()->withValue($this->getMaxChars())
                 ->withDedicatedName(self::FORM_KEY_MAX_CHARS . $this->getShortenedAnswerInputId());
@@ -163,11 +211,13 @@ class Properties
     }
 
     public function getFromCarryTransformation(
-        Refinery $refinery
+        Refinery $refinery,
+        array $available_gap_types
     ): Transformation {
         return $refinery->custom()->transformation(
-            function (CarryWrapper $v) use ($refinery): self {
+            function (CarryWrapper $v) use ($refinery, $available_gap_types): self {
                 $clone = clone $this;
+                $this->type = $this->retrieveTypeFromCarry($refinery, $v, $available_gap_types);
                 $clone->max_chars = $this->retrieveMaxCharsFromCarry($refinery, $v);
                 $clone->step_size = $this->retrieveStepSizeFromCarry($refinery, $v);
                 $clone->text_matching_method = $this->retrieveTextMatchingMethodFromCarry($refinery, $v);
@@ -176,6 +226,60 @@ class Properties
                 $clone->answer_options = $this->retrieveAnswerOptionsFromCarry($refinery, $v);
                 return $clone;
             }
+        );
+    }
+
+    public function buildReplace(
+        ?Replace $replace,
+        Persistence $persistence,
+        TableNameBuilder $table_name_builder
+    ): Replace {
+        if ($this->type === null) {
+            throw new \UnexpectedValueException(
+                'Gap Properties without Type cannot be stored.'
+            );
+        }
+
+        $table_definition = TableTypes::AnswerInputs;
+
+        if ($replace === null) {
+            return new Replace(
+                $persistence->getColumns($table_name_builder, $table_definition),
+                $this->buildValuesForGapReplace()
+            );
+        }
+
+        return $replace->withAdditionalValues(
+            $this->buildValuesForGapReplace()
+        );
+    }
+
+    private function buildValuesForGapReplace(): array
+    {
+        return [
+            new Value(\ilDBConstants::T_TEXT, $this->answer_input_id->toString()),
+            new Value(\ilDBConstants::T_TEXT, $this->answer_form_id->toString()),
+            new Value(\ilDBConstants::T_INTEGER, $this->position),
+            new Value(\ilDBConstants::T_TEXT, $this->type->getIdentifier()),
+            new Value(\ilDBConstants::T_INTEGER, $this->max_chars),
+            new Value(\ilDBConstants::T_FLOAT, $this->step_size),
+            new Value(\ilDBConstants::T_INTEGER, $this->text_matching_method->value),
+            new Value(\ilDBConstants::T_INTEGER, $this->min_autocomplete),
+            new Value(\ilDBConstants::T_INTEGER, $this->shuffle_answer_options ? 1 : 0)
+
+        ];
+    }
+
+    private function retrieveTypeFromCarry(
+        Refinery $refinery,
+        CarryWrapper $carry,
+        array $available_gap_types
+    ): ?Type {
+        return $carry->retrieve(
+            self::FORM_KEY_TYPE . $this->getShortenedAnswerInputId(),
+            $refinery->custom()->transformation(
+                fn(?string $v): ?Type => $available_gap_types[$v] ?? $this->getType()
+            )
         );
     }
 
@@ -252,7 +356,10 @@ class Properties
         return $carry->retrieve(
             self::FORM_KEY_ANSWER_OPTIONS . $this->getShortenedAnswerInputId(),
             $refinery->custom()->transformation(
-                fn(?string $v): AnswerOptions => $this->answer_options->withValuesFromHiddenInputValue($v)
+                fn(?string $v): AnswerOptions => $this->answer_options->withValuesFromHiddenInputValue(
+                    $this->answer_input_id,
+                    $v
+                )
             )
         );
     }

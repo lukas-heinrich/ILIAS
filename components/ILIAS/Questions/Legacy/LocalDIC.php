@@ -20,9 +20,9 @@ declare(strict_types=1);
 
 namespace ILIAS\Questions\Legacy;
 
-use ILIAS\Questions\Question\Persistence\Repository as QuestionsRepository;
+use ILIAS\Questions\Persistence\Repository as QuestionsRepository;
 use ILIAS\Questions\AnswerFormTypes\Cloze;
-use ILIAS\Questions\Question\Persistence\TableNameSpaceCore;
+use ILIAS\Questions\Persistence\TableNameSpaceCore;
 use ILIAS\Questions\AnswerForm\Factory as AnswerFormFactory;
 use ILIAS\Questions\Presentation\Views\Edit;
 use ILIAS\Questions\Presentation\Layout\Definitions\Factory as DefinitionsFactory;
@@ -60,6 +60,7 @@ class LocalDIC extends PimpleContainer
         $dic[QuestionsRepository::class] = static fn($c): QuestionsRepository =>
             new QuestionsRepository(
                 $DIC['ilDB'],
+                $DIC['refinery'],
                 new UuidFactory(),
                 $c[AnswerFormFactory::class]
             );

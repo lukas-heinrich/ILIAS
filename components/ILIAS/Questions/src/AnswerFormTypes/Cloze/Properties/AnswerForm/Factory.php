@@ -69,7 +69,11 @@ class Factory
         ScoringIdentical $scoring_of_identical_responses,
         bool $combinations_enabled
     ): Properties {
-        $updated_gaps = $cloze_text->updateGapsFromMarkdown($properties->getGaps());
+        $updated_gaps = $cloze_text->updateGapsFromMarkdown(
+            $properties->getAnswerFormId(),
+            $properties->getGaps()
+        );
+
         return $properties
             ->withClozeText(
                 $cloze_text->withIdsOfNewGapsInClozeText($updated_gaps->getUndefinedGaps())

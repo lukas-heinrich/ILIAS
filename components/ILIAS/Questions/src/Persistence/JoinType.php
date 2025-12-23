@@ -18,18 +18,10 @@
 
 declare(strict_types=1);
 
-namespace ILIAS\Questions\AnswerForm;
+namespace ILIAS\Questions\Persistence;
 
-use ILIAS\Questions\Persistence\Storable;
-use ILIAS\Data\UUID\Uuid;
-use ILIAS\Language\Language;
-
-interface Properties extends Storable
+enum JoinType: string
 {
-    public function getAnswerFormId(): ?Uuid;
-    public function getQuestionId(): ?Uuid;
-    public function getTypeGenericProperties(): TypeGenericProperties;
-    public function getBasicPropertiesForListing(
-        Language $lng
-    ): array;
+    case Inner = 'INNER';
+    case Left = 'left';
 }

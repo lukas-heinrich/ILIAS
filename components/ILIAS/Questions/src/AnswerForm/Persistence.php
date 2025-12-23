@@ -20,14 +20,26 @@ declare(strict_types=1);
 
 namespace ILIAS\Questions\AnswerForm;
 
-use ILIAS\Questions\Question\Persistence\Column;
-use ILIAS\Questions\Question\Persistence\Query;
-use ILIAS\Questions\Question\Persistence\TableNameBuilder;
-use ILIAS\Questions\Question\Persistence\TableNameSpace;
+use ILIAS\Questions\Persistence\Column;
+use ILIAS\Questions\Persistence\Query;
+use ILIAS\Questions\Persistence\TableNameBuilder;
+use ILIAS\Questions\Persistence\TableNameSpace;
+use ILIAS\Questions\Persistence\TableTypes;
 
 interface Persistence
 {
     public function getPublicNameSpace(): TableNameSpace;
+    public function getColumns(
+        TableNameBuilder $table_name_builder,
+        TableTypes $table_type,
+        ?string $table_identifier = null,
+        array $columns_to_skip = []
+    ): array;
+    public function getIdColumn(
+        TableNameBuilder $table_name_builder,
+        TableTypes $table_type,
+        ?string $table_identifier = null
+    ): Column;
     public function completeQuery(
         TableNameBuilder $table_name_builder,
         Query $query,
