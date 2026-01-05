@@ -116,7 +116,7 @@ class Persistence implements PersistenceInterface
         return match($table_type) {
             TableTypes::TypeSpecificAnswerForms => new Column(
                 $table_type->getTable($table_name_builder),
-                self::ANSWER_FORM_TABLE_ID_COLUMN
+                self::ANSWER_FORM_TABLE_FOREIGN_KEY_COLUMN
             ),
             default => new Column(
                 $table_type->getTable($table_name_builder, $table_identifier),
@@ -125,24 +125,48 @@ class Persistence implements PersistenceInterface
         };
     }
 
-    public function completeQuery(
+    public function getForeignKeyColumn(
         TableNameBuilder $table_name_builder,
+        TableTypes $table_type,
+        ?string $table_identifier = null
+    ): Column {
+        return match($table_type) {
+            TableTypes::TypeSpecificAnswerForms => new Column(
+                $table_type->getTable($table_name_builder),
+                self::ANSWER_FORM_TABLE_ID_COLUMN
+            ),
+            TableTypes::AnswerInputs => new Column(
+                $table_type->getTable($table_name_builder),
+                self::ANSWER_INPUTS_TABLE_FOREIGN_KEY_COLUMN
+            ),
+            TableTypes::AnswerOptions => new Column(
+                $table_type->getTable($table_name_builder),
+                self::ANSWER_OPTIONS_TABLE_FOREIGN_KEY_COLUMN
+            ),
+            TableTypes::Additional => new Column(
+                $table_type->getTable($table_name_builder, $table_identifier),
+                self::COMBINATIONS_TABLE_FOREIGN_KEY_COLUMN
+            )
+        };
+    }
+
+    public function completeQuery(
         Query $query,
-        Column $base_table_id_column
+        Column $answer_form_id_column
     ): Query {
+        $table_name_builder = $query->getTableNameBuilder(Definition::class);
+
         $answer_form_specific_table_definition = TableTypes::TypeSpecificAnswerForms;
         $answer_input_table_definition = TableTypes::AnswerInputs;
-        $answer_input_table = $answer_input_table_definition
-            ->getTable($table_name_builder);
         $answer_options_table_definition = TableTypes::AnswerOptions;
         $combinations_table_definition = TableTypes::Additional;
 
         return $query->withAdditionalJoin(
             new Join(
-                $base_table_id_column,
-                new Column(
-                    $answer_form_specific_table_definition->getTable($table_name_builder),
-                    self::ANSWER_FORM_TABLE_FOREIGN_KEY_COLUMN
+                $answer_form_id_column,
+                $this->getForeignKeyColumn(
+                    $table_name_builder,
+                    $answer_form_specific_table_definition
                 ),
                 JoinType::Left
             )
@@ -152,26 +176,10 @@ class Persistence implements PersistenceInterface
             )
         )->withAdditionalJoin(
             new Join(
-                $base_table_id_column,
-                new Column(
-                    $answer_input_table,
-                    self::ANSWER_INPUTS_TABLE_FOREIGN_KEY_COLUMN
-                ),
-                JoinType::Left
-            )
-        )->withAdditionalSelect(
-            new Select(
-                $this->getColumns($table_name_builder, $answer_input_table_definition)
-            )
-        )->withAdditionalJoin(
-            new Join(
-                new Column(
-                    $answer_input_table,
-                    self::ID_COLUMN
-                ),
-                new Column(
-                    $answer_options_table_definition->getTable($table_name_builder),
-                    self::ANSWER_OPTIONS_TABLE_FOREIGN_KEY_COLUMN
+                $answer_form_id_column,
+                $this->getForeignKeyColumn(
+                    $table_name_builder,
+                    $answer_input_table_definition
                 ),
                 JoinType::Left
             )
@@ -184,13 +192,30 @@ class Persistence implements PersistenceInterface
             )
         )->withAdditionalJoin(
             new Join(
-                $base_table_id_column,
-                new Column(
-                    $combinations_table_definition->getTable(
-                        $table_name_builder,
-                        self::COMBINATIONS_TABLE_IDENTIFIER
-                    ),
-                    self::COMBINATIONS_TABLE_FOREIGN_KEY_COLUMN
+                $this->getIdColumn(
+                    $table_name_builder,
+                    $answer_input_table_definition
+                ),
+                $this->getForeignKeyColumn(
+                    $table_name_builder,
+                    $answer_options_table_definition
+                ),
+                JoinType::Left
+            )
+        )->withAdditionalSelect(
+            new Select(
+                $this->getColumns(
+                    $table_name_builder,
+                    $answer_options_table_definition
+                )
+            )
+        )->withAdditionalJoin(
+            new Join(
+                $answer_form_id_column,
+                $this->getForeignKeyColumn(
+                    $table_name_builder,
+                    $combinations_table_definition,
+                    self::COMBINATIONS_TABLE_IDENTIFIER
                 ),
                 JoinType::Left
             )

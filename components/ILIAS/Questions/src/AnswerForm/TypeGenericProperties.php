@@ -21,6 +21,7 @@ declare(strict_types=1);
 namespace ILIAS\Questions\AnswerForm;
 
 use ILIAS\Questions\Persistence\CoreTables;
+use ILIAS\Questions\Persistence\Delete;
 use ILIAS\Questions\Persistence\Insert;
 use ILIAS\Questions\Persistence\Manipulate;
 use ILIAS\Questions\Persistence\ManipulationType;
@@ -79,8 +80,9 @@ class TypeGenericProperties implements Storable
         return $this->additional_text_legacy;
     }
 
-    public function toStorage(Manipulate $manipulate): Manipulate
-    {
+    public function toStorage(
+        Manipulate $manipulate
+    ): Manipulate {
         if ($this->definition_class === null) {
             throw new \UnexpectedValueException(
                 'You cannot save a Answer Form without a Type!'
@@ -90,6 +92,23 @@ class TypeGenericProperties implements Storable
             $manipulate->getManipulationType() === ManipulationType::Create
                 ? $this->buildInsertStatement()
                 : $this->buildUpdateStatement()
+        );
+    }
+
+    public function toDelete(
+        Manipulate $manipulate
+    ): Manipulate {
+        $answer_form_table_definition = CoreTables::AnswerForms;
+        return $manipulate->withAdditionalStatement(
+            new Delete(
+                $answer_form_table_definition->getTable(),
+                [
+                    new Where(
+                        $answer_form_table_definition->getIdColumn(),
+                        $this->answer_form_id->toString()
+                    )
+                ]
+            )
         );
     }
 

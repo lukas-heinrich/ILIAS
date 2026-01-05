@@ -92,15 +92,15 @@ class LocalDIC extends PimpleContainer
                 (new \ilMustacheFactory())->getBasicEngine(),
                 $c[DataFactory::class]->text()
             );
-        $dic[Cloze\Properties\Gaps\Properties\Factory::class] = static fn($c): Cloze\Properties\Gaps\Properties\Factory
-            => new Cloze\Properties\Gaps\Properties\Factory(
+        $dic[Cloze\Properties\Gaps\AnswerOptions\Factory::class] = static fn($c): Cloze\Properties\Gaps\AnswerOptions\Factory
+            => new Cloze\Properties\Gaps\AnswerOptions\Factory(
                 $c[UuidFactory::class],
                 $DIC['refinery']
             );
         $dic[Cloze\Properties\Gaps\Factory::class] = static fn($c): Cloze\Properties\Gaps\Factory
             => new Cloze\Properties\Gaps\Factory(
                 $c[UuidFactory::class],
-                $c[Cloze\Properties\Gaps\Properties\Factory::class],
+                $c[Cloze\Properties\Gaps\AnswerOptions\Factory::class],
                 [
                     new Cloze\Properties\Gaps\Text(
                         $DIC['refinery'],

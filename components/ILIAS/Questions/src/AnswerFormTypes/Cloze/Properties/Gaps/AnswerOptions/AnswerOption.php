@@ -18,11 +18,12 @@
 
 declare(strict_types=1);
 
-namespace ILIAS\Questions\AnswerFormTypes\Cloze\Properties\Gaps\Properties;
+namespace ILIAS\Questions\AnswerFormTypes\Cloze\Properties\Gaps\AnswerOptions;
 
 use ILIAS\Questions\Persistence\Replace;
 use ILIAS\Questions\Persistence\TableNameBuilder;
 use ILIAS\Questions\Persistence\TableTypes;
+use ILIAS\Questions\Persistence\Value;
 use ILIAS\Questions\AnswerFormTypes\Cloze\Persistence;
 use ILIAS\Data\UUID\Uuid;
 
@@ -160,7 +161,7 @@ class AnswerOption
             new Value(\ilDBConstants::T_TEXT, $this->answer_input_id->toString()),
             new Value(\ilDBConstants::T_INTEGER, $this->position),
             new Value(\ilDBConstants::T_TEXT, $this->text_value),
-            new Value(\ilDBConstants::T_FLOAT, $this->points),
+            new Value(\ilDBConstants::T_FLOAT, $this->available_points),
             new Value(\ilDBConstants::T_FLOAT, $this->lower_limit),
             new Value(\ilDBConstants::T_FLOAT, $this->upper_limit)
 

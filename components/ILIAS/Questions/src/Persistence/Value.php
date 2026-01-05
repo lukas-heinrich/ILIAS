@@ -24,7 +24,7 @@ class Value
 {
     public function __construct(
         private readonly string $type,
-        private readonly null|string|int|array $value
+        private readonly null|string|int|float|array $value
     ) {
     }
 

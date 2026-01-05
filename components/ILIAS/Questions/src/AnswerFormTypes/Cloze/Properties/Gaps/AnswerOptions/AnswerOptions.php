@@ -18,7 +18,7 @@
 
 declare(strict_types=1);
 
-namespace ILIAS\Questions\AnswerFormTypes\Cloze\Properties\Gaps\Properties;
+namespace ILIAS\Questions\AnswerFormTypes\Cloze\Properties\Gaps\AnswerOptions;
 
 use ILIAS\Questions\Persistence\Replace;
 use ILIAS\Questions\Persistence\TableNameBuilder;
@@ -204,8 +204,8 @@ class AnswerOptions
     ): Replace {
         return array_reduce(
             $this->answer_options,
-            fn(AnswerOption $v): Replace => $v->buildReplace(
-                $replace,
+            fn(?Replace $c, AnswerOption $v): Replace => $v->buildReplace(
+                $c,
                 $persistence,
                 $table_name_builder
             ),

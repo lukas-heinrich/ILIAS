@@ -291,13 +291,13 @@ class Gaps
             'answer_options' => $replace_for_answer_options
         ] = array_reduce(
             $this->gaps,
-            fn(array $c, Gap $v): Manipulate => [
-                $v->getProperties()->buildReplace(
+            fn(array $c, Gap $v): array => [
+                'gaps' => $v->buildReplace(
                     $c['gaps'],
                     $persistence,
                     $table_name_builder
                 ),
-                $v->getProperties()->getAnswerOptions()->buildReplace(
+                'answer_options' => $v->getAnswerOptions()->buildReplace(
                     $c['answer_options'],
                     $persistence,
                     $table_name_builder

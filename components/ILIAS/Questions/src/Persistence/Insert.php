@@ -30,7 +30,7 @@ class Insert
      */
     public function __construct(
         protected readonly array $columns,
-        protected readonly array $values
+        array $values
     ) {
         if ($columns === [] || count($columns) !== count($values)) {
             throw new \InvalidArgumentException(
@@ -55,18 +55,27 @@ class Insert
      */
     public function withAdditionalValues(
         array $values
-    ): void {
+    ): self {
         if (count($values) !== count($this->columns)) {
             throw new \InvalidArgumentException(
                 "There MUST be the same amount of Values as there are Columns."
             );
         }
 
-        $this->value_sets[] = $values;
+        $clone = clone $this;
+        $clone->value_sets[] = $values;
+        return $clone;
     }
 
-    public function toManipulateString(\ilDBInterface $db): string
-    {
+    public function lockTable(
+        \ilAtomQuery $atom_query
+    ): void {
+        $atom_query->addTableLock($this->columns[0]->getTableName());
+    }
+
+    public function toManipulateString(
+        \ilDBInterface $db
+    ): string {
         return "INSERT INTO {$this->columns[0]->getTableName()}" . PHP_EOL
             . $this->buildColumnsString() . PHP_EOL
             . $this->buildValuesString($db);
@@ -87,7 +96,7 @@ class Insert
     protected function buildValuesString(\ilDBInterface $db): string
     {
         $return = [];
-        foreach ($this->values as $values) {
+        foreach ($this->value_sets as $values) {
             $return[] = '(' . implode(
                 ', ',
                 array_map(

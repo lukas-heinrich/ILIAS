@@ -20,6 +20,9 @@ declare(strict_types=1);
 
 namespace ILIAS\Questions\Persistence;
 
+use ILIAS\Questions\AnswerForm\Factory as AnswerFormFactory;
+use ILIAS\Questions\AnswerForm\Persistence;
+use ILIAS\Refinery\Factory as Refinery;
 use ILIAS\Refinery\Transformation;
 
 class Query
@@ -36,7 +39,9 @@ class Query
     private ?array $current_record = null;
 
     public function __construct(
-        private readonly \ilDBInterface $db
+        private readonly \ilDBInterface $db,
+        private readonly AnswerFormFactory $answer_form_factory,
+        private readonly Refinery $refinery
     ) {
 
         $questions_table_definition = CoreTables::Questions;
@@ -64,6 +69,30 @@ class Query
         $this->order[] = new Order(
             $answer_form_table_definition->getIdColumn()
         );
+    }
+
+    public function getPersistenceForDefinitionClass(
+        string $definition_class
+    ): Persistence {
+        return $this->answer_form_factory
+            ->getDefinitionForClass($definition_class)
+            ->getPersistence();
+    }
+
+    public function getTableNameBuilder(
+        string $definition_class
+    ): TableNameBuilder {
+        return new TableNameBuilder(
+            $this->answer_form_factory
+                ->getDefinitionForClass($definition_class)
+                ->getPersistence()
+                ->getPublicNameSpace()
+        );
+    }
+
+    public function getRefinery(): Refinery
+    {
+        return $this->refinery;
     }
 
     public function withAdditionalSelect(Select $select): self

@@ -298,7 +298,7 @@ class Edit
     ): ?EditForm {
         $create = $type->getEditView()->create(
             $environment->withProperties(
-                $type->buildProperties($type_generic_properties, [])
+                $type->buildProperties($type_generic_properties, null)
             )
         );
 
@@ -309,6 +309,9 @@ class Edit
         $this->questions_repository->create(
             [$question->withAnswerForm($create)]
         );
+
+        $content_obj->create($create->getAnswerFormId());
+        $content_obj->getPage()->update();
 
         $this->ctrl->redirectByClass(\QstsQuestionPageGUI::class, 'edit');
     }

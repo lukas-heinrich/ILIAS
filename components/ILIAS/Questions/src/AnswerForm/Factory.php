@@ -103,4 +103,19 @@ class Factory
             $question_id
         );
     }
+
+    public function buildTypeGenericPropertiesFromDatabase(
+        array $db_values
+    ): TypeGenericProperties {
+        return new TypeGenericProperties(
+            $this->uuid_factory->fromString($db_values['id']),
+            $this->uuid_factory->fromString($db_values['question_id']),
+            $db_values['type'],
+            $db_values['available_points'],
+            $db_values['image_size'],
+            $db_values['shuffle_answer_options'] === 1,
+            $db_values['additional_text'],
+            $db_values['additional_text_legacy']
+        );
+    }
 }

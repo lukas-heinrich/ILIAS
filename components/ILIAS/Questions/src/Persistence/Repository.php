@@ -51,13 +51,23 @@ class Repository
      */
     public function getAllQuestions(): \Generator
     {
-        yield from $this->getForBaseQuery(new Query($this->db));
+        yield from $this->getForBaseQuery(
+            new Query(
+                $this->db,
+                $this->answer_form_factory,
+                $this->refinery
+            )
+        );
     }
 
     public function getForQuestionId(Uuid $question_id): ?QuestionImplementation
     {
         return $this->getForBaseQuery(
-            (new Query($this->db))->withAdditionalWhere(
+            (new Query(
+                $this->db,
+                $this->answer_form_factory,
+                $this->refinery
+            ))->withAdditionalWhere(
                 new Where(
                     CoreTables::Questions->getIdColumn(),
                     new Value(
@@ -78,7 +88,11 @@ class Repository
     public function getForQuestionIds(array $question_ids): \Generator
     {
         yield from $this->getForBaseQuery(
-            (new Query($this->db))->withAdditionalWhere(
+            (new Query(
+                $this->db,
+                $this->answer_form_factory,
+                $this->refinery
+            ))->withAdditionalWhere(
                 new Where(
                     CoreTables::Questions->getIdColumn(),
                     new Value(
@@ -102,9 +116,8 @@ class Repository
         $query_with_answer_forms = array_reduce(
             $this->answer_form_factory->getAvailableDefinitions(),
             fn(Query $c, AnswerFormDefinition $v) => $v->getPersistence()->completeQuery(
-                new TableNameBuilder($v->getPersistence()->getPublicNameSpace()),
                 $c,
-                CoreTables::Questions->getIdColumn()
+                CoreTables::AnswerForms->getIdColumn()
             ),
             $query
         );
@@ -174,11 +187,26 @@ class Repository
         return $query->retrieveCurrentRecord(
             CoreTables::AnswerForms->getTable(),
             $this->refinery->custom()->transformation(
-                function (array $vs): array {
+                function (array $vs) use ($query): array {
                     if (count($vs) === 1 && $vs[0]['type'] === null) {
                         return [];
                     }
-                    $vs;
+
+                    $answer_forms = [];
+                    $previous_answer_form_id = null;
+                    foreach ($vs as $data_set) {
+                        if ($data_set['id'] === $previous_answer_form_id) {
+                            continue;
+                        }
+                        $previous_answer_form_id = $data_set['id'];
+                        $definition = $this->answer_form_factory
+                            ->getDefinitionForClass($data_set['type']);
+                        $answer_forms[] = $definition->buildProperties(
+                            $this->answer_form_factory->buildTypeGenericPropertiesFromDatabase($data_set),
+                            $query
+                        );
+                    }
+                    return $answer_forms;
                 }
             )
         );

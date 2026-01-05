@@ -23,7 +23,7 @@ namespace ILIAS\Questions\Question;
 use ILIAS\Questions\Question\Views\Participant;
 use ILIAS\Questions\Persistence\Storable;
 
-interface Question extends Storable
+interface Question
 {
     public function getParticipantView(): Participant;
 }

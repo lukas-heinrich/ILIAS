@@ -72,13 +72,13 @@ class Manipulate
 
         $manipulates = [];
         foreach ($this->statements as $statement) {
-            $atom_query->addTableLock($statement->getTableName());
+            $statement->lockTable($atom_query);
             $manipulates[] = $statement->toManipulateString($this->db);
         }
         $atom_query->addQueryCallable(
-            function () use ($manipulates): void {
+            function (\ilDBInterface $db) use ($manipulates): void {
                 foreach ($manipulates as $manipulate) {
-                    $this->db->manipulate($manipulate);
+                    $db->manipulate($manipulate);
                 }
             }
         );

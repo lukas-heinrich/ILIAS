@@ -40,8 +40,12 @@ interface Persistence
         TableTypes $table_type,
         ?string $table_identifier = null
     ): Column;
-    public function completeQuery(
+    public function getForeignKeyColumn(
         TableNameBuilder $table_name_builder,
+        TableTypes $table_type,
+        ?string $table_identifier = null
+    ): Column;
+    public function completeQuery(
         Query $query,
         Column $base_table_id_column,
     ): Query;

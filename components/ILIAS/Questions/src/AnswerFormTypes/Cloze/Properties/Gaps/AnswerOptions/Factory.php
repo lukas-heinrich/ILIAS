@@ -18,8 +18,11 @@
 
 declare(strict_types=1);
 
-namespace ILIAS\Questions\AnswerFormTypes\Cloze\Properties\Gaps\Properties;
+namespace ILIAS\Questions\AnswerFormTypes\Cloze\Properties\Gaps\AnswerOptions;
 
+use ILIAS\Questions\AnswerFormTypes\Cloze\Definition;
+use ILIAS\Questions\Persistence\Query;
+use ILIAS\Questions\Persistence\TableTypes;
 use ILIAS\Data\UUID\Factory as UuidFactory;
 use ILIAS\Data\UUID\Uuid;
 use ILIAS\Refinery\Factory as Refinery;
@@ -72,9 +75,45 @@ class Factory
     }
 
     public function fromDatabase(
-        array $data
-    ): Gaps {
+        Query $query
+    ): array {
+        return $query->retrieveCurrentRecord(
+            TableTypes::AnswerOptions->getTable($query->getTableNameBuilder(Definition::class)),
+            $query->getRefinery()->custom()->transformation(
+                function (array $vs): array {
+                    $previous_answer_input_id = null;
+                    $return_array = [];
+                    $answer_options = [];
+                    foreach ($vs as $v) {
+                        if ($previous_answer_input_id !== null
+                            && $v['answer_input_id'] !== $previous_answer_input_id) {
+                            $return_array[$previous_answer_input_id] = new AnswerOptions(
+                                $this,
+                                $answer_options
+                            );
+                            $answer_options = [];
+                        }
+                        $previous_answer_input_id = $v['answer_input_id'];
+                        $answer_options[] = new AnswerOption(
+                            $this->uuid_factory->fromString($v['id']),
+                            $this->uuid_factory->fromString($v['answer_input_id']),
+                            $v['position'],
+                            $v['text_value'],
+                            $v['lower_limit'],
+                            $v['upper_limit'],
+                            $v['points']
+                        );
+                    }
 
+                    $return_array[$v['answer_input_id']] = new AnswerOptions(
+                        $this,
+                        $answer_options
+                    );
+
+                    return $return_array;
+                }
+            )
+        );
     }
 
     private function convertToFloatOrNull(?string $value): ?float
