@@ -41,9 +41,10 @@ class GlobalConfigurationGUI extends ConfigurationGUI
 
     public function getUniqueId(): string
     {
-        return $this->repository->getConsumerId() . '_global';
+        return $this->request->getQuestionId() . '_global';
     }
 
+    #[\Override]
     protected function showGlobalUnitCategories(): void
     {
         global $DIC;
@@ -58,9 +59,10 @@ class GlobalConfigurationGUI extends ConfigurationGUI
         parent::showGlobalUnitCategories();
     }
 
+    #[\Override]
     protected function showUnitCategories(array $categories): void
     {
-        $table = new \ilGlobalUnitCategoryTableGUI(this, $this->getUnitCategoryOverviewCommand());
+        $table = new \ilGlobalUnitCategoryTableGUI($this, $this->getUnitCategoryOverviewCommand());
         $table->setData($categories);
 
         $this->tpl->setContent($table->getHTML());

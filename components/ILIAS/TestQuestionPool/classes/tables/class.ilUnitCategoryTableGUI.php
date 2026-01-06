@@ -14,10 +14,10 @@
  * https://www.ilias.de
  * https://github.com/ILIAS-eLearning
  *
- *********************************************************************/
-
+ * ******************************************************************* */
 declare(strict_types=1);
 
+use ILIAS\Questions\Units\ConfigurationGUI;
 use ILIAS\TestQuestionPool\QuestionPoolDIC;
 use ILIAS\TestQuestionPool\RequestDataCollector;
 
@@ -29,7 +29,6 @@ abstract class ilUnitCategoryTableGUI extends ilTable2GUI
 {
     private \ILIAS\UI\Factory $ui_factory;
     private \ILIAS\UI\Renderer $ui_renderer;
-
     private RequestDataCollector $request;
     private \ILIAS\Refinery\Factory $refinery;
 
@@ -37,8 +36,10 @@ abstract class ilUnitCategoryTableGUI extends ilTable2GUI
      * @param ilUnitConfigurationGUI $controller
      * @param string                 $cmd
      */
-    public function __construct(ilUnitConfigurationGUI $controller, $cmd)
-    {
+    public function __construct(
+        ConfigurationGUI|ilUnitConfigurationGUI $controller,
+        $cmd
+    ) {
         /**
          * @var $ilCtrl ilCtrl
          */
@@ -70,17 +71,29 @@ abstract class ilUnitCategoryTableGUI extends ilTable2GUI
         }
         if ($hasAccess) {
             if ($this->getParentObject()->isCRUDContext()) {
-                $this->addMultiCommand('confirmDeleteCategories', $this->lng->txt('delete'));
+                $this->addMultiCommand(
+                    'confirmDeleteCategories',
+                    $this->lng->txt('delete')
+                );
             } else {
-                $this->addMultiCommand('confirmImportGlobalCategories', $this->lng->txt('import'));
+                $this->addMultiCommand(
+                    'confirmImportGlobalCategories',
+                    $this->lng->txt('import')
+                );
             }
         }
 
         $this->populateTitle();
 
-        $this->setFormAction($ilCtrl->getFormAction($this->getParentObject(), $cmd));
+        $this->setFormAction($ilCtrl->getFormAction(
+            $this->getParentObject(),
+            $cmd
+        ));
         $this->setSelectAllCheckbox('category_ids[]');
-        $this->setRowTemplate('tpl.unit_category_row.html', 'components/ILIAS/TestQuestionPool');
+        $this->setRowTemplate(
+            'tpl.unit_category_row.html',
+            'components/ILIAS/TestQuestionPool'
+        );
     }
 
     abstract protected function populateTitle(): void;
@@ -92,29 +105,72 @@ abstract class ilUnitCategoryTableGUI extends ilTable2GUI
     {
         global $DIC;
 
-        $row['chb'] = ilLegacyFormElementsUtil::formCheckbox(false, 'category_ids[]', (string) $row['category_id']);
+        $row['chb'] = ilLegacyFormElementsUtil::formCheckbox(
+            false,
+            'category_ids[]',
+            (string) $row['category_id']
+        );
 
         $actions = [];
 
-        $this->ctrl->setParameter($this->getParentObject(), 'category_id', $row['category_id']);
-        $actions[] = $this->ui_factory->link()->standard($this->lng->txt('un_show_units'), $this->ctrl->getLinkTarget($this->getParentObject(), 'showUnitsOfCategory'));
+        $this->ctrl->setParameter(
+            $this->getParentObject(),
+            'category_id',
+            $row['category_id']
+        );
+        $actions[] = $this->ui_factory->link()->standard(
+            $this->lng->txt('un_show_units'),
+            $this->ctrl->getLinkTarget(
+                $this->getParentObject(),
+                'showUnitsOfCategory'
+            )
+        );
         $ref_id = $this->request->getRefId();
         $type = ilObject::_lookupType($ref_id, true);
         if ($type === 'assf') {
             $hasAccess = $DIC->rbac()->system()->checkAccess('edit', $ref_id);
         } else {
-            $hasAccess = $DIC->access()->checkAccess('edit', 'showUnitCategoryModificationForm', $ref_id) &&
-            $DIC->access()->checkAccess('edit', 'confirmDeleteCategory', $ref_id);
+            $hasAccess = $DIC->access()->checkAccess(
+                'edit',
+                'showUnitCategoryModificationForm',
+                $ref_id
+            ) &&
+                $DIC->access()->checkAccess(
+                    'edit',
+                    'confirmDeleteCategory',
+                    $ref_id
+                );
         }
         if ($this->getParentObject()->isCRUDContext()) {
             if ($hasAccess) {
-                $actions[] = $this->ui_factory->link()->standard($this->lng->txt('edit'), $this->ctrl->getLinkTarget($this->getParentObject(), 'showUnitCategoryModificationForm'));
-                $actions[] = $this->ui_factory->link()->standard($this->lng->txt('delete'), $this->ctrl->getLinkTarget($this->getParentObject(), 'confirmDeleteCategory'));
+                $actions[] = $this->ui_factory->link()->standard(
+                    $this->lng->txt('edit'),
+                    $this->ctrl->getLinkTarget(
+                        $this->getParentObject(),
+                        'showUnitCategoryModificationForm'
+                    )
+                );
+                $actions[] = $this->ui_factory->link()->standard(
+                    $this->lng->txt('delete'),
+                    $this->ctrl->getLinkTarget(
+                        $this->getParentObject(),
+                        'confirmDeleteCategory'
+                    )
+                );
             }
         } else {
-            $actions[] = $this->ui_factory->link()->standard($this->lng->txt('import'), $this->ctrl->getLinkTarget($this->getParentObject(), 'confirmImportGlobalCategory'));
+            $actions[] = $this->ui_factory->link()->standard(
+                $this->lng->txt('import'),
+                $this->ctrl->getLinkTarget(
+                    $this->getParentObject(),
+                    'confirmImportGlobalCategory'
+                )
+            );
         }
-        $row['title_href'] = $this->ctrl->getLinkTarget($this->getParentObject(), 'showUnitsOfCategory');
+        $row['title_href'] = $this->ctrl->getLinkTarget(
+            $this->getParentObject(),
+            'showUnitsOfCategory'
+        );
         $this->ctrl->setParameter($this->getParentObject(), 'category_id', '');
         $dropdown = $this->ui_factory->dropdown()->standard($actions)->withLabel($this->lng->txt('actions'));
         $row['actions'] = $this->ui_renderer->render($dropdown);

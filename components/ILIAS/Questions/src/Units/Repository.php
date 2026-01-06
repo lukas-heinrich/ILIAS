@@ -20,53 +20,48 @@ declare(strict_types=1);
 
 namespace ILIAS\Questions\Units;
 
+use ILIAS\Language\Language;
+
 class Repository
 {
-    protected int $consumer_id = 0;
-    protected \ilLanguage $lng;
-    protected \ilDBInterface $db;
-    /** @var assFormulaQuestionUnit[] */
+    private const string UNIT_TABLE = 'il_qpl_qst_fq_unit';
+    private const string CATEGORY_TABLE = 'il_qpl_qst_fq_ucat';
+    private const string VARIABLES_TABLE = 'il_qpl_qst_fq_var';
+    private const string RESULTS_TABLE = 'il_qpl_qst_fq_res';
+    private const string RESULT_UNITS_TABLE = 'il_qpl_qst_fq_res_unit';
+
+    /** @var list<\ILIAS\Questions\Units\Unit> $units */
     private array $units = [];
-    /** @var assFormulaQuestionUnit[]|assFormulaQuestionUnitCategory[]  */
-    private array $categorizedUnits = [];
+    /** @var list<\ILIAS\Questions\Units\Unit|\ILIAS\Questions\Units\Category> $categorized_units */
+    private array $categorized_units = [];
 
-    public function __construct(int $consumer_id)
-    {
-        global $DIC;
-
-        $lng = $DIC->language();
-
-        $this->db = $DIC->database();
-        $this->consumer_id = $consumer_id;
-        $this->lng = $lng;
+    public function __construct(
+        private readonly Language $lng,
+        private readonly \ilDBInterface $db
+    ) {
     }
 
-    public function setConsumerId(int $consumer_id): void
-    {
-        $this->consumer_id = $consumer_id;
-    }
-
-    public function getConsumerId(): int
-    {
-        return $this->consumer_id;
-    }
-
-    public function isCRUDAllowed(int $category_id): bool
-    {
+    public function isCRUDAllowed(
+        int $question_id,
+        int $category_id
+    ): bool {
         $res = $this->db->queryF(
-            'SELECT * FROM il_qpl_qst_fq_ucat WHERE category_id = %s',
-            ['integer'],
+            'SELECT * FROM ' . self::CATEGORY_TABLE . ' WHERE category_id = %s',
+            [\ilDBConstants::T_INTEGER],
             [$category_id]
         );
         $row = $this->db->fetchAssoc($res);
-        return isset($row['question_fi']) && (int) $row['question_fi'] === $this->getConsumerId();
+        return isset($row['question_fi']) && (int) $row['question_fi'] === $question_id;
     }
 
-    public function copyCategory(int $category_id, int $question_fi, ?string $category_name = null): int
-    {
+    public function copyCategory(
+        int $question_fi,
+        int $category_id,
+        ?string $category_name = null
+    ): int {
         $res = $this->db->queryF(
-            'SELECT category FROM il_qpl_qst_fq_ucat WHERE category_id = %s',
-            ['integer'],
+            'SELECT category FROM ' . self::CATEGORY_TABLE . ' WHERE category_id = %s',
+            [\ilDBConstants::T_INTEGER],
             [$category_id]
         );
         $row = $this->db->fetchAssoc($res);
@@ -75,44 +70,47 @@ class Repository
             $category_name = $row['category'];
         }
 
-        $next_id = $this->db->nextId('il_qpl_qst_fq_ucat');
+        $next_id = $this->db->nextId(self::CATEGORY_TABLE);
         $this->db->insert(
-            'il_qpl_qst_fq_ucat',
+            self::CATEGORY_TABLE,
             [
-                'category_id' => ['integer', $next_id],
-                'category' => ['text', $category_name],
-                'question_fi' => ['integer', (int) $question_fi]
+                'category_id' => [\ilDBConstants::T_INTEGER, $next_id],
+                'category' => [\ilDBConstants::T_TEXT, $category_name],
+                'question_fi' => [\ilDBConstants::T_INTEGER, (int) $question_fi]
             ]
         );
 
         return $next_id;
     }
 
-    public function copyUnitsByCategories(int $from_category_id, int $to_category_id, int $qustion_fi): void
-    {
+    public function copyUnitsByCategories(
+        int $question_id,
+        int $from_category_id,
+        int $to_category_id,
+    ): void {
         $res = $this->db->queryF(
-            'SELECT * FROM il_qpl_qst_fq_unit WHERE category_fi = %s',
-            ['integer'],
+            'SELECT * FROM ' . self::UNIT_TABLE . ' WHERE category_fi = %s',
+            [\ilDBConstants::T_INTEGER],
             [$from_category_id]
         );
         $i = 0;
         $units = [];
-        while ($row = $this->db->fetchAssoc($res)) {
-            $next_id = $this->db->nextId('il_qpl_qst_fq_unit');
+        while (($row = $this->db->fetchAssoc($res)) !== null) {
+            $next_id = $this->db->nextId(self::UNIT_TABLE);
 
             $units[$i]['old_unit_id'] = $row['unit_id'];
             $units[$i]['new_unit_id'] = $next_id;
 
             $this->db->insert(
-                'il_qpl_qst_fq_unit',
+                self::UNIT_TABLE,
                 [
-                    'unit_id' => ['integer', $next_id],
-                    'unit' => ['text', $row['unit']],
-                    'factor' => ['float', $row['factor']],
-                    'baseunit_fi' => ['integer', (int) $row['baseunit_fi']],
-                    'category_fi' => ['integer', (int) $to_category_id],
-                    'sequence' => ['integer', (int) $row['sequence']],
-                    'question_fi' => ['integer', (int) $qustion_fi]
+                    'unit_id' => [\ilDBConstants::T_INTEGER, $next_id],
+                    'unit' => [\ilDBConstants::T_TEXT, $row['unit']],
+                    'factor' => [\ilDBConstants::T_FLOAT, $row['factor']],
+                    'baseunit_fi' => [\ilDBConstants::T_INTEGER, (int) $row['baseunit_fi']],
+                    'category_fi' => [\ilDBConstants::T_INTEGER, (int) $to_category_id],
+                    'sequence' => [\ilDBConstants::T_INTEGER, (int) $row['sequence']],
+                    'question_fi' => [\ilDBConstants::T_INTEGER, (int) $question_id]
                 ]
             );
             $i++;
@@ -121,117 +119,142 @@ class Repository
         foreach ($units as $unit) {
             //update unit : baseunit_fi
             $this->db->update(
-                'il_qpl_qst_fq_unit',
-                ['baseunit_fi' => ['integer', (int) $unit['new_unit_id']]],
+                self::UNIT_TABLE,
                 [
-                    'baseunit_fi' => ['integer', $unit['old_unit_id']],
-                    'category_fi' => ['integer', $to_category_id]
+                    'baseunit_fi' => [\ilDBConstants::T_INTEGER, (int) $unit['new_unit_id']]
+                ],
+                [
+                    'baseunit_fi' => [\ilDBConstants::T_INTEGER, $unit['old_unit_id']],
+                    'category_fi' => [\ilDBConstants::T_INTEGER, $to_category_id]
                 ]
             );
 
             //update var : unit_fi
             $this->db->update(
-                'il_qpl_qst_fq_var',
-                ['unit_fi' => ['integer', (int) $unit['new_unit_id']]],
+                self::VARIABLES_TABLE,
                 [
-                    'unit_fi' => ['integer', $unit['old_unit_id']],
-                    'question_fi' => ['integer', $qustion_fi]
+                    'unit_fi' => [\ilDBConstants::T_INTEGER, (int) $unit['new_unit_id']]
+                ],
+                [
+                    'unit_fi' => [\ilDBConstants::T_INTEGER, $unit['old_unit_id']],
+                    'question_fi' => [\ilDBConstants::T_INTEGER, $question_id]
                 ]
             );
 
             //update res : unit_fi
             $this->db->update(
-                'il_qpl_qst_fq_res',
-                ['unit_fi' => ['integer', (int) $unit['new_unit_id']]],
+                self::RESULTS_TABLE,
                 [
-                    'unit_fi' => ['integer', $unit['old_unit_id']],
-                    'question_fi' => ['integer', $qustion_fi]
+                    'unit_fi' => [\ilDBConstants::T_INTEGER, (int) $unit['new_unit_id']]
+                ],
+                [
+                    'unit_fi' => [\ilDBConstants::T_INTEGER, $unit['old_unit_id']],
+                    'question_fi' => [\ilDBConstants::T_INTEGER, $question_id]
                 ]
             );
 
             //update res_unit : unit_fi
             $this->db->update(
-                'il_qpl_qst_fq_res_unit',
-                ['unit_fi' => ['integer', (int) $unit['new_unit_id']]],
+                self::RESULT_UNITS_TABLE,
                 [
-                    'unit_fi' => ['integer', $unit['old_unit_id']],
-                    'question_fi' => ['integer', $qustion_fi]
+                    'unit_fi' => [\ilDBConstants::T_INTEGER, (int) $unit['new_unit_id']]
+                ],
+                [
+                    'unit_fi' => [\ilDBConstants::T_INTEGER, $unit['old_unit_id']],
+                    'question_fi' => [\ilDBConstants::T_INTEGER, $question_id]
                 ]
             );
         }
     }
 
-    public function getCategoryUnitCount(int $id): int
-    {
-        $result = $this->db->queryF(
-            "SELECT * FROM il_qpl_qst_fq_unit WHERE category_fi = %s",
-            ['integer'],
-            [$id]
+    public function getCategoryUnitCount(
+        int $id
+    ): int {
+        $row = $this->db->fetchObject(
+            $this->db->queryF(
+                'SELECT COUNT(category_id) FROM ' . self::UNIT_TABLE . ' WHERE category_fi = %s',
+                [\ilDBConstants::T_INTEGER],
+                [$id]
+            )
         );
 
-        return $this->db->numRows($result);
+        return $row->cnt;
     }
 
-    public function isUnitInUse(int $id): bool
-    {
-        $result_1 = $this->db->queryF(
-            "SELECT unit_fi FROM il_qpl_qst_fq_res_unit WHERE unit_fi = %s",
-            ['integer'],
-            [$id]
+    public function isUnitInUse(
+        int $id
+    ): bool {
+        $use_in_result_units = $this->db->fetchObject(
+            $this->db->queryF(
+                'SELECT COUNT(result_unit_id) cnt FROM ' . self::RESULT_UNITS_TABLE . ' WHERE unit_fi = %s',
+                [\ilDBConstants::T_INTEGER],
+                [$id]
+            )
         );
 
-        $result_2 = $this->db->queryF(
-            "SELECT unit_fi FROM il_qpl_qst_fq_var WHERE unit_fi = %s",
-            ['integer'],
-            [$id]
-        );
-        $result_3 = $this->db->queryF(
-            "SELECT unit_fi FROM il_qpl_qst_fq_res WHERE unit_fi = %s",
-            ['integer'],
-            [$id]
-        );
+        if ($use_in_result_units->cnt > 0) {
+            return true;
+        }
 
-        $cnt_1 = $this->db->numRows($result_1);
-        $cnt_2 = $this->db->numRows($result_2);
-        $cnt_3 = $this->db->numRows($result_3);
+        $use_in_vars = $this->db->fetchObject(
+            $this->db->queryF(
+                'SELECT COUNT(variable_id) cnt FROM ' . self::VARIABLES_TABLE . ' WHERE unit_fi = %s',
+                [\ilDBConstants::T_INTEGER],
+                [$id]
+            )
+        );
+        if ($use_in_vars->cnt > 0) {
+            return true;
+        }
 
-        return $cnt_1 > 0 || $cnt_2 > 0 || $cnt_3 > 0;
+        $use_in_results = $this->db->fetchObject(
+            $this->db->queryF(
+                'SELECT COUNT(result_id) cnt FROM ' . self::RESULTS_TABLE . ' WHERE unit_fi = %s',
+                [\ilDBConstants::T_INTEGER],
+                [$id]
+            )
+        );
+        if ($use_in_results->cnt > 0) {
+            return true;
+        }
+
+        return false;
     }
 
-    public function checkDeleteCategory(int $id): ?string
-    {
+    public function checkDeleteCategory(
+        int $id
+    ): ?string {
         $res = $this->db->queryF(
-            'SELECT unit_id FROM il_qpl_qst_fq_unit WHERE category_fi = %s',
-            ['integer'],
+            'SELECT unit_id FROM ' . self::UNIT_TABLE . ' WHERE category_fi = %s',
+            [\ilDBConstants::T_INTEGER],
             [$id]
         );
 
-        if ($this->db->numRows($res)) {
-            while ($row = $this->db->fetchAssoc($res)) {
-                $unit_res = $this->checkDeleteUnit((int) $row['unit_id'], $id);
-                if (!is_null($unit_res)) {
-                    return $unit_res;
-                }
+        while ($row = $this->db->fetchAssoc($res)) {
+            $unit_res = $this->checkDeleteUnit((int) $row['unit_id'], $id);
+            if ($unit_res !== null) {
+                return $unit_res;
             }
         }
 
         return null;
     }
 
-    public function deleteUnit(int $id): ?string
-    {
+    public function deleteUnit(
+        int $id
+    ): ?string {
         $res = $this->checkDeleteUnit($id);
-        if (!is_null($res)) {
+        if ($res !== null) {
             return $res;
         }
 
-        $affectedRows = $this->db->manipulateF(
-            "DELETE FROM il_qpl_qst_fq_unit WHERE unit_id = %s",
-            ['integer'],
+        $affected_rows = $this->db->manipulateF(
+            'DELETE FROM ' . self::UNIT_TABLE . ' WHERE unit_id = %s',
+            [\ilDBConstants::T_INTEGER],
             [$id]
         );
 
-        if ($affectedRows > 0) {
+        if ($affected_rows > 0) {
             $this->clearUnits();
         }
 
@@ -241,64 +264,59 @@ class Repository
     protected function loadUnits(): void
     {
         $result = $this->db->query(
-            "
-			SELECT units.*, il_qpl_qst_fq_ucat.category, baseunits.unit baseunit_title
-			FROM il_qpl_qst_fq_unit units
-			INNER JOIN il_qpl_qst_fq_ucat ON il_qpl_qst_fq_ucat.category_id = units.category_fi
-			LEFT JOIN il_qpl_qst_fq_unit baseunits ON baseunits.unit_id = units.baseunit_fi
-			ORDER BY il_qpl_qst_fq_ucat.category, units.sequence"
+            'SELECT units.*, ' . self::CATEGORY_TABLE . '.category, baseunits.unit baseunit_title' . PHP_EOL
+            . 'FROM ' . self::UNIT_TABLE . ' units' . PHP_EOL
+            . 'INNER JOIN ' . self::CATEGORY_TABLE . ' ON ' . self::CATEGORY_TABLE . '.category_id = units.category_fi' . PHP_EOL
+            . 'LEFT JOIN ' . self::UNIT_TABLE . ' baseunits ON baseunits.unit_id = units.baseunit_fi' . PHP_EOL
+            . 'ORDER BY ' . self::CATEGORY_TABLE . '.category, units.sequence'
         );
 
-        if ($this->db->numRows($result)) {
-            while ($row = $this->db->fetchAssoc($result)) {
-                $unit = new assFormulaQuestionUnit();
-                $unit->initFormArray($row);
-                $this->addUnit($unit);
-            }
+        while ($row = $this->db->fetchAssoc($result)) {
+            $unit = new Unit();
+            $unit->initFormArray($row);
+            $this->addUnit($unit);
         }
     }
 
     /**
-     * @return assFormulaQuestionUnit[]|assFormulaQuestionUnitCategory[]
+     * @return list<\ILIAS\Questions\Units\Unit|\ILIAS\Questions\Units\Category>
      */
-    public function getCategorizedUnits(): array
-    {
-        if (count($this->categorizedUnits) === 0) {
+    public function getCategorizedUnits(
+        int $question_id
+    ): array {
+        if (count($this->categorized_units) === 0) {
             $result = $this->db->queryF(
-                "
-				SELECT	units.*, il_qpl_qst_fq_ucat.category, il_qpl_qst_fq_ucat.question_fi, baseunits.unit baseunit_title
-				FROM	il_qpl_qst_fq_unit units
-				INNER JOIN il_qpl_qst_fq_ucat ON il_qpl_qst_fq_ucat.category_id = units.category_fi
-				LEFT JOIN il_qpl_qst_fq_unit baseunits ON baseunits.unit_id = units.baseunit_fi
-				WHERE	units.question_fi = %s
-				ORDER BY il_qpl_qst_fq_ucat.category, units.sequence",
-                ['integer'],
-                [$this->getConsumerId()]
+                'SELECT	units.*, ' . self::CATEGORY_TABLE . '.category, ' . self::CATEGORY_TABLE . '.question_fi, baseunits.unit baseunit_title' . PHP_EOL
+                . 'FROM	' . self::UNIT_TABLE . ' units' . PHP_EOL
+                . 'INNER JOIN ' . self::CATEGORY_TABLE . ' ON ' . self::CATEGORY_TABLE . '.category_id = units.category_fi' . PHP_EOL
+                . 'LEFT JOIN ' . self::UNIT_TABLE . ' baseunits ON baseunits.unit_id = units.baseunit_fi' . PHP_EOL
+                . 'WHERE	units.question_fi = %s' . PHP_EOL
+                . 'ORDER BY ' . self::CATEGORY_TABLE . '.category, units.sequence' . PHP_EOL,
+                [\ilDBConstants::T_INTEGER],
+                [$question_id]
             );
 
-            if ($this->db->numRows($result) > 0) {
-                $category = 0;
-                while ($row = $this->db->fetchAssoc($result)) {
-                    $unit = new assFormulaQuestionUnit();
-                    $unit->initFormArray($row);
+            $category = 0;
+            while (($row = $this->db->fetchAssoc($result)) !== null) {
+                $unit = new Unit();
+                $unit->initFormArray($row);
 
-                    if ($category !== $unit->getCategory()) {
-                        $cat = new assFormulaQuestionUnitCategory();
-                        $cat->initFormArray([
-                            'category_id' => (int) $row['category_fi'],
-                            'category' => $row['category'],
-                            'question_fi' => (int) $row['question_fi'],
-                        ]);
-                        $this->categorizedUnits[] = $cat;
-                        $category = $unit->getCategory();
-                    }
-
-                    $this->categorizedUnits[] = $unit;
+                if ($category !== $unit->getCategory()) {
+                    $cat = new Category();
+                    $cat->initFormArray([
+                        'category_id' => (int) $row['category_fi'],
+                        'category' => $row['category'],
+                        'question_fi' => (int) $row['question_fi'],
+                    ]);
+                    $this->categorized_units[] = $cat;
+                    $category = $unit->getCategory();
                 }
+
+                $this->categorized_units[] = $unit;
             }
         }
 
-        return $this->categorizedUnits;
+        return $this->categorized_units;
     }
 
     protected function clearUnits(): void
@@ -306,61 +324,54 @@ class Repository
         $this->units = [];
     }
 
-    protected function addUnit(assFormulaQuestionUnit $unit): void
-    {
+    protected function addUnit(
+        Unit $unit
+    ): void {
         $this->units[$unit->getId()] = $unit;
     }
 
     /**
-     * @return assFormulaQuestionUnit[]
+     * @return list<\ILIAS\Questions\Units\Unit>
      */
     public function getUnits(): array
     {
-        if (count($this->units) === 0) {
+        if ($this->units === []) {
             $this->loadUnits();
         }
         return $this->units;
     }
 
     /**
-     * @param int $category
-     * @return assFormulaQuestionUnit[]
+     * @return list<\ILIAS\Questions\Units\Unit>
      */
-    public function loadUnitsForCategory(int $category): array
-    {
-        global $DIC;
-        $ilDB = $DIC['ilDB'];
-
+    public function loadUnitsForCategory(
+        int $category
+    ): array {
         $units = [];
-        $result = $ilDB->queryF(
-            "SELECT units.*, baseunits.unit baseunit_title, il_qpl_qst_fq_ucat.category
-			FROM il_qpl_qst_fq_unit units
-			INNER JOIN il_qpl_qst_fq_ucat ON il_qpl_qst_fq_ucat.category_id = units.category_fi
-			LEFT JOIN il_qpl_qst_fq_unit baseunits ON baseunits.unit_id = units.baseunit_fi
-			WHERE il_qpl_qst_fq_ucat.category_id = %s
-			ORDER BY units.sequence",
-            ['integer'],
+        $result = $this->db->queryF(
+            'SELECT units.*, baseunits.unit baseunit_title, ' . self::CATEGORY_TABLE . '.category' . PHP_EOL
+            . 'FROM ' . self::UNIT_TABLE . ' units' . PHP_EOL
+            . 'INNER JOIN ' . self::CATEGORY_TABLE . ' ON ' . self::CATEGORY_TABLE . '.category_id = units.category_fi' . PHP_EOL
+            . 'LEFT JOIN ' . self::UNIT_TABLE . ' baseunits ON baseunits.unit_id = units.baseunit_fi' . PHP_EOL
+            . 'WHERE ' . self::CATEGORY_TABLE . '.category_id = %s' . PHP_EOL
+            . 'ORDER BY units.sequence',
+            [\ilDBConstants::T_INTEGER],
             [$category]
         );
 
-        if ($result->numRows() > 0) {
-            while ($row = $ilDB->fetchAssoc($result)) {
-                $unit = new assFormulaQuestionUnit();
-                $unit->initFormArray($row);
-                $units[] = $unit;
-            }
+        while (($row = $this->db->fetchAssoc($result)) !== null) {
+            $unit = new Unit();
+            $unit->initFormArray($row);
+            $units[] = $unit;
         }
 
         return $units;
     }
 
-    /**
-     * @param int $id
-     * @return assFormulaQuestionUnit|null
-     */
-    public function getUnit(int $id): ?assFormulaQuestionUnit
-    {
-        if (count($this->units) === 0) {
+    public function getUnit(
+        int $id
+    ): ?Unit {
+        if ($this->units === []) {
             $this->loadUnits();
         }
 
@@ -369,7 +380,6 @@ class Repository
         }
 
         // Maybe this is a new unit, reload $this->units
-
         $this->loadUnits();
 
         return $this->units[$id] ?? null;
@@ -382,25 +392,23 @@ class Repository
     {
         $categories = [];
         $result = $this->db->queryF(
-            "SELECT * FROM il_qpl_qst_fq_ucat WHERE question_fi > %s ORDER BY category",
-            ['integer'],
+            'SELECT * FROM ' . self::CATEGORY_TABLE . ' WHERE question_fi > %s ORDER BY category',
+            [\ilDBConstants::T_INTEGER],
             [0]
         );
 
-        if ($this->db->numRows($result)) {
-            while ($row = $this->db->fetchAssoc($result)) {
-                $value = strcmp('-qpl_qst_formulaquestion_' . $row['category'] . '-', $this->lng->txt($row['category'])) === 0
-                    ? $row['category']
-                    : $this->lng->txt($row['category']);
+        while (($row = $this->db->fetchAssoc($result)) !== null) {
+            $value = $this->lng->txt($row['category']) === "-qpl_qst_formulaquestion_{$row['category']}-"
+                ? $row['category']
+                : $this->lng->txt($row['category']);
 
-                if (trim($row['category']) !== '') {
-                    $cat = [
-                        'value' => (int) $row['category_id'],
-                        'text' => $value,
-                        'qst_id' => (int) $row['question_fi']
-                    ];
-                    $categories[(int) $row['category_id']] = $cat;
-                }
+            if (trim($row['category']) !== '') {
+                $cat = [
+                    'value' => (int) $row['category_id'],
+                    'text' => $value,
+                    'qst_id' => (int) $row['question_fi']
+                ];
+                $categories[(int) $row['category_id']] = $cat;
             }
         }
 
@@ -415,178 +423,237 @@ class Repository
         $categories = [];
 
         $result = $this->db->queryF(
-            "SELECT * FROM il_qpl_qst_fq_ucat WHERE question_fi = %s  ORDER BY category",
-            ['integer'],
+            'SELECT * FROM ' . self::CATEGORY_TABLE . ' WHERE question_fi = %s  ORDER BY category',
+            [\ilDBConstants::T_INTEGER],
             [0]
         );
 
-        if ($result = $this->db->numRows($result)) {
-            while ($row = $this->db->fetchAssoc($result)) {
-                $value = strcmp('-qpl_qst_formulaquestion_' . $row['category'] . '-', $this->lng->txt($row['category'])) === 0
-                    ? $row['category']
-                    : $this->lng->txt($row['category']);
+        while (($row = $this->db->fetchAssoc($result)) !== null) {
+            $value = $this->lng->txt($row['category']) === "-qpl_qst_formulaquestion_{$row['category']}-'"
+                ? $row['category']
+                : $this->lng->txt($row['category']);
 
-                if (trim($row['category']) !== '') {
-                    $cat = [
-                        'value' => (int) $row['category_id'],
-                        'text' => $value,
-                        'qst_id' => (int) $row['question_fi']
-                    ];
-                    $categories[(int) $row['category_id']] = $cat;
-                }
+            if (trim($row['category']) !== '') {
+                $cat = [
+                    'value' => (int) $row['category_id'],
+                    'text' => $value,
+                    'qst_id' => (int) $row['question_fi']
+                ];
+                $categories[(int) $row['category_id']] = $cat;
             }
         }
 
         return $categories;
     }
 
-    public function saveUnitOrder(int $unit_id, int $sequence): void
-    {
+    public function saveUnitOrder(
+        int $question_id,
+        int $unit_id,
+        int $sequence
+    ): void {
         $this->db->manipulateF(
-            'UPDATE il_qpl_qst_fq_unit SET sequence = %s WHERE unit_id = %s AND question_fi = %s',
-            ['integer', 'integer', 'integer'],
-            [$sequence, $unit_id, $this->getConsumerId()]
+            'UPDATE ' . self::UNIT_TABLE . ' SET sequence = %s WHERE unit_id = %s AND question_fi = %s',
+            [
+                \ilDBConstants::T_INTEGER,
+                \ilDBConstants::T_INTEGER,
+                \ilDBConstants::T_INTEGER
+            ],
+            [
+                $sequence,
+                $unit_id,
+                $question_id
+            ]
         );
     }
 
-    public function checkDeleteUnit(int $id, ?int $category_id = null): ?string
-    {
-        $result = $this->db->queryF(
-            "SELECT * FROM il_qpl_qst_fq_var WHERE unit_fi = %s",
-            ['integer'],
-            [$id]
+    public function checkDeleteUnit(
+        int $id,
+        ?int $category_id = null
+    ): ?string {
+        $use_in_vars = $this->db->fetchObject(
+            $this->db->queryF(
+                'SELECT COUNT(variable_id) cnt FROM ' . self::VARIABLES_TABLE . ' WHERE unit_fi = %s',
+                [\ilDBConstants::T_INTEGER],
+                [$id]
+            )
         );
-        if ($this->db->numRows($result) > 0) {
-            return $this->lng->txt("err_unit_in_variables");
+        if ($use_in_vars->cnt > 0) {
+            return $this->lng->txt('err_unit_in_variables');
         }
 
-        $result = $this->db->queryF(
-            "SELECT * FROM il_qpl_qst_fq_res WHERE unit_fi = %s",
-            ['integer'],
-            [$id]
+        $use_in_results = $this->db->fetchObject(
+            $this->db->queryF(
+                'SELECT COUNT(result_id) cnt FROM ' . self::RESULTS_TABLE . ' WHERE unit_fi = %s',
+                [\ilDBConstants::T_INTEGER],
+                [$id]
+            )
         );
-        if ($this->db->numRows($result) > 0) {
-            return $this->lng->txt("err_unit_in_results");
+        if ($use_in_results->cnt > 0) {
+            return $this->lng->txt('err_unit_in_results');
         }
 
-        if (!is_null($category_id)) {
-            $result = $this->db->queryF(
-                "SELECT * FROM il_qpl_qst_fq_unit WHERE baseunit_fi = %s AND category_fi != %s",
-                ['integer', 'integer', 'integer'],
-                [$id, $id, $category_id]
-            );
-        } else {
-            $result = $this->db->queryF(
-                "SELECT * FROM il_qpl_qst_fq_unit WHERE baseunit_fi = %s AND unit_id != %s",
-                ['integer', 'integer'],
-                [$id, $id]
-            );
+        $additional_where = 'unit_id != %s';
+        $values_array = [$id, $id];
+        if ($category_id !== null) {
+            $additional_where = 'category_fi != %s';
+            $values_array = [$id, $category_id];
         }
 
-        if ($this->db->numRows($result) > 0) {
-            return $this->lng->txt("err_unit_is_baseunit");
+        $use_as_base_unit = $this->db->fetchObject(
+            $this->db->queryF(
+                'SELECT COUNT(unit_id) cnt FROM ' . self::UNIT_TABLE . '' . PHP_EOL
+                    . "WHERE baseunit_fi = %s AND {$additional_where}",
+                [\ilDBConstants::T_INTEGER, \ilDBConstants::T_INTEGER],
+                $values_array
+            )
+        );
+
+        if ($use_as_base_unit->cnt > 0) {
+            return $this->lng->txt('err_unit_is_baseunit');
         }
 
         return null;
     }
 
-    public function getUnitCategoryById(int $id): assFormulaQuestionUnitCategory
-    {
-        $query = 'SELECT * FROM il_qpl_qst_fq_ucat WHERE category_id = ' . $this->db->quote($id, 'integer');
-        $res = $this->db->query($query);
-        if (!$this->db->numRows($res)) {
-            throw new ilException('un_category_not_exist');
+    public function getUnitCategoryById(
+        int $id
+    ): Category {
+        $res = $this->db->query(
+            'SELECT * FROM ' . self::CATEGORY_TABLE . ' WHERE category_id = '
+                . $this->db->quote($id, \ilDBConstants::T_INTEGER)
+        );
+
+        if ($this->db->numRows($res) === 0) {
+            throw new \ilException('un_category_not_exist');
         }
 
-        $row = $this->db->fetchAssoc($res);
-        $category = new assFormulaQuestionUnitCategory();
-        $category->initFormArray($row);
+        $category = new Category();
+        $category->initFormArray($this->db->fetchAssoc($res));
         return $category;
     }
 
-    public function saveCategory(assFormulaQuestionUnitCategory $category): void
-    {
-        $res = $this->db->queryF(
-            'SELECT * FROM il_qpl_qst_fq_ucat WHERE category = %s AND question_fi = %s AND category_id != %s',
-            ['text', 'integer', 'integer'],
-            [$category->getCategory(), $this->getConsumerId(), $category->getId()]
+    public function saveCategory(
+        Category $category
+    ): void {
+        $row = $this->db->fetchObject(
+            $this->db->queryF(
+                'SELECT COUNT(category_id) cnt FROM ' . self::CATEGORY_TABLE . '' . PHP_EOL
+                . 'WHERE category = %s AND question_fi = %s AND category_id != %s',
+                [
+                    \ilDBConstants::T_TEXT,
+                    \ilDBConstants::T_INTEGER,
+                    \ilDBConstants::T_INTEGER
+                ],
+                [
+                    $category->getCategory(),
+                    $category->getQuestionFi(),
+                    $category->getId()
+                ]
+            )
         );
-        if ($this->db->numRows($res)) {
-            throw new ilException('err_wrong_categoryname');
+        if ($row->cnt > 0) {
+            throw new \ilException('err_wrong_categoryname');
         }
 
         $this->db->manipulateF(
-            'UPDATE il_qpl_qst_fq_ucat SET category = %s WHERE question_fi = %s AND category_id = %s',
-            ['text', 'integer', 'integer'],
-            [$category->getCategory(), $this->getConsumerId(), $category->getId()]
+            'UPDATE ' . self::CATEGORY_TABLE . ' SET category = %s WHERE question_fi = %s AND category_id = %s',
+            [
+                \ilDBConstants::T_TEXT,
+                \ilDBConstants::T_INTEGER,
+                \ilDBConstants::T_INTEGER
+            ],
+            [
+                $category->getCategory(),
+                $category->getQuestionFi(),
+                $category->getId()
+            ]
         );
     }
 
-    public function saveNewUnitCategory(assFormulaQuestionUnitCategory $category): void
-    {
-        $res = $this->db->queryF(
-            'SELECT category FROM il_qpl_qst_fq_ucat WHERE category = %s AND question_fi = %s',
-            ['text', 'integer'],
-            [$category->getCategory(), $this->getConsumerId()]
+    public function saveNewUnitCategory(
+        Category $category
+    ): void {
+        $row = $this->db->fetchObject(
+            $this->db->queryF(
+                'SELECT COUNT(category_id) cnt FROM ' . self::CATEGORY_TABLE . ' WHERE category = %s AND question_fi = %s',
+                [
+                    \ilDBConstants::T_TEXT,
+                    \ilDBConstants::T_INTEGER
+                ],
+                [
+                    $category->getCategory(),
+                    $category->getQuestionFi()
+                ]
+            )
         );
-        if ($this->db->numRows($res)) {
-            throw new ilException('err_wrong_categoryname');
+        if ($row->cnt > 0) {
+            throw new \ilException('err_wrong_categoryname');
         }
 
-        $next_id = $this->db->nextId('il_qpl_qst_fq_ucat');
+        $next_id = $this->db->nextId(self::CATEGORY_TABLE);
         $this->db->manipulateF(
-            "INSERT INTO il_qpl_qst_fq_ucat (category_id, category, question_fi) VALUES (%s, %s, %s)",
-            ['integer', 'text', 'integer'],
+            'INSERT INTO ' . self::CATEGORY_TABLE . ' (category_id, category, question_fi) VALUES (%s, %s, %s)',
+            [
+                \ilDBConstants::T_INTEGER,
+                \ilDBConstants::T_TEXT,
+                \ilDBConstants::T_INTEGER
+            ],
             [
                 $next_id,
                 $category->getCategory(),
-                $this->getConsumerId()
+                $category->getQuestionFi()
             ]
         );
         $category->setId($next_id);
     }
 
     /**
-     * @return assFormulaQuestionUnitCategory[]
+     * @return list<\ILIAS\Questions\Units\Category>
      */
-    public function getAllUnitCategories(): array
-    {
+    public function getAllUnitCategories(
+        int $question_id
+    ): array {
         $categories = [];
         $result = $this->db->queryF(
-            "SELECT * FROM il_qpl_qst_fq_ucat WHERE question_fi = %s OR question_fi = %s ORDER BY category",
-            ['integer', 'integer'],
-            [$this->getConsumerId(), 0]
+            'SELECT * FROM ' . self::CATEGORY_TABLE . ' WHERE question_fi = %s OR question_fi = %s ORDER BY category',
+            [
+                \ilDBConstants::T_INTEGER,
+                \ilDBConstants::T_INTEGER
+            ],
+            [
+                $question_id,
+                0
+            ]
         );
 
-        if ($result->numRows() > 0) {
-            while ($row = $this->db->fetchAssoc($result)) {
-                $category = new assFormulaQuestionUnitCategory();
-                $category->initFormArray($row);
-                $categories[] = $category;
-            }
+        while ($row = $this->db->fetchAssoc($result)) {
+            $category = new Category();
+            $category->initFormArray($row);
+            $categories[] = $category;
         }
+
         return $categories;
     }
 
-    public function deleteCategory(int $id): ?string
-    {
-        $res = $this->checkDeleteCategory($id);
-        if (!is_null($res)) {
+    public function deleteCategory(
+        int $id
+    ): ?string {
+        if ($this->checkDeleteCategory($id) !== null) {
             return $this->lng->txt('err_category_in_use');
         }
 
         $res = $this->db->queryF(
-            'SELECT * FROM il_qpl_qst_fq_unit WHERE category_fi = %s',
-            ['integer'],
+            'SELECT * FROM ' . self::UNIT_TABLE . ' WHERE category_fi = %s',
+            [\ilDBConstants::T_INTEGER],
             [$id]
         );
-        while ($row = $this->db->fetchAssoc($res)) {
+        while (($row = $this->db->fetchAssoc($res)) !== null) {
             $this->deleteUnit((int) $row['unit_id']);
         }
 
         $ar = $this->db->manipulateF(
-            'DELETE FROM il_qpl_qst_fq_ucat WHERE category_id = %s',
-            ['integer'],
+            'DELETE FROM ' . self::CATEGORY_TABLE . ' WHERE category_id = %s',
+            [\ilDBConstants::T_INTEGER],
             [$id]
         );
 
@@ -597,12 +664,23 @@ class Repository
         return null;
     }
 
-    public function createNewUnit(assFormulaQuestionUnit $unit): void
-    {
-        $next_id = $this->db->nextId('il_qpl_qst_fq_unit');
+    public function createNewUnit(
+        int $question_id,
+        Unit $unit
+    ): void {
+        $next_id = $this->db->nextId(self::UNIT_TABLE);
         $this->db->manipulateF(
-            'INSERT INTO il_qpl_qst_fq_unit (unit_id, unit, factor, baseunit_fi, category_fi, sequence, question_fi) VALUES (%s, %s, %s, %s, %s, %s, %s)',
-            ['integer', 'text', 'float', 'integer', 'integer', 'integer', 'integer'],
+            'INSERT INTO ' . self::UNIT_TABLE . ' (unit_id, unit, factor, baseunit_fi, category_fi, sequence, question_fi)' . PHP_EOL
+            . 'VALUES (%s, %s, %s, %s, %s, %s, %s)',
+            [
+                \ilDBConstants::T_INTEGER,
+                \ilDBConstants::T_TEXT,
+                \ilDBConstants::T_FLOAT,
+                \ilDBConstants::T_INTEGER,
+                \ilDBConstants::T_INTEGER,
+                \ilDBConstants::T_INTEGER,
+                \ilDBConstants::T_INTEGER
+            ],
             [
                 $next_id,
                 $unit->getUnit(),
@@ -610,7 +688,7 @@ class Repository
                 0,
                 $unit->getCategory(),
                 0,
-                $this->getConsumerId()
+                $question_id
             ]
         );
         $unit->setId($next_id);
@@ -621,42 +699,62 @@ class Repository
         $this->clearUnits();
     }
 
-    public function saveUnit(assFormulaQuestionUnit $unit): void
-    {
-        $res = $this->db->queryF(
-            'SELECT unit_id FROM il_qpl_qst_fq_unit WHERE unit_id = %s',
-            ['integer'],
-            [$unit->getId()]
+    public function saveUnit(
+        int $question_id,
+        Unit $unit
+    ): void {
+        $row = $this->db->fetchObject(
+            $this->db->queryF(
+                'SELECT COUNT(unit_id) cnt FROM ' . self::UNIT_TABLE . ' WHERE unit_id = %s',
+                [\ilDBConstants::T_INTEGER],
+                [$unit->getId()]
+            )
         );
-        if ($this->db->numRows($res)) {
-            $row = $this->db->fetchAssoc($res);
+        if ($row->cnt === 0) {
+            return;
+        }
 
-            if ($unit->getBaseUnit() === 0 || $unit->getBaseUnit() === $unit->getId()) {
-                $unit->setFactor(1);
-            }
+        if ($unit->getBaseUnit() === 0 || $unit->getBaseUnit() === $unit->getId()) {
+            $unit->setFactor(1);
+        }
 
-            $ar = $this->db->manipulateF(
-                'UPDATE il_qpl_qst_fq_unit SET unit = %s, factor = %s, baseunit_fi = %s, category_fi = %s, sequence = %s WHERE unit_id = %s AND question_fi = %s',
-                ['text', 'float', 'integer', 'integer', 'integer', 'integer', 'integer'],
-                [
-                    $unit->getUnit(), $unit->getFactor(), (int) $unit->getBaseUnit(),
-                    $unit->getCategory(),
-                    $unit->getSequence(),
-                    $unit->getId(),
-                    $this->getConsumerId()
-                ]
-            );
-            if ($ar > 0) {
-                $this->clearUnits();
-            }
+        $ar = $this->db->manipulateF(
+            'UPDATE ' . self::UNIT_TABLE . '' . PHP_EOL
+            . 'SET unit = %s, factor = %s, baseunit_fi = %s, category_fi = %s, sequence = %s' . PHP_EOL
+            . 'WHERE unit_id = %s AND question_fi = %s',
+            [
+                \ilDBConstants::T_TEXT,
+                \ilDBConstants::T_FLOAT,
+                \ilDBConstants::T_INTEGER,
+                \ilDBConstants::T_INTEGER,
+                \ilDBConstants::T_INTEGER,
+                \ilDBConstants::T_INTEGER,
+                \ilDBConstants::T_INTEGER
+            ],
+            [
+                $unit->getUnit(), $unit->getFactor(), (int) $unit->getBaseUnit(),
+                $unit->getCategory(),
+                $unit->getSequence(),
+                $unit->getId(),
+                $question_id
+            ]
+        );
+        if ($ar > 0) {
+            $this->clearUnits();
         }
     }
 
-    public function cloneUnits(int $from_consumer_id, int $to_consumer_id): void
-    {
+    public function cloneUnits(
+        int $from_consumer_id,
+        int $to_consumer_id
+    ): void {
         $category_mapping = [];
 
-        $res = $this->db->queryF("SELECT * FROM il_qpl_qst_fq_ucat WHERE question_fi = %s", ['integer'], [$from_consumer_id]);
+        $res = $this->db->queryF(
+            'SELECT * FROM ' . self::CATEGORY_TABLE . ' WHERE question_fi = %s',
+            [\ilDBConstants::T_INTEGER],
+            [$from_consumer_id]
+        );
         while ($row = $this->db->fetchAssoc($res)) {
             $new_category_id = $this->copyCategory((int) $row['category_id'], $to_consumer_id);
             $category_mapping[$row['category_id']] = $new_category_id;
@@ -664,29 +762,29 @@ class Repository
 
         foreach ($category_mapping as $old_category_id => $new_category_id) {
             $res = $this->db->queryF(
-                'SELECT * FROM il_qpl_qst_fq_unit WHERE category_fi = %s',
-                ['integer'],
+                'SELECT * FROM ' . self::UNIT_TABLE . ' WHERE category_fi = %s',
+                [\ilDBConstants::T_INTEGER],
                 [$old_category_id]
             );
 
             $i = 0;
             $units = [];
             while ($row = $this->db->fetchAssoc($res)) {
-                $next_id = $this->db->nextId('il_qpl_qst_fq_unit');
+                $next_id = $this->db->nextId(self::UNIT_TABLE);
 
                 $units[$i]['old_unit_id'] = $row['unit_id'];
                 $units[$i]['new_unit_id'] = $next_id;
 
                 $this->db->insert(
-                    'il_qpl_qst_fq_unit',
+                    self::UNIT_TABLE,
                     [
-                        'unit_id' => ['integer', $next_id],
-                        'unit' => ['text', $row['unit']],
-                        'factor' => ['float', $row['factor']],
-                        'baseunit_fi' => ['integer', (int) $row['baseunit_fi']],
-                        'category_fi' => ['integer', (int) $new_category_id],
-                        'sequence' => ['integer', (int) $row['sequence']],
-                        'question_fi' => ['integer', $to_consumer_id]
+                        'unit_id' => [\ilDBConstants::T_INTEGER, $next_id],
+                        'unit' => [\ilDBConstants::T_TEXT, $row['unit']],
+                        'factor' => [\ilDBConstants::T_FLOAT, $row['factor']],
+                        'baseunit_fi' => [\ilDBConstants::T_INTEGER, (int) $row['baseunit_fi']],
+                        'category_fi' => [\ilDBConstants::T_INTEGER, (int) $new_category_id],
+                        'sequence' => [\ilDBConstants::T_INTEGER, (int) $row['sequence']],
+                        'question_fi' => [\ilDBConstants::T_INTEGER, $to_consumer_id]
                     ]
                 );
                 $i++;
@@ -695,41 +793,49 @@ class Repository
             foreach ($units as $unit) {
                 //update unit : baseunit_fi
                 $this->db->update(
-                    'il_qpl_qst_fq_unit',
-                    ['baseunit_fi' => ['integer', (int) $unit['new_unit_id']]],
+                    self::UNIT_TABLE,
                     [
-                        'baseunit_fi' => ['integer', (int) $unit['old_unit_id']],
-                        'question_fi' => ['integer', $to_consumer_id]
+                        'baseunit_fi' => [\ilDBConstants::T_INTEGER, (int) $unit['new_unit_id']]
+                    ],
+                    [
+                        'baseunit_fi' => [\ilDBConstants::T_INTEGER, (int) $unit['old_unit_id']],
+                        'question_fi' => [\ilDBConstants::T_INTEGER, $to_consumer_id]
                     ]
                 );
 
                 //update var : unit_fi
                 $this->db->update(
-                    'il_qpl_qst_fq_var',
-                    ['unit_fi' => ['integer', (int) $unit['new_unit_id']]],
+                    self::VARIABLES_TABLE,
                     [
-                        'unit_fi' => ['integer', (int) $unit['old_unit_id']],
-                        'question_fi' => ['integer', $to_consumer_id]
+                        'unit_fi' => [\ilDBConstants::T_INTEGER, (int) $unit['new_unit_id']]
+                    ],
+                    [
+                        'unit_fi' => [\ilDBConstants::T_INTEGER, (int) $unit['old_unit_id']],
+                        'question_fi' => [\ilDBConstants::T_INTEGER, $to_consumer_id]
                     ]
                 );
 
                 //update res : unit_fi
                 $this->db->update(
-                    'il_qpl_qst_fq_res',
-                    ['unit_fi' => ['integer', (int) $unit['new_unit_id']]],
+                    self::RESULTS_TABLE,
                     [
-                        'unit_fi' => ['integer', (int) $unit['old_unit_id']],
-                        'question_fi' => ['integer', $to_consumer_id]
+                        'unit_fi' => [\ilDBConstants::T_INTEGER, (int) $unit['new_unit_id']]
+                    ],
+                    [
+                        'unit_fi' => [\ilDBConstants::T_INTEGER, (int) $unit['old_unit_id']],
+                        'question_fi' => [\ilDBConstants::T_INTEGER, $to_consumer_id]
                     ]
                 );
 
                 //update res_unit : unit_fi
                 $this->db->update(
-                    'il_qpl_qst_fq_res_unit',
-                    ['unit_fi' => ['integer', (int) $unit['new_unit_id']]],
+                    self::RESULT_UNITS_TABLE,
                     [
-                        'unit_fi' => ['integer', (int) $unit['old_unit_id']],
-                        'question_fi' => ['integer', $to_consumer_id]
+                        'unit_fi' => [\ilDBConstants::T_INTEGER, (int) $unit['new_unit_id']]
+                    ],
+                    [
+                        'unit_fi' => [\ilDBConstants::T_INTEGER, (int) $unit['old_unit_id']],
+                        'question_fi' => [\ilDBConstants::T_INTEGER, $to_consumer_id]
                     ]
                 );
             }

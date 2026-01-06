@@ -20,21 +20,25 @@ declare(strict_types=1);
 
 namespace ILIAS\Questions\Units;
 
+use ILIAS\Language\Language;
+
 class Category
 {
     private int $id = 0;
     private string $category = '';
     private int $question_fi = 0;
 
-    public function initFormArray(array $data): void
-    {
+    public function initFormArray(
+        array $data
+    ): void {
         $this->id = (int) $data['category_id'];
         $this->category = $data['category'];
         $this->question_fi = (int) $data['question_fi'];
     }
 
-    public function setId(int $id): void
-    {
+    public function setId(
+        int $id
+    ): void {
         $this->id = $id;
     }
 
@@ -43,8 +47,9 @@ class Category
         return $this->id;
     }
 
-    public function setCategory(string $category): void
-    {
+    public function setCategory(
+        string $category
+    ): void {
         $this->category = $category;
     }
 
@@ -53,8 +58,9 @@ class Category
         return $this->category;
     }
 
-    public function setQuestionFi(int $question_fi): void
-    {
+    public function setQuestionFi(
+        int $question_fi
+    ): void {
         $this->question_fi = $question_fi;
     }
 
@@ -63,12 +69,9 @@ class Category
         return $this->question_fi;
     }
 
-    public function getDisplayString(): string
-    {
-        global $DIC;
-
-        $lng = $DIC->language();
-
+    public function getDisplayString(
+        Language $lng
+    ): string {
         $category = $this->getCategory();
         if (strcmp('-qpl_qst_formulaquestion_' . $category . '-', $lng->txt('qpl_qst_formulaquestion_' . $category)) !== 0) {
             $category = $lng->txt('qpl_qst_formulaquestion_' . $category);

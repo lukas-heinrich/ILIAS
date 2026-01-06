@@ -232,13 +232,14 @@ class assFormulaQuestionGUI extends assQuestionGUI
              * @var $item assFormulaQuestionUnitCategory|assFormulaQuestionUnit
              */
             if ($item instanceof assFormulaQuestionUnitCategory) {
-                if ($category_name != $item->getDisplayString()) {
+                if ($category_name !== $item->getDisplayString($this->lng)) {
                     $new_category = true;
-                    $category_name = $item->getDisplayString();
+                    $category_name = $item->getDisplayString($this->lng);
                 }
                 continue;
             }
-            $unit_options[$item->getId()] = $item->getDisplayString() . ($new_category ? ' (' . $category_name . ')' : '');
+            $unit_options[$item->getId()] = $item->getDisplayString($this->lng)
+                . ($new_category ? ' (' . $category_name . ')' : '');
             $new_category = false;
         }
 

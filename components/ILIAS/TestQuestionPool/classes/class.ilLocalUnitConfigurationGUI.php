@@ -113,7 +113,7 @@ class ilLocalUnitConfigurationGUI extends ilUnitConfigurationGUI
             /** @var assFormulaQuestionUnitCategory $category */
             $data[] = [
                 'category_id' => $category->getId(),
-                'category' => $category->getDisplayString()
+                'category' => $category->getDisplayString($this->lng)
             ];
         }
 

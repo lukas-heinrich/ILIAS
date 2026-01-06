@@ -132,11 +132,15 @@ abstract class ilUnitConfigurationGUI
                 }
 
                 if ($check_result = $this->repository->checkDeleteUnit($unit->getId())) {
-                    $errors[] = $unit->getDisplayString() . ' - ' . $check_result;
+                    $errors[] = $unit->getDisplayString($this->lng) . ' - ' . $check_result;
                     continue;
                 }
 
-                $confirmation->addItem('unit_ids[]', (string) $unit->getId(), $unit->getDisplayString());
+                $confirmation->addItem(
+                    'unit_ids[]',
+                    (string) $unit->getId(),
+                    $unit->getDisplayString($this->lng)
+                );
                 ++$num_to_confirm;
             } catch (ilException $e) {
                 continue;
@@ -199,7 +203,8 @@ abstract class ilUnitConfigurationGUI
 
                 $check_result = $this->repository->deleteUnit($unit->getId());
                 if (!is_null($check_result)) {
-                    $errors[] = $unit->getDisplayString() . ' - ' . $check_result;
+                    $errors[] = $unit->getDisplayString($this->lng)
+                        . ' - ' . $check_result;
                     continue;
                 }
 
@@ -399,14 +404,15 @@ abstract class ilUnitConfigurationGUI
             }
 
             if ($item instanceof assFormulaQuestionUnitCategory) {
-                if ($category_name !== $item->getDisplayString()) {
+                if ($category_name !== $item->getDisplayString($this->lng)) {
                     $new_category = true;
-                    $category_name = $item->getDisplayString();
+                    $category_name = $item->getDisplayString($this->lng);
                 }
                 continue;
             }
 
-            $options[$item->getId()] = $item->getDisplayString() . ($new_category ? ' (' . $category_name . ')' : '');
+            $options[$item->getId()] = $item->getDisplayString($this->lng)
+                . ($new_category ? ' (' . $category_name . ')' : '');
             $new_category = false;
         }
         $baseunit->setDisabled($unit_in_use);
@@ -436,8 +442,8 @@ abstract class ilUnitConfigurationGUI
             }
             $this->unit_form->setTitle(sprintf(
                 $this->lng->txt('un_sel_cat_sel_unit'),
-                $category->getDisplayString(),
-                $unit->getDisplayString()
+                $category->getDisplayString($this->lng),
+                $unit->getDisplayString($this->lng)
             ));
         }
         $this->ctrl->clearParameterByClass(get_class($this), 'category_id');
@@ -502,7 +508,7 @@ abstract class ilUnitConfigurationGUI
             /** @var assFormulaQuestionUnitCategory $category */
             $data[] = [
                 'category_id' => $category->getId(),
-                'category' => $category->getDisplayString()
+                'category' => $category->getDisplayString($this->lng)
             ];
         }
 
@@ -552,17 +558,23 @@ abstract class ilUnitConfigurationGUI
             }
 
             if (!$this->repository->isCRUDAllowed($category_id)) {
-                $errors[] = $category->getDisplayString() . ' - ' . $this->lng->txt('change_adm_categories_not_allowed');
+                $errors[] = $category->getDisplayString($this->lng)
+                    . ' - ' . $this->lng->txt('change_adm_categories_not_allowed');
                 continue;
             }
 
             $possible_error = $this->repository->checkDeleteCategory($category_id);
             if (is_string($possible_error) && $possible_error !== '') {
-                $errors[] = $category->getDisplayString() . ' - ' . $possible_error;
+                $errors[] = $category->getDisplayString($this->lng)
+                    . ' - ' . $possible_error;
                 continue;
             }
 
-            $confirmation->addItem('category_ids[]', (string) $category->getId(), $category->getDisplayString());
+            $confirmation->addItem(
+                'category_ids[]',
+                (string) $category->getId(),
+                $category->getDisplayString()
+            );
             ++$num_to_confirm;
         }
 
@@ -621,13 +633,15 @@ abstract class ilUnitConfigurationGUI
             }
 
             if (!$this->repository->isCRUDAllowed($category_id)) {
-                $errors[] = $category->getDisplayString() . ' - ' . $this->lng->txt('change_adm_categories_not_allowed');
+                $errors[] = $category->getDisplayString($this->lng)
+                    . ' - ' . $this->lng->txt('change_adm_categories_not_allowed');
                 continue;
             }
 
             $possible_error = $this->repository->deleteCategory($category_id);
             if (is_string($possible_error) && $possible_error !== '') {
-                $errors[] = $category->getDisplayString() . ' - ' . $possible_error;
+                $errors[] = $category->getDisplayString($this->lng)
+                    . ' - ' . $possible_error;
                 continue;
             }
 
@@ -684,7 +698,12 @@ abstract class ilUnitConfigurationGUI
             $this->ctrl->setParameter($this, 'category_id', $cat->getId());
             $this->unit_cat_form->addCommandButton('saveCategory', $this->lng->txt('save'));
             $this->unit_cat_form->setFormAction($this->ctrl->getFormAction($this, 'saveCategory'));
-            $this->unit_cat_form->setTitle(sprintf($this->lng->txt('selected_category'), $cat->getDisplayString()));
+            $this->unit_cat_form->setTitle(
+                sprintf(
+                    $this->lng->txt('selected_category'),
+                    $cat->getDisplayString($this->lng)
+                )
+            );
         }
 
         $this->unit_cat_form->addCommandButton($this->getUnitCategoryOverviewCommand(), $this->lng->txt('cancel'));

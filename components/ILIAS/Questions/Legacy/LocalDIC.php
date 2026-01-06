@@ -26,6 +26,7 @@ use ILIAS\Questions\Persistence\TableNameSpaceCore;
 use ILIAS\Questions\AnswerForm\Factory as AnswerFormFactory;
 use ILIAS\Questions\Presentation\Views\Edit;
 use ILIAS\Questions\Presentation\Layout\Definitions\Factory as DefinitionsFactory;
+use ILIAS\Questions\Units\Repository as UnitsRepository;
 use ILIAS\Data\Factory as DataFactory;
 use ILIAS\Data\UUID\Factory as UuidFactory;
 use ILIAS\DI\Container as ILIASContainer;
@@ -49,6 +50,11 @@ class LocalDIC extends PimpleContainer
         $dic = new self();
         $dic[DataFactory::class] = static fn($c): DataFactory => new DataFactory();
         $dic[UuidFactory::class] = static fn($c): UuidFactory => new UuidFactory();
+
+        $dic[UnitsRepository::class] = static fn($c): UnitsRepository => new UnitsRepository(
+            $DIC['lng'],
+            $DIC['ilDB']
+        );
 
         $dic[AnswerFormFactory::class] = static fn($c): AnswerFormFactory
             => new AnswerFormFactory(

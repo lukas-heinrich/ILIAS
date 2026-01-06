@@ -22,24 +22,20 @@ namespace ILIAS\Questions\Units;
 
 use ILIAS\TestQuestionPool\QuestionPoolDIC;
 use ILIAS\TestQuestionPool\RequestDataCollector;
+use ILIAS\Language\Language;
 
 abstract class ConfigurationGUI
 {
     protected RequestDataCollector $request;
     protected ?\ilPropertyFormGUI $unit_cat_form = null;
     protected ?\ilPropertyFormGUI $unit_form = null;
-    protected \ilGlobalTemplateInterface $tpl;
-    protected \ilLanguage $lng;
-    protected \ilCtrlInterface $ctrl;
 
     public function __construct(
-        protected Repository $repository
+        protected readonly Repository $repository,
+        protected readonly Language $lng,
+        protected readonly \ilCtrl $ctrl,
+        protected readonly \ilGlobalTemplateInterface $tpl
     ) {
-        global $DIC;
-        $this->lng = $DIC->language();
-        $this->ctrl = $DIC->ctrl();
-        $this->tpl = $DIC->ui()->mainTemplate();
-
         $local_dic = QuestionPoolDIC::dic();
         $this->request = $local_dic['request_data_collector'];
 
@@ -54,12 +50,16 @@ abstract class ConfigurationGUI
 
     abstract public function getUniqueId(): string;
 
-    abstract protected function showUnitCategories(array $categories): void;
+    abstract protected function showUnitCategories(
+        array $categories
+    ): void;
 
-    protected function getCategoryById(int $id, bool $for_CRUD = true): Category
-    {
+    protected function getCategoryById(
+        int $id,
+        bool $for_CRUD = true
+    ): Category {
         $category = $this->repository->getUnitCategoryById($id);
-        if ($for_CRUD && $category->getQuestionFi() !== $this->repository->getConsumerId()) {
+        if ($for_CRUD && $category->getQuestionFi() !== $this->request->getQuestionId()) {
             $this->tpl->setOnScreenMessage('failure', $this->lng->txt('change_adm_categories_not_allowed'), true);
             $this->ctrl->redirect($this, $this->getDefaultCommand());
         }
@@ -71,8 +71,9 @@ abstract class ConfigurationGUI
     {
     }
 
-    protected function checkPermissions(string $cmd): void
-    {
+    protected function checkPermissions(
+        string $cmd
+    ): void {
     }
 
     public function executeCommand(): void
@@ -102,8 +103,9 @@ abstract class ConfigurationGUI
         $this->confirmDeleteUnits([$this->request->int('unit_id')]);
     }
 
-    protected function confirmDeleteUnits(?array $unit_ids = null): void
-    {
+    protected function confirmDeleteUnits(
+        ?array $unit_ids = null
+    ): void {
         if (!$this->isCRUDContext()) {
             $this->showUnitsOfCategory();
             return;
@@ -116,7 +118,7 @@ abstract class ConfigurationGUI
         }
 
         $this->ctrl->setParameter($this, 'category_id', $this->request->int('category_id'));
-        $confirmation = new ilConfirmationGUI();
+        $confirmation = new \ilConfirmationGUI();
         $confirmation->setFormAction($this->ctrl->getFormAction($this, 'deleteUnits'));
         $confirmation->setConfirm($this->lng->txt('confirm'), 'deleteUnits');
         $confirmation->setCancel($this->lng->txt('cancel'), 'showUnitsOfCategory');
@@ -130,14 +132,18 @@ abstract class ConfigurationGUI
                     continue;
                 }
 
-                if ($check_result = $this->repository->checkDeleteUnit($unit->getId())) {
-                    $errors[] = $unit->getDisplayString() . ' - ' . $check_result;
+                if (($check_result = $this->repository->checkDeleteUnit($unit->getId()))) {
+                    $errors[] = $unit->getDisplayString($this->lng) . ' - ' . $check_result;
                     continue;
                 }
 
-                $confirmation->addItem('unit_ids[]', (string) $unit->getId(), $unit->getDisplayString());
+                $confirmation->addItem(
+                    'unit_ids[]',
+                    (string) $unit->getId(),
+                    $unit->getDisplayString($this->lng)
+                );
                 ++$num_to_confirm;
-            } catch (ilException $e) {
+            } catch (\ilException $e) {
                 continue;
             }
         }
@@ -198,12 +204,12 @@ abstract class ConfigurationGUI
 
                 $check_result = $this->repository->deleteUnit($unit->getId());
                 if (!is_null($check_result)) {
-                    $errors[] = $unit->getDisplayString() . ' - ' . $check_result;
+                    $errors[] = $unit->getDisplayString($this->lng) . ' - ' . $check_result;
                     continue;
                 }
 
                 ++$num_deleted;
-            } catch (ilException $e) {
+            } catch (\ilException $e) {
                 continue;
             }
         }
@@ -253,8 +259,11 @@ abstract class ConfigurationGUI
         $sequences = $this->request->raw('sequence');
         foreach ($sequences as $id => $sequence) {
             $sorting_value = str_replace(',', '.', $sequence);
-            $sorting_value = (int) $sorting_value * 100;
-            $this->repository->saveUnitOrder((int) $id, $sorting_value);
+            $this->repository->saveUnitOrder(
+                $this->request->getQuestionId(),
+                (int) $id,
+                (int) $sorting_value * 100
+            );
         }
 
         $this->tpl->setOnScreenMessage('success', $this->lng->txt('saved_successfully'));
@@ -282,7 +291,10 @@ abstract class ConfigurationGUI
             $unit->setFactor((float) $this->unit_form->getInput('factor'));
             $unit->setBaseUnit((int) $this->unit_form->getInput('base_unit') !== $unit->getId() ? (int) $this->unit_form->getInput('base_unit') : 0);
             $unit->setCategory($category->getId());
-            $this->repository->saveUnit($unit);
+            $this->repository->saveUnit(
+                $this->request->getQuestionId(),
+                $unit
+            );
 
             $this->tpl->setOnScreenMessage('success', $this->lng->txt('saved_successfully'));
             $this->showUnitsOfCategory();
@@ -324,17 +336,24 @@ abstract class ConfigurationGUI
         $category = $this->getCategoryById($this->request->int('category_id'));
 
         $this->initUnitForm($category);
+        $question_id = $this->request->getQuestionId();
         if ($this->unit_form->checkInput()) {
-            $unit = new assFormulaQuestionUnit();
+            $unit = new Unit();
             $unit->setUnit($this->unit_form->getInput('unit_title'));
             $unit->setCategory($category->getId());
 
-            $this->repository->createNewUnit($unit);
+            $this->repository->createNewUnit(
+                $question_id,
+                $unit
+            );
 
             $unit->setBaseUnit((int) $this->unit_form->getInput('base_unit'));
             $unit->setFactor((float) $this->unit_form->getInput('factor'));
 
-            $this->repository->saveUnit($unit);
+            $this->repository->saveUnit(
+                $question_id,
+                $unit
+            );
 
             $this->tpl->setOnScreenMessage('success', $this->lng->txt('saved_successfully'));
             $this->showUnitsOfCategory();
@@ -365,54 +384,57 @@ abstract class ConfigurationGUI
     }
 
     protected function initUnitForm(
-        ?assFormulaQuestionUnitCategory $category = null,
-        ?assFormulaQuestionUnit $unit = null
-    ): ilPropertyFormGUI {
-        if ($this->unit_form instanceof ilPropertyFormGUI) {
+        ?Category $category = null,
+        ?Unit $unit = null
+    ): \ilPropertyFormGUI {
+        if ($this->unit_form instanceof \ilPropertyFormGUI) {
             return $this->unit_form;
         }
 
         $unit_in_use = false;
-        if ($unit instanceof assFormulaQuestionUnit && $this->repository->isUnitInUse($unit->getId())) {
+        if ($unit instanceof Unit && $this->repository->isUnitInUse($unit->getId())) {
             $unit_in_use = true;
         }
 
-        $this->unit_form = new ilPropertyFormGUI();
+        $this->unit_form = new \ilPropertyFormGUI();
 
-        $title = new ilTextInputGUI($this->lng->txt('unit'), 'unit_title');
+        $title = new \ilTextInputGUI($this->lng->txt('unit'), 'unit_title');
         $title->setDisabled($unit_in_use);
         $title->setRequired(true);
         $this->unit_form->addItem($title);
 
-        $baseunit = new ilSelectInputGUI($this->lng->txt('baseunit'), 'base_unit');
-        $items = $this->repository->getCategorizedUnits();
+        $baseunit = new \ilSelectInputGUI($this->lng->txt('baseunit'), 'base_unit');
+        $items = $this->repository->getCategorizedUnits(
+            $this->request->getQuestionId()
+        );
         $options = [];
         $category_name = '';
         $new_category = false;
         foreach ($items as $item) {
             if (
-                $unit instanceof assFormulaQuestionUnit &&
+                $unit instanceof Unit &&
                 $unit->getId() === $item->getId()
             ) {
                 continue;
             }
 
-            if ($item instanceof assFormulaQuestionUnitCategory) {
-                if ($category_name !== $item->getDisplayString()) {
+            if ($item instanceof Category) {
+                if ($category_name !== $item->getDisplayString($this->lng)) {
                     $new_category = true;
-                    $category_name = $item->getDisplayString();
+                    $category_name = $item->getDisplayString($this->lng);
                 }
                 continue;
             }
 
-            $options[$item->getId()] = $item->getDisplayString() . ($new_category ? ' (' . $category_name . ')' : '');
+            $options[$item->getId()] = $item->getDisplayString($this->lng)
+                . ($new_category ? ' (' . $category_name . ')' : '');
             $new_category = false;
         }
         $baseunit->setDisabled($unit_in_use);
         $baseunit->setOptions([0 => $this->lng->txt('no_selection')] + $options);
         $this->unit_form->addItem($baseunit);
 
-        $factor = new ilNumberInputGUI($this->lng->txt('factor'), 'factor');
+        $factor = new \ilNumberInputGUI($this->lng->txt('factor'), 'factor');
         $factor->setRequired(true);
         $factor->setSize(3);
         $factor->setMinValue(0);
@@ -435,8 +457,8 @@ abstract class ConfigurationGUI
             }
             $this->unit_form->setTitle(sprintf(
                 $this->lng->txt('un_sel_cat_sel_unit'),
-                $category->getDisplayString(),
-                $unit->getDisplayString()
+                $category->getDisplayString($this->lng),
+                $unit->getDisplayString($this->lng)
             ));
         }
         $this->ctrl->clearParameterByClass(get_class($this), 'category_id');
@@ -469,11 +491,10 @@ abstract class ConfigurationGUI
             );
             $this->ctrl->clearParameterByClass(get_class($this), 'category_id');
         }
-        $table = new ilUnitTableGUI($this, 'showUnitsOfCategory', $category);
+        $table = new \ilUnitTableGUI($this, 'showUnitsOfCategory', $category);
         $units = $this->repository->loadUnitsForCategory($category->getId());
         $data = [];
         foreach ($units as $unit) {
-            /** @var assFormulaQuestionUnit $unit */
             $data[] = [
                 'unit_id' => $unit->getId(),
                 'unit' => $unit->getUnit(),
@@ -491,17 +512,18 @@ abstract class ConfigurationGUI
     protected function showGlobalUnitCategories(): void
     {
         $categories = array_filter(
-            $this->repository->getAllUnitCategories(),
-            static function (assFormulaQuestionUnitCategory $category): bool {
+            $this->repository->getAllUnitCategories(
+                $this->request->getQuestionId()
+            ),
+            static function (Category $category): bool {
                 return !$category->getQuestionFi() ? true : false;
             }
         );
         $data = [];
         foreach ($categories as $category) {
-            /** @var assFormulaQuestionUnitCategory $category */
             $data[] = [
                 'category_id' => $category->getId(),
-                'category' => $category->getDisplayString()
+                'category' => $category->getDisplayString($this->lng)
             ];
         }
 
@@ -521,10 +543,11 @@ abstract class ConfigurationGUI
     /**
      * @param int[]|null $category_ids
      * @return void
-     * @throws ilCtrlException
+     * @throws \ilCtrlException
      */
-    protected function confirmDeleteCategories(?array $category_ids = null): void
-    {
+    protected function confirmDeleteCategories(
+        ?array $category_ids = null
+    ): void {
         if (!$this->isCRUDContext()) {
             $this->{$this->getDefaultCommand()}();
             return;
@@ -536,7 +559,7 @@ abstract class ConfigurationGUI
             return;
         }
 
-        $confirmation = new ilConfirmationGUI();
+        $confirmation = new \ilConfirmationGUI();
         $confirmation->setFormAction($this->ctrl->getFormAction($this, 'deleteCategories'));
         $confirmation->setConfirm($this->lng->txt('confirm'), 'deleteCategories');
         $confirmation->setCancel($this->lng->txt('cancel'), $this->getUnitCategoryOverviewCommand());
@@ -546,22 +569,31 @@ abstract class ConfigurationGUI
         foreach ($category_ids as $category_id) {
             try {
                 $category = $this->repository->getUnitCategoryById($category_id);
-            } catch (ilException $e) {
+            } catch (\ilException $e) {
                 continue;
             }
 
-            if (!$this->repository->isCRUDAllowed($category_id)) {
-                $errors[] = $category->getDisplayString() . ' - ' . $this->lng->txt('change_adm_categories_not_allowed');
+            if (!$this->repository->isCRUDAllowed(
+                $this->request->getQuestionId(),
+                $category_id
+            )) {
+                $errors[] = $category->getDisplayString($this->lng)
+                    . ' - ' . $this->lng->txt('change_adm_categories_not_allowed');
                 continue;
             }
 
             $possible_error = $this->repository->checkDeleteCategory($category_id);
             if (is_string($possible_error) && $possible_error !== '') {
-                $errors[] = $category->getDisplayString() . ' - ' . $possible_error;
+                $errors[] = $category->getDisplayString($this->lng)
+                    . ' - ' . $possible_error;
                 continue;
             }
 
-            $confirmation->addItem('category_ids[]', (string) $category->getId(), $category->getDisplayString());
+            $confirmation->addItem(
+                'category_ids[]',
+                (string) $category->getId(),
+                $category->getDisplayString($this->lng)
+            );
             ++$num_to_confirm;
         }
 
@@ -615,18 +647,23 @@ abstract class ConfigurationGUI
         foreach ($category_ids as $category_id) {
             try {
                 $category = $this->repository->getUnitCategoryById($category_id);
-            } catch (ilException $e) {
+            } catch (\ilException $e) {
                 continue;
             }
 
-            if (!$this->repository->isCRUDAllowed($category_id)) {
-                $errors[] = $category->getDisplayString() . ' - ' . $this->lng->txt('change_adm_categories_not_allowed');
+            if (!$this->repository->isCRUDAllowed(
+                $this->request->getQuestionId(),
+                $category_id
+            )) {
+                $errors[] = $category->getDisplayString($this->lng)
+                    . ' - ' . $this->lng->txt('change_adm_categories_not_allowed');
                 continue;
             }
 
             $possible_error = $this->repository->deleteCategory($category_id);
             if (is_string($possible_error) && $possible_error !== '') {
-                $errors[] = $category->getDisplayString() . ' - ' . $possible_error;
+                $errors[] = $category->getDisplayString($this->lng)
+                    . ' - ' . $possible_error;
                 continue;
             }
 
@@ -663,15 +700,16 @@ abstract class ConfigurationGUI
         $this->{$this->getUnitCategoryOverviewCommand()}();
     }
 
-    protected function initUnitCategoryForm(?assFormulaQuestionUnitCategory $cat = null): ilPropertyFormGUI
-    {
-        if ($this->unit_cat_form instanceof ilPropertyFormGUI) {
+    protected function initUnitCategoryForm(
+        ?Category $cat = null
+    ): \ilPropertyFormGUI {
+        if ($this->unit_cat_form instanceof \ilPropertyFormGUI) {
             return $this->unit_cat_form;
         }
 
-        $this->unit_cat_form = new ilPropertyFormGUI();
+        $this->unit_cat_form = new \ilPropertyFormGUI();
 
-        $title = new ilTextInputGUI($this->lng->txt('title'), 'category_name');
+        $title = new \ilTextInputGUI($this->lng->txt('title'), 'category_name');
         $title->setRequired(true);
         $this->unit_cat_form->addItem($title);
 
@@ -683,10 +721,18 @@ abstract class ConfigurationGUI
             $this->ctrl->setParameter($this, 'category_id', $cat->getId());
             $this->unit_cat_form->addCommandButton('saveCategory', $this->lng->txt('save'));
             $this->unit_cat_form->setFormAction($this->ctrl->getFormAction($this, 'saveCategory'));
-            $this->unit_cat_form->setTitle(sprintf($this->lng->txt('selected_category'), $cat->getDisplayString()));
+            $this->unit_cat_form->setTitle(
+                sprintf(
+                    $this->lng->txt('selected_category'),
+                    $cat->getDisplayString($this->lng)
+                )
+            );
         }
 
-        $this->unit_cat_form->addCommandButton($this->getUnitCategoryOverviewCommand(), $this->lng->txt('cancel'));
+        $this->unit_cat_form->addCommandButton(
+            $this->getUnitCategoryOverviewCommand(),
+            $this->lng->txt('cancel')
+        );
         return $this->unit_cat_form;
     }
 
@@ -700,14 +746,15 @@ abstract class ConfigurationGUI
         $this->initUnitCategoryForm();
         if ($this->unit_cat_form->checkInput()) {
             try {
-                $category = new assFormulaQuestionUnitCategory();
+                $category = new Category();
                 $category->setCategory($this->unit_cat_form->getInput('category_name'));
+                $category->setQuestionFi($this->request->getQuestionId());
                 $this->repository->saveNewUnitCategory($category);
                 $this->tpl->setOnScreenMessage('success', $this->lng->txt('saved_successfully'));
 
                 $this->{$this->getUnitCategoryOverviewCommand()}();
                 return;
-            } catch (ilException $e) {
+            } catch (\ilException $e) {
                 $this->unit_cat_form->getItemByPostVar('category_name')->setAlert($this->lng->txt($e->getMessage()));
                 $this->tpl->setOnScreenMessage('failure', $this->lng->txt('form_input_not_valid'));
             }
@@ -748,7 +795,7 @@ abstract class ConfigurationGUI
 
                 $this->{$this->getUnitCategoryOverviewCommand()}();
                 return;
-            } catch (ilException $e) {
+            } catch (\ilException $e) {
                 $this->unit_cat_form->getItemByPostVar('category_name')->setAlert($this->lng->txt($e->getMessage()));
                 $this->tpl->setOnScreenMessage('failure', $this->lng->txt('form_input_not_valid'));
             }

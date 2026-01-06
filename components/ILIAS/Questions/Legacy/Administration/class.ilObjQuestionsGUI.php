@@ -22,6 +22,7 @@ use ILIAS\Questions\Legacy\LocalDIC;
 use ILIAS\Questions\Presentation\Views\Edit;
 use ILIAS\Questions\Units\GlobalConfigurationGUI;
 use ILIAS\Questions\AnswerFormTypes\Cloze\Properties\Gaps\UploadAnswerOptionsGUI;
+use ILIAS\Questions\Units\Repository as UnitsRepository;
 use ILIAS\Data\Factory as DataFactory;
 use ILIAS\Data\URI;
 
@@ -33,6 +34,7 @@ use ILIAS\Data\URI;
 class ilObjQuestionsGUI extends ilObjectGUI
 {
     private Edit $edit_view;
+    private UnitsRepository $units_repository;
 
     private DataFactory $data_factory;
 
@@ -46,7 +48,9 @@ class ilObjQuestionsGUI extends ilObjectGUI
         $rbacsystem = $DIC['rbacsystem'];
         $this->data_factory = new DataFactory();
 
-        $this->edit_view = LocalDIC::dic()[Edit::class];
+        $local_dic = LocalDIC::dic();
+        $this->units_repository = $local_dic[UnitsRepository::class];
+        $this->edit_view = $local_dic[Edit::class];
 
         $this->type = 'qsts';
 
@@ -80,6 +84,18 @@ class ilObjQuestionsGUI extends ilObjectGUI
                 $this->edit_view->forwardPageCmds(
                     $this->tpl,
                     $this->buildEditQuestionsBaseUri()
+                );
+                break;
+
+            case strtolower(GlobalConfigurationGUI::class):
+                $this->tabs_gui->activateTab('units');
+                $this->ctrl->forwardCommand(
+                    new GlobalConfigurationGUI(
+                        $this->units_repository,
+                        $this->lng,
+                        $this->ctrl,
+                        $this->tpl
+                    )
                 );
                 break;
 
@@ -119,20 +135,18 @@ class ilObjQuestionsGUI extends ilObjectGUI
                 $this->ctrl->getLinkTargetByClass(self::class, 'viewQuestions')
             );
 
-            $this->tabs_gui->addTarget(
+            $this->tabs_gui->addTab(
                 'units',
+                $this->lng->txt('units'),
                 $this->ctrl->getLinkTargetByClass(GlobalConfigurationGUI::class, ''),
-                '',
-                'globalconfigurationgui'
             );
         }
 
         if ($this->rbac_system->checkAccess('edit_permission', $this->object->getRefId())) {
-            $this->tabs_gui->addTarget(
+            $this->tabs_gui->addTab(
                 'perm_settings',
+                $this->lng->txt('perm_settings'),
                 $this->ctrl->getLinkTargetByClass([self::class, ilPermissionGUI::class], 'perm'),
-                ['perm', 'info', 'owner'],
-                'ilpermissiongui'
             );
         }
     }

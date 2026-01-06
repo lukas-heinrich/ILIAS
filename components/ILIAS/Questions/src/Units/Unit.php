@@ -18,7 +18,9 @@
 
 declare(strict_types=1);
 
-use ILIAS\Questions\Units;
+namespace ILIAS\Questions\Units;
+
+use ILIAS\Language\Language;
 
 class Unit
 {
@@ -115,28 +117,26 @@ class Unit
         return $this->category;
     }
 
-    public function getDisplayString(): string
-    {
-        global $DIC;
-
-        $lng = $DIC->language();
-
+    public function getDisplayString(
+        Language $lng
+    ): string {
         $unit = $this->getUnit();
-        if (strcmp('-qpl_qst_formulaquestion_' . $unit . '-', $lng->txt('qpl_qst_formulaquestion_' . $unit)) !== 0) {
-            $unit = $lng->txt('qpl_qst_formulaquestion_' . $unit);
+        if ($lng->txt("qpl_qst_formulaquestion_{$unit}") !== "-qpl_qst_formulaquestion_{$unit}-") {
+            return $lng->txt("qpl_qst_formulaquestion_{$unit}");
         }
 
         return $unit;
     }
 
-    public static function lookupUnitFactor(int $a_unit_id): float
-    {
+    public static function lookupUnitFactor(
+        int $a_unit_id
+    ): float {
         global $DIC;
         $ilDB = $DIC['ilDB'];
 
         $res = $ilDB->queryF(
             'SELECT factor FROM il_qpl_qst_fq_unit WHERE unit_id = %s',
-            ['integer'],
+            [\ilDBConstants::T_INTEGER],
             [$a_unit_id]
         );
 
