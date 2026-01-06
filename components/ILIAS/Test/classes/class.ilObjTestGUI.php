@@ -64,6 +64,8 @@ use ILIAS\Test\ExportImport\DBRepository as ExportRepository;
 use ILIAS\TestQuestionPool\Questions\GeneralQuestionPropertiesRepository;
 use ILIAS\TestQuestionPool\RequestDataCollector as QPLRequestDataCollector;
 use ILIAS\TestQuestionPool\Import\TestQuestionsImportTrait;
+use ILIAS\Questions\Units\LocalConfigurationGUI as LocalUnitsConfigurationGUI;
+use ILIAS\Questions\Units\Repository as UnitsRepository;
 use ILIAS\Data\Factory as DataFactory;
 use ILIAS\UI\Component\Modal\Modal;
 use ILIAS\UI\URLBuilder;
@@ -105,12 +107,12 @@ use ILIAS\Test\GUIFactory;
  * @ilCtrl_Calls ilObjTestGUI: assOrderingQuestionGUI, assImagemapQuestionGUI, assNumericGUI, assErrorTextGUI
  * @ilCtrl_Calls ilObjTestGUI: assTextSubsetGUI, assOrderingHorizontalGUI
  * @ilCtrl_Calls ilObjTestGUI: assSingleChoiceGUI, assFileUploadGUI, assTextQuestionGUI
- * @ilCtrl_Calls ilObjTestGUI: assKprimChoiceGUI, assLongMenuGUI
+ * @ilCtrl_Calls ilObjTestGUI: assKprimChoiceGUI, assLongMenuGUI, assFormulaQuestionGUI
  * @ilCtrl_Calls ilObjTestGUI: ilEditClipboardGUI
  * @ilCtrl_Calls ilObjTestGUI: ILIAS\Test\Settings\MainSettings\SettingsMainGUI, ILIAS\Test\Settings\ScoreReporting\SettingsScoringGUI
  * @ilCtrl_Calls ilObjTestGUI: ilCommonActionDispatcherGUI
  * @ilCtrl_Calls ilObjTestGUI: ilTestFixedQuestionSetConfigGUI, ilTestRandomQuestionSetConfigGUI
- * @ilCtrl_Calls ilObjTestGUI: ilAssQuestionFeedbackEditingGUI, ilLocalUnitConfigurationGUI, assFormulaQuestionGUI
+ * @ilCtrl_Calls ilObjTestGUI: ilAssQuestionFeedbackEditingGUI, ILIAS\Questions\Units\LocalConfigurationGUI
  * @ilCtrl_Calls ilObjTestGUI: ilTestPassDetailsOverviewTableGUI
  * @ilCtrl_Calls ilObjTestGUI: ilTestCorrectionsGUI
  * @ilCtrl_Calls ilObjTestGUI: ilTestSettingsChangeConfirmationGUI
@@ -174,6 +176,7 @@ class ilObjTestGUI extends ilObjectGUI implements ilCtrlBaseClassInterface, ilDe
     protected MarkSchemaFactory $mark_schema_factory;
     protected AdditionalInformationGenerator $additional_information_generator;
     protected PersonalSettingsExporter $personal_settings_exporter;
+    protected readonly UnitsRepository $units_repository;
     protected ?QuestionsTableQuery $table_query = null;
     protected ?QuestionsTableActions $table_actions = null;
     protected DataFactory $data_factory;
@@ -234,6 +237,7 @@ class ilObjTestGUI extends ilObjectGUI implements ilCtrlBaseClassInterface, ilDe
         $this->mark_schema_factory = $local_dic['marks.factory'];
         $this->additional_information_generator = $local_dic['logging.information_generator'];
         $this->personal_settings_exporter = $local_dic['settings.personal_templates.exporter'];
+        $this->units_repository = $local_dic['units.repository'];
 
         $ref_id = 0;
         if ($this->testrequest->hasRefId() && is_numeric($this->testrequest->getRefId())) {
@@ -846,8 +850,8 @@ class ilObjTestGUI extends ilObjectGUI implements ilCtrlBaseClassInterface, ilDe
                 $this->ctrl->forwardCommand($pg_gui);
                 break;
 
-            case 'illocalunitconfigurationgui':
-                if ((!$this->access->checkAccess("write", "", $this->testrequest->getRefId()))) {
+            case strtolower(LocalUnitsConfigurationGUI::class):
+                if ((!$this->access->checkAccess('write', '', $this->testrequest->getRefId()))) {
                     $this->redirectAfterMissingWrite();
                 }
                 $this->prepareSubGuiOutput();
@@ -858,10 +862,19 @@ class ilObjTestGUI extends ilObjectGUI implements ilCtrlBaseClassInterface, ilDe
                 $question->setObjId($this->getTestObject()->getId());
                 $question_gui->setObject($question);
                 $question_gui->setQuestionTabs();
-                $gui = new ilLocalUnitConfigurationGUI(
-                    new ilUnitConfigurationRepository($this->testrequest->getQuestionId())
+
+                $this->ctrl->forwardCommand(
+                    new LocalUnitsConfigurationGUI(
+                        $this->units_repository,
+                        $this->lng,
+                        $this->ctrl,
+                        $this->rbac_system,
+                        $this->tpl,
+                        $this->toolbar,
+                        $this->tabs_gui,
+                        $this->help
+                    )
                 );
-                $this->ctrl->forwardCommand($gui);
                 break;
 
             case "ilcommonactiondispatchergui":
@@ -1052,7 +1065,7 @@ class ilObjTestGUI extends ilObjectGUI implements ilCtrlBaseClassInterface, ilDe
             $gui->setPrimaryCmd(
                 $this->lng->txt('edit_question'),
                 $this->ctrl->getLinkTargetByClass(
-                    get_class($question_gui),
+                    $question_gui::class,
                     'editQuestion'
                 )
             );

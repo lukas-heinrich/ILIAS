@@ -130,7 +130,6 @@ class assFormulaQuestionImport extends assQuestionImport
 
     private function importUnitsAndUnitCategories(ilQTIItem $item): void
     {
-        /** @var ilUnitConfigurationRepository $unit_repository */
         $unit_repository = $this->object->getUnitrepository();
         foreach ($item->getUnitCategoryObjets() as $unit_category) {
             $old_category_id = $unit_category->getId();

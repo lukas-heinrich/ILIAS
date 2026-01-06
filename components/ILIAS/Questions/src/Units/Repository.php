@@ -841,4 +841,19 @@ class Repository
             }
         }
     }
+
+
+    public function lookupUnitFactor(
+        int $a_unit_id
+    ): float {
+        $res = $this->db->fetchObject(
+            $this->db->queryF(
+                'SELECT factor FROM il_qpl_qst_fq_unit WHERE unit_id = %s',
+                [\ilDBConstants::T_INTEGER],
+                [$a_unit_id]
+            )
+        );
+
+        return (float) $row->factor;
+    }
 }

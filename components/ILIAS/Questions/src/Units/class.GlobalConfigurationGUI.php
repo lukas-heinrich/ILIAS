@@ -47,13 +47,14 @@ class GlobalConfigurationGUI extends ConfigurationGUI
     #[\Override]
     protected function showGlobalUnitCategories(): void
     {
-        global $DIC;
-
-        $ilToolbar = $DIC->toolbar();
-        $rbacsystem = $DIC->rbac()->system();
-
-        if ($rbacsystem->checkAccess('write', $this->request->getRefId())) {
-            $ilToolbar->addButton($this->lng->txt('un_add_category'), $this->ctrl->getLinkTargetByClass(self::class, 'showUnitCategoryCreationForm'));
+        if ($this->rbac_system->checkAccess('write', $this->request->getRefId())) {
+            $this->toolbar->addButton(
+                $this->lng->txt('un_add_category'),
+                $this->ctrl->getLinkTargetByClass(
+                    self::class,
+                    'showUnitCategoryCreationForm'
+                )
+            );
         }
 
         parent::showGlobalUnitCategories();

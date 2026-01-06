@@ -20,7 +20,6 @@ declare(strict_types=1);
 
 namespace ILIAS\Test;
 
-use ILIAS\LegalDocuments\ConsumerToolbox\Setting;
 use ILIAS\Test\Participants\ParticipantRepository;
 use ILIAS\Test\Results\Data\Repository as TestResultRepository;
 use ILIAS\Test\Scoring\Marks\MarkSchemaFactory;
@@ -52,6 +51,7 @@ use ILIAS\Test\Results\Presentation\Factory as ResultsPresentationFactory;
 use ILIAS\Test\Results\Toplist\TestTopListRepository;
 use ILIAS\TestQuestionPool\Questions\GeneralQuestionPropertiesRepository;
 use ILIAS\TestQuestionPool\RequestDataCollector as QPLRequestDataCollector;
+use ILIAS\Questions\Units\Repository as UnitsRepository;
 use ILIAS\Data\Factory as DataFactory;
 use ILIAS\DI\Container as ILIASContainer;
 use Pimple\Container as PimpleContainer;
@@ -255,6 +255,12 @@ class TestDIC extends PimpleContainer
 
         $dic['participant.repository'] = static fn($c): ParticipantRepository =>
             new ParticipantRepository($DIC['ilDB']);
+
+        $dic['units.repository'] = static fn($c): UnitsRepository =>
+            new UnitsRepository(
+                $DIC['lng'],
+                $DIC['ilDB']
+            );
 
         $dic['gui.factory'] = static fn($c): GUIFactory =>
             new GUIFactory($DIC, $c);

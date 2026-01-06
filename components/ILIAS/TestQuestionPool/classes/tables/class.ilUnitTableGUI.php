@@ -31,15 +31,10 @@ class ilUnitTableGUI extends ilTable2GUI
     private \ILIAS\UI\Factory $ui_factory;
     private \ILIAS\UI\Renderer $ui_renderer;
 
-    /**
-     * @param ilUnitConfigurationGUI         $controller
-     * @param string                         $default_cmd
-     * @param assFormulaQuestionUnitCategory $category
-     */
     public function __construct(
-        ConfigurationGUI|ilUnitConfigurationGUI $controller,
+        ConfigurationGUI $controller,
         string $default_cmd,
-        Category|assFormulaQuestionUnitCategory $category
+        Category $category
     ) {
         /**
          * @var $ilCtrl ilCtrl

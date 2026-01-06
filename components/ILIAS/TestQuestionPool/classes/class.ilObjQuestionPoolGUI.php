@@ -24,6 +24,8 @@ use ILIAS\TestQuestionPool\RequestDataCollector;
 use ILIAS\TestQuestionPool\Questions\Presentation\QuestionTable;
 use ILIAS\TestQuestionPool\Questions\GeneralQuestionPropertiesRepository;
 use ILIAS\Test\Settings\GlobalSettings\GlobalTestSettings;
+use ILIAS\Questions\Units\LocalConfigurationGUI as LocalUnitsConfigurationGUI;
+use ILIAS\Questions\Units\Repository as UnitsRepository;
 use ILIAS\Taxonomy\Service;
 use ILIAS\UI\Component\Input\Container\Form\Form;
 use ILIAS\UI\Component\Input\Field\Select;
@@ -54,7 +56,7 @@ use ILIAS\Style\Content\Service as ContentStyle;
  * @ilCtrl_Calls   ilObjQuestionPoolGUI: assNumericGUI, assTextSubsetGUI, assSingleChoiceGUI, ilPropertyFormGUI
  * @ilCtrl_Calls   ilObjQuestionPoolGUI: assTextQuestionGUI, ilObjectMetaDataGUI, ilPermissionGUI, ilObjectCopyGUI
  * @ilCtrl_Calls   ilObjQuestionPoolGUI: ilExportGUI, ilInfoScreenGUI, ilTaxonomySettingsGUI, ilCommonActionDispatcherGUI
- * @ilCtrl_Calls   ilObjQuestionPoolGUI: ilAssQuestionFeedbackEditingGUI, ilLocalUnitConfigurationGUI
+ * @ilCtrl_Calls   ilObjQuestionPoolGUI: ilAssQuestionFeedbackEditingGUI, ILIAS\Questions\Units\LocalConfigurationGUI
  * @ilCtrl_Calls   ilObjQuestionPoolGUI: ilObjQuestionPoolSettingsGeneralGUI, assFormulaQuestionGUI
  * @ilCtrl_Calls   ilObjQuestionPoolGUI: ilAssQuestionPreviewGUI
  * @ilCtrl_Calls   ilObjQuestionPoolGUI: assKprimChoiceGUI, assLongMenuGUI
@@ -95,6 +97,7 @@ class ilObjQuestionPoolGUI extends ilObjectGUI implements ilCtrlBaseClassInterfa
     protected RequestDataCollector $request_data_collector;
     protected GeneralQuestionPropertiesRepository $questionrepository;
     protected GlobalTestSettings $global_test_settings;
+    protected UnitsRepository $units_repository;
 
     public function __construct()
     {
@@ -121,6 +124,7 @@ class ilObjQuestionPoolGUI extends ilObjectGUI implements ilCtrlBaseClassInterfa
         $this->request_data_collector = $local_dic['request_data_collector'];
         $this->questionrepository = $local_dic['question.general_properties.repository'];
         $this->global_test_settings = $local_dic['global_test_settings'];
+        $this->units_repository = $local_dic['units.repository'];
 
         parent::__construct('', $this->request_data_collector->getRefId(), true, false);
 
@@ -337,7 +341,7 @@ class ilObjQuestionPoolGUI extends ilObjectGUI implements ilCtrlBaseClassInterfa
                 $this->infoScreenForward();
                 break;
 
-            case 'illocalunitconfigurationgui':
+            case strtolower(LocalUnitsConfigurationGUI::class):
                 if (!$this->access->checkAccess('write', '', $this->object->getRefId())) {
                     $this->error->raiseError($this->lng->txt('permission_denied'), $this->error->WARNING);
                 }
@@ -351,8 +355,15 @@ class ilObjQuestionPoolGUI extends ilObjectGUI implements ilCtrlBaseClassInterfa
                 $question_gui->setQuestionTabs();
 
                 $this->ctrl->setReturn($this, self::DEFAULT_CMD);
-                $gui = new ilLocalUnitConfigurationGUI(
-                    new ilUnitConfigurationRepository($this->request_data_collector->getQuestionId())
+                $gui = new LocalUnitsConfigurationGUI(
+                    $this->units_repository,
+                    $this->lng,
+                    $this->ctrl,
+                    $this->rbac_system,
+                    $this->tpl,
+                    $this->toolbar,
+                    $this->tabs_gui,
+                    $this->help
                 );
                 $this->ctrl->forwardCommand($gui);
                 break;

@@ -34,12 +34,17 @@ abstract class ConfigurationGUI
         protected readonly Repository $repository,
         protected readonly Language $lng,
         protected readonly \ilCtrl $ctrl,
-        protected readonly \ilGlobalTemplateInterface $tpl
+        protected readonly \ilRbacSystem $rbac_system,
+        protected readonly \ilGlobalTemplateInterface $tpl,
+        protected readonly \ilToolbarGUI $toolbar,
+        protected readonly \ilTabsGUI $tabs,
+        protected readonly \ilHelpGUI $help
     ) {
         $local_dic = QuestionPoolDIC::dic();
         $this->request = $local_dic['request_data_collector'];
 
         $this->lng->loadLanguageModule('assessment');
+        $this->tabs->activateTab('units');
     }
 
     abstract protected function getDefaultCommand(): string;
@@ -469,23 +474,19 @@ abstract class ConfigurationGUI
 
     protected function showUnitsOfCategory(): void
     {
-        global $DIC;
-
-        $ilToolbar = $DIC->toolbar();
-
         $category = $this->getCategoryById($this->request->int('category_id'), false);
 
         $this->tpl->addJavaScript("assets/js/Basic.js");
         $this->tpl->addJavaScript("assets/js/Form.js");
         $this->lng->loadLanguageModule('form');
 
-        $ilToolbar->addButton(
+        $this->toolbar->addButton(
             $this->lng->txt('back'),
             $this->ctrl->getLinkTarget($this, $this->getUnitCategoryOverviewCommand())
         );
         if ($this->isCRUDContext()) {
             $this->ctrl->setParameterByClass(get_class($this), 'category_id', $category->getId());
-            $ilToolbar->addButton(
+            $this->toolbar->addButton(
                 $this->lng->txt('un_add_unit'),
                 $this->ctrl->getLinkTarget($this, 'showUnitCreationForm')
             );

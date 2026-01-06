@@ -32,12 +32,8 @@ abstract class ilUnitCategoryTableGUI extends ilTable2GUI
     private RequestDataCollector $request;
     private \ILIAS\Refinery\Factory $refinery;
 
-    /**
-     * @param ilUnitConfigurationGUI $controller
-     * @param string                 $cmd
-     */
     public function __construct(
-        ConfigurationGUI|ilUnitConfigurationGUI $controller,
+        ConfigurationGUI $controller,
         $cmd
     ) {
         /**

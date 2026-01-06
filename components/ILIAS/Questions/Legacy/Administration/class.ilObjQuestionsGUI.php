@@ -33,10 +33,11 @@ use ILIAS\Data\URI;
  */
 class ilObjQuestionsGUI extends ilObjectGUI
 {
-    private Edit $edit_view;
-    private UnitsRepository $units_repository;
+    private readonly Edit $edit_view;
+    private readonly UnitsRepository $units_repository;
 
-    private DataFactory $data_factory;
+    private readonly ilHelpGUI $help;
+    private readonly DataFactory $data_factory;
 
     public function __construct(
         $a_data,
@@ -45,7 +46,8 @@ class ilObjQuestionsGUI extends ilObjectGUI
         bool $a_prepare_output = true
     ) {
         global $DIC;
-        $rbacsystem = $DIC['rbacsystem'];
+        $this->help = $DIC['ilHelp'];
+
         $this->data_factory = new DataFactory();
 
         $local_dic = LocalDIC::dic();
@@ -59,7 +61,7 @@ class ilObjQuestionsGUI extends ilObjectGUI
         $this->lng->loadLanguageModule('assessment');
         $this->lng->loadLanguageModule('qsts');
 
-        if (!$rbacsystem->checkAccess('read', $this->object->getRefId())) {
+        if (!$this->rbac_system->checkAccess('read', $this->object->getRefId())) {
             $this->ilias->raiseError($this->lng->txt("msg_no_perm_read_assf"), $this->ilias->error_obj->WARNING);
         }
     }
@@ -94,7 +96,11 @@ class ilObjQuestionsGUI extends ilObjectGUI
                         $this->units_repository,
                         $this->lng,
                         $this->ctrl,
-                        $this->tpl
+                        $this->rbac_system,
+                        $this->tpl,
+                        $this->toolbar,
+                        $this->tabs_gui,
+                        $this->help
                     )
                 );
                 break;
