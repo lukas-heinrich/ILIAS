@@ -106,7 +106,8 @@ class Factory
                     $previous_answer_input_id = null;
                     $gaps = [];
                     foreach ($vs as $v) {
-                        if ($previous_answer_input_id === $v['id']) {
+                        if ($v['answer_form_id'] !== $answer_form_id->toString()
+                            || $previous_answer_input_id === $v['id']) {
                             continue;
                         }
                         $previous_answer_input_id = $v['id'];

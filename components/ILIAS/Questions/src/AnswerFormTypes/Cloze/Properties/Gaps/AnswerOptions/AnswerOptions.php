@@ -43,6 +43,12 @@ class AnswerOptions
         $this->answer_options_awarding_points = $this->buildAnswerOptionsAwardingPointsFromAnswerOptions($answer_options);
     }
 
+    public function isIncomplete(): bool
+    {
+        return $this->answer_options === []
+            || $this->answer_options_awarding_points === [];
+    }
+
     public function getAnswerOptionForPositionOrNew(
         int $position
     ): AnswerOption {

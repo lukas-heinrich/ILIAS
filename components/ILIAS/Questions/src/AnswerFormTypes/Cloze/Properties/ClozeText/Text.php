@@ -129,7 +129,7 @@ class Text
         array $new_gaps
     ): self {
         if ($new_gaps === []) {
-            return self;
+            return $this;
         }
 
         $clone = clone $this;

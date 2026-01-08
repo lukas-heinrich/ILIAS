@@ -197,6 +197,10 @@ class Gaps
             array_reduce(
                 $this->gaps,
                 function (array $c, Gap $v) use ($lng, $ff): array {
+                    if (!$v->getAnswerOptions()->isIncomplete()) {
+                        return $c;
+                    }
+
                     $c[$v->getAnswerInputId()->toString()] = $v->getEditAnswerOptionsSection(
                         $lng,
                         $ff
@@ -226,6 +230,10 @@ class Gaps
             array_reduce(
                 $this->gaps,
                 function (array $c, Gap $v) use ($lng, $ff): array {
+                    if (!$v->getAnswerOptions()->isIncomplete()) {
+                        return $c;
+                    }
+
                     $c[$v->getAnswerInputId()->toString()] = $v->getEditPointsSection(
                         $lng,
                         $ff

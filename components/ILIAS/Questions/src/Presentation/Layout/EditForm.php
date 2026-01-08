@@ -105,16 +105,24 @@ class EditForm
             $content[] = $this->content_before_form;
         }
 
+        if ($this->confirmation !== null) {
+            $content[] = $this->confirmation->withOnLoad(
+                $this->confirmation->getShowSignal()
+            )->withAdditionalOnLoadCode(
+                function ($id) {
+                    return "var button = {$id}.querySelector('input[type=\"submit\"]'); "
+                    . "button.addEventListener('click', (e) => {e.preventDefault();"
+                    . 'const form = button.closest("dialog").nextElementSibling;'
+                    . "form.action = '{$this->confirmation->getFormAction()}';"
+                    . 'form.submit();});';
+                }
+            );
+        }
+
         $content[] = $this->form;
 
         if ($this->content_after_form !== null) {
             $content[] = $this->content_after_form;
-        }
-
-        if ($this->confirmation !== null) {
-            $content[] = $this->confirmation->withOnLoad(
-                $this->confirmation->getShowSignal()
-            );
         }
 
         return $content;

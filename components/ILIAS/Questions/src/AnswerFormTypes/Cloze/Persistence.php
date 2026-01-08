@@ -103,9 +103,11 @@ class Persistence implements PersistenceInterface
         };
         return array_map(
             fn(string $v): Column => new Column($table, $v),
-            array_filter(
-                $column_identifiers,
-                fn(string $v) => !in_array($v, $columns_to_skip)
+            array_values(
+                array_filter(
+                    $column_identifiers,
+                    fn(string $v) => !in_array($v, $columns_to_skip)
+                )
             )
         );
     }

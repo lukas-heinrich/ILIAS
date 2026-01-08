@@ -158,9 +158,10 @@ class Edit implements EditViewInterface
             return $form;
         }
 
+        $new_gaps = $data->getGaps();
+        $old_gaps = $environment->getAnswerFormProperties()->getGaps();
+
         if ($environment->getStep() !== self::STEP_CONFIRMED_GAP_REMOVAL) {
-            $new_gaps = $data->getGaps();
-            $old_gaps = $environment->getAnswerFormProperties()->getGaps();
             $removed_gaps = $new_gaps->getRemovedGaps($old_gaps);
             if ($removed_gaps !== []) {
                 return $form->withConfirmation(
@@ -173,7 +174,7 @@ class Edit implements EditViewInterface
         }
 
         if ($new_gaps->getAddedGaps($old_gaps) === []) {
-            return $environment->getAnswerFormProperties();
+            return $data;
         }
 
         return $this->buildGapTypesForm(

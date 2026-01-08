@@ -369,7 +369,9 @@ class Properties implements PropertiesInterface
         return new Update(
             $persistence->getColumns(
                 $table_name_builder,
-                $table_definition
+                $table_definition,
+                null,
+                ['answer_form_id']
             ),
             [
                 new Value(\ilDBConstants::T_TEXT, $this->scoring_identical->value),

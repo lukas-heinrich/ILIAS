@@ -139,7 +139,7 @@ class TypeGenericProperties implements Storable
         $answer_form_table_definition = CoreTables::AnswerForms;
         return new Update(
             $answer_form_table_definition->getColumns([
-                $answer_form_table_definition->getIdColumn(),
+                'id',
                 'type',
                 'question_id',
                 'additional_text_legacy'
@@ -151,13 +151,15 @@ class TypeGenericProperties implements Storable
                 new Value(\ilDBConstants::T_TEXT, $this->additional_text)
 
             ],
-            new Where(
-                $answer_form_table_definition->getIdColumn(),
-                new Value(
-                    \ilDBConstants::T_TEXT,
-                    $this->answer_form_id->toString()
+            [
+                new Where(
+                    $answer_form_table_definition->getIdColumn(),
+                    new Value(
+                        \ilDBConstants::T_TEXT,
+                        $this->answer_form_id->toString()
+                    )
                 )
-            )
+            ]
         );
     }
 }
