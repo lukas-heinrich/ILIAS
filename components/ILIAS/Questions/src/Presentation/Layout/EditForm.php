@@ -18,13 +18,14 @@
 
 declare(strict_types=1);
 
-namespace ILIAS\Questions\Presentation\Layout\Definitions;
+namespace ILIAS\Questions\Presentation\Layout;
 
 use ILIAS\Language\Language;
 use ILIAS\UI\Component\Input\Container\Form\Factory as FormFactory;
 use ILIAS\UI\Component\Input\Container\Form\Standard as StandardForm;
 use ILIAS\UI\Component\Input\Field\Section;
 use ILIAS\UI\Component\Input\Field\Group;
+use ILIAS\UI\Component\Modal\Interruptive as InterruptiveModal;
 use ILIAS\UI\Component\Panel\Standard as StandardPanel;
 use ILIAS\UI\URLBuilder;
 use ILIAS\UI\Renderer as UIRenderer;
@@ -39,6 +40,7 @@ class EditForm
 
     private ?StandardPanel $content_before_form = null;
     private ?StandardPanel $content_after_form = null;
+    private ?InterruptiveModal $confirmation = null;
 
     public function __construct(
         private readonly FormFactory $form_factory,
@@ -51,17 +53,27 @@ class EditForm
         $this->form = $this->buildForm();
     }
 
-    public function withContentBeforeForm(StandardPanel $content): self
-    {
+    public function withContentBeforeForm(
+        StandardPanel $content
+    ): self {
         $clone = clone $this;
         $clone->content_before_form = $content;
         return $clone;
     }
 
-    public function withContentAfterForm(StandardPanel $content): self
-    {
+    public function withContentAfterForm(
+        StandardPanel $content
+    ): self {
         $clone = clone $this;
         $clone->content_after_form = $content;
+        return $clone;
+    }
+
+    public function withConfirmation(
+        InterruptiveModal $confirmation_modal
+    ): self {
+        $clone = clone $this;
+        $clone->confirmation = $confirmation_modal;
         return $clone;
     }
 
@@ -97,6 +109,12 @@ class EditForm
 
         if ($this->content_after_form !== null) {
             $content[] = $this->content_after_form;
+        }
+
+        if ($this->confirmation !== null) {
+            $content[] = $this->confirmation->withOnLoad(
+                $this->confirmation->getShowSignal()
+            );
         }
 
         return $content;

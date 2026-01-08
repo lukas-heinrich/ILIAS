@@ -18,6 +18,9 @@
 
 declare(strict_types=1);
 
+use ILIAS\Questions\Legacy\LocalDIC;
+use ILIAS\Questions\Persistence\Repository;
+use ILIAS\Data\UUID\Factory as UuidFactory;
 use ILIAS\Data\UUID\Uuid;
 
 class ilPCAnswerForm extends ilPageContent
@@ -31,11 +34,13 @@ class ilPCAnswerForm extends ilPageContent
         $this->setType('answf');
     }
 
+    #[\Override]
     public static function getLangVars(): array
     {
         return ['ed_insert_pcqst', 'empty_question', 'pc_qst'];
     }
 
+    #[\Override]
     public function modifyPageContentPostXsl(
         string $output,
         string $mode,
@@ -51,14 +56,16 @@ class ilPCAnswerForm extends ilPageContent
         return mb_ereg_replace_callback(
             self::ANSWER_FORM_PLACEHOLDER,
             fn(array $matches): string => $question
-                ->getAnswerFormByIdString($matches[1])?->getTypeGenericProperties()
+                ->getAnswerFormPropertiesByIdString($matches[1])?->getTypeGenericProperties()
                 ->getAdditionalText() ?? '',
             $output
         );
     }
 
-    public function getCssFiles(string $a_mode): array
-    {
+    #[\Override]
+    public function getCssFiles(
+        string $a_mode
+    ): array {
         if ($this->getPage()->getPageConfig()->getEnableSelfAssessment()) {
             return array("./components/ILIAS/TestQuestionPool/resources/js/dist/question_handling.css",
                 "components/ILIAS/TestQuestionPool/templates/default/test_javascript.css");
@@ -66,17 +73,7 @@ class ilPCAnswerForm extends ilPageContent
         return array();
     }
 
-    public function create(
-        Uuid $answer_form_id
-    ): void {
-        $this->createInitialChildNode(
-            $this->hier_id,
-            '',
-            self::ANSWER_FORM_ELEMENT_TAG,
-            [self::ANSWER_FORM_ID_ATTRIBUTE => $answer_form_id->toString()]
-        );
-    }
-
+    #[\Override]
     public static function afterPageUpdate(
         ilPageObject $page,
         DOMDocument $domdoc,
@@ -89,6 +86,7 @@ class ilPCAnswerForm extends ilPageContent
 
         global $DIC;
         $dom_util = $DIC->copage()->internal()->domain()->domUtil();
+        $question_repository = LocalDIC::dic()[Repository::class];
 
         /** @var \ILIAS\Questions\Question\QuestionImplementation $question */
         $question = $page->getQuestion();
@@ -97,8 +95,13 @@ class ilPCAnswerForm extends ilPageContent
         foreach ($dom_util->path($domdoc, '//AnswerForm') as $node) {
             $answer_forms[] = $node->getAttribute(self::ANSWER_FORM_ID_ATTRIBUTE);
         }
+
+        $question_repository->update(
+            [$question->withoutDeletedAnswerForms($answer_forms)]
+        );
     }
 
+    #[\Override]
     public static function handleCopiedContent(
         DOMDocument $a_domdoc,
         bool $a_self_ass = true,
@@ -153,5 +156,22 @@ class ilPCAnswerForm extends ilPageContent
                 $parent->parentNode->removeChild($parent);
             }
         }
+    }
+
+    public function create(
+        Uuid $answer_form_id
+    ): void {
+        $this->createInitialChildNode(
+            $this->hier_id,
+            '',
+            self::ANSWER_FORM_ELEMENT_TAG,
+            [self::ANSWER_FORM_ID_ATTRIBUTE => $answer_form_id->toString()]
+        );
+    }
+
+    public function getAnswerFormIdStringFromAttribute(): string
+    {
+        return $this->getChildNode()->attributes
+                ->getNamedItem(self::ANSWER_FORM_ID_ATTRIBUTE)->nodeValue;
     }
 }

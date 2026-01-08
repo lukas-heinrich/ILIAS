@@ -18,7 +18,7 @@
 
 declare(strict_types=1);
 
-namespace ILIAS\Questions\AnswerFormTypes\Cloze\Properties\AnswerForm;
+namespace ILIAS\Questions\AnswerFormTypes\Cloze\Properties;
 
 use ILIAS\Questions\AnswerForm\TypeGenericProperties;
 use ILIAS\Questions\AnswerFormTypes\Cloze\Definition;
@@ -49,7 +49,9 @@ class Factory
                     $type_generic_properties->getAdditionalText()
                 ),
                 $type_generic_properties->getAdditionalTextLegacy(),
-                $this->gaps_factory->getEmptyGapsObject()
+                $this->gaps_factory->getEmptyGapsObject(
+                    $type_generic_properties->getAnswerFormId()
+                )
             );
         }
 
@@ -75,7 +77,10 @@ class Factory
                 $type_generic_properties->getAdditionalText()
             ),
             $type_generic_properties->getAdditionalTextLegacy(),
-            $this->gaps_factory->fromDatabase($query),
+            $this->gaps_factory->fromDatabase(
+                $type_generic_properties->getAnswerFormId(),
+                $query
+            ),
             $scoring_identical_responses,
             $combinations_activated
         );

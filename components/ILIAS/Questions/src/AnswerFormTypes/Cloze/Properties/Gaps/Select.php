@@ -40,11 +40,13 @@ class Select extends Type
         parent::__construct($refinery);
     }
 
+    #[\Override]
     public function getIdentifier(): string
     {
         return 'select';
     }
 
+    #[\Override]
     public function getEditAnswerOptionsInputs(
         Gap $gap
     ): array {
@@ -61,11 +63,13 @@ class Select extends Type
         ];
     }
 
+    #[\Override]
     public function getEditAnswerOptionsSectionConstraint(): ?Constraint
     {
         return null;
     }
 
+    #[\Override]
     public function getEditPointsInputs(
         AnswerOptions $answer_options
     ): array {
@@ -75,6 +79,7 @@ class Select extends Type
         );
     }
 
+    #[\Override]
     public function getEditPointsSectionConstraint(): ?Constraint
     {
         return $this->refinery->custom()->constraint(
@@ -90,21 +95,20 @@ class Select extends Type
         );
     }
 
+    #[\Override]
     public function getBuildGapTransformation(
         Gap $gap
     ): Transformation {
         return $this->refinery->custom()->transformation(
-            fn(array $vs): Gap => $gap->withProperties(
-                $gap->withAnswerOptions(
-                    $gap->getAnswerOptions()->withAnswerOptionsFromTags(
-                        $gap->getAnswerInputId(),
-                        $vs['answer_options']
-                    )
+            fn(array $vs): Gap => $gap->withAnswerOptions(
+                $gap->getAnswerOptions()->withAnswerOptionsFromTags(
+                    $vs['answer_options']
                 )
             )
         );
     }
 
+    #[\Override]
     public function getAnswerInput(): \ilFormPropertyGUI
     {
         ;

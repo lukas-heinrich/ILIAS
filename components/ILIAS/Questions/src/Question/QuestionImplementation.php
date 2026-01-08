@@ -22,14 +22,14 @@ namespace ILIAS\Questions\Question;
 
 use ILIAS\Questions\AnswerForm\Properties as AnswerFormProperties;
 use ILIAS\Questions\Persistence\CoreTables;
+use ILIAS\Questions\Persistence\Delete;
 use ILIAS\Questions\Persistence\Insert;
 use ILIAS\Questions\Persistence\Update;
 use ILIAS\Questions\Persistence\Manipulate;
 use ILIAS\Questions\Persistence\ManipulationType;
-use ILIAS\Questions\Persistence\Storable;
 use ILIAS\Questions\Persistence\Value;
 use ILIAS\Questions\Persistence\Where;
-use ILIAS\Questions\Presentation\Layout\Definitions\EnvironmentImplementation;
+use ILIAS\Questions\Presentation\Definitions\EnvironmentImplementation;
 use ILIAS\Questions\Question\Definitions\Lifecycle;
 use ILIAS\Data\Factory as DataFactory;
 use ILIAS\Data\UUID\Uuid;
@@ -42,7 +42,7 @@ use ILIAS\UI\Component\Table\DataRow;
 use ILIAS\Refinery\Factory as Refinery;
 use Psr\Http\Message\RequestInterface;
 
-class QuestionImplementation implements Question, Storable
+class QuestionImplementation implements Question
 {
     private bool $self_updated = false;
     private array $updated_answer_forms = [];
@@ -181,7 +181,7 @@ class QuestionImplementation implements Question, Storable
         return $this->answer_forms;
     }
 
-    public function getAnswerFormByIdString(
+    public function getAnswerFormPropertiesByIdString(
         string $form_id
     ): ?AnswerFormProperties {
         return $this->answer_forms[$form_id] ?? null;
@@ -202,7 +202,7 @@ class QuestionImplementation implements Question, Storable
         $clone = clone $this;
         foreach (array_keys($this->answer_forms) as $answer_form_id) {
             if (!in_array($answer_form_id, $found_answer_form_ids)) {
-                $this->deleted_answer_forms = $clone->answer_forms[$answer_form_id];
+                $clone->deleted_answer_forms[] = $clone->answer_forms[$answer_form_id];
                 unset($clone->answer_forms[$answer_form_id]);
             }
         }
@@ -282,7 +282,12 @@ class QuestionImplementation implements Question, Storable
     public function toDelete(
         Manipulate $manipulate
     ): Manipulate {
-        ;
+        return $this->addDeleteAnswerFormsStatementsToManipulate(
+            $manipulate->withAdditionalStatement(
+                $this->buildDeleteQuestionStatement()
+            ),
+            $this->answer_forms
+        );
     }
 
     private function addInsertStatementsToManipulation(
@@ -321,7 +326,7 @@ class QuestionImplementation implements Question, Storable
         }
 
         if ($this->deleted_answer_forms !== []) {
-            $manipulate = $this->addDeleteAnswerFormStatementsToManipulate(
+            $manipulate = $this->addDeleteAnswerFormsStatementsToManipulate(
                 $manipulate,
                 $this->deleted_answer_forms
             );
@@ -351,6 +356,23 @@ class QuestionImplementation implements Question, Storable
         );
     }
 
+    private function buildDeleteQuestionStatement(): Delete
+    {
+        $table_definition = CoreTables::Questions;
+        return new Delete(
+            $table_definition->getTable(),
+            [
+                new Where(
+                    $table_definition->getIdColumn(),
+                    new Value(
+                        \ilDBConstants::T_TEXT,
+                        $this->id->toString()
+                    )
+                )
+            ]
+        );
+    }
+
     private function addAnswerFormStatementsToManipulate(
         Manipulate $manipulate,
         array $answer_forms
@@ -364,7 +386,7 @@ class QuestionImplementation implements Question, Storable
         );
     }
 
-    private function addDeleteAnswerFormStatementsToManipulate(
+    private function addDeleteAnswerFormsStatementsToManipulate(
         Manipulate $manipulate,
         array $answer_forms_to_delete
     ): Manipulate {

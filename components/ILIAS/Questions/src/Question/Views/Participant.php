@@ -34,8 +34,9 @@ class Participant
     ) {
     }
 
-    public function withIsAsync(bool $async): self
-    {
+    public function withIsAsync(
+        bool $async
+    ): self {
         foreach ($this->question->getAnswerForms() as $form) {
             if (!$form->getType()->isAsyncPresentationAvailable()) {
                 throw \Exception('This QuestionType has no async presentation.');
@@ -46,15 +47,17 @@ class Participant
         return $clone;
     }
 
-    public function withIsInteractive(bool $interactive): self
-    {
+    public function withIsInteractive(
+        bool $interactive
+    ): self {
         $clone = clone $this;
         $clone->interactive = $interactive;
         return $clone;
     }
 
-    public function withShowMarks(bool $show_marks): self
-    {
+    public function withShowMarks(
+        bool $show_marks
+    ): self {
         foreach ($this->question->getAnswerForms() as $form) {
             if (!$form->getType()->isMarkable()) {
                 throw \Exception('This QuestionType cannot be marked.');
@@ -66,8 +69,9 @@ class Participant
         return $clone;
     }
 
-    public function withShowCorrectSolution(bool $show_correct_solution): self
-    {
+    public function withShowCorrectSolution(
+        bool $show_correct_solution
+    ): self {
         foreach ($this->question->getAnswerForms() as $form) {
             if (!$form->getType()->isMarkable()) {
                 throw \Exception('This QuestionType cannot be marked.');

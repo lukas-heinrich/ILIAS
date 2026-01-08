@@ -18,20 +18,31 @@
 
 declare(strict_types=1);
 
-namespace ILIAS\Questions\Presentation\Layout\Definitions;
+namespace ILIAS\Questions\Presentation\Definitions;
 
 use ILIAS\Questions\AnswerForm\Properties;
-use ILIAS\Questions\Presentation\Definitions\Editability;
+use ILIAS\Questions\Presentation\Layout\Factory;
 use ILIAS\UI\URLBuilder;
 
 interface Environment
 {
-    public function getDefinitionsFactory(): Factory;
+    public function getPresentationFactory(): Factory;
+
     public function getUrlBuilder(): URLBuilder;
-    public function getUrlBuilderWithStepParameter(string $step): URLBuilder;
+
+    public function getUrlBuilderWithStepParameter(
+        string $step
+    ): URLBuilder;
+
     public function getStep(): string;
+
     public function withDefaultStep(): self;
+
     public function getEditability(): Editability;
-    public function getProperties(): ?Properties;
-    public function withProperties(Properties $properties): self;
+
+    public function getAnswerFormProperties(): ?Properties;
+
+    public function withAnswerFormProperties(
+        Properties $properties
+    ): self;
 }

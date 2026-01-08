@@ -22,7 +22,6 @@ namespace ILIAS\Questions\AnswerFormTypes\Cloze\Properties\Gaps;
 
 use ILIAS\Questions\AnswerFormTypes\Cloze\Properties\Gaps\AnswerOptions\AnswerOptions;
 use ILIAS\Questions\AnswerFormTypes\Cloze\Properties\Gaps\AnswerOptions\AnswerOption;
-use ILIAS\Questions\AnswerFormTypes\Cloze\Properties\Gaps\AnswerOptions\Properties;
 use ILIAS\FileUpload\MimeType;
 use ILIAS\Language\Language;
 use ILIAS\Refinery\Factory as Refinery;
@@ -43,11 +42,13 @@ class LongMenu extends Type
         parent::__construct($refinery);
     }
 
+    #[\Override]
     public function getIdentifier(): string
     {
         return 'long_menu';
     }
 
+    #[\Override]
     public function getEditAnswerOptionsInputs(
         Gap $gap
     ): array {
@@ -108,6 +109,7 @@ class LongMenu extends Type
         );
     }
 
+    #[\Override]
     public function getEditPointsSectionConstraint(): ?Constraint
     {
         return $this->refinery->custom()->constraint(
@@ -123,6 +125,7 @@ class LongMenu extends Type
         );
     }
 
+    #[\Override]
     public function getBuildGapTransformation(
         Gap $gap
     ): Transformation {
@@ -131,7 +134,6 @@ class LongMenu extends Type
                 ->withMinAutocomplete($vs['min_autocomplete'])
                 ->withAnswerOptions(
                     $gap->getAnswerOptions()->withAnswerOptionsFromTags(
-                        $gap->getAnswerInputId(),
                         array_merge(
                             $vs['answer_options'],
                             $this->retrieveAnswerOptionsArrayFromUpload($vs['upload_answer_options'])
@@ -141,6 +143,7 @@ class LongMenu extends Type
         );
     }
 
+    #[\Override]
     public function getAnswerInput(): \ilFormPropertyGUI
     {
         ;

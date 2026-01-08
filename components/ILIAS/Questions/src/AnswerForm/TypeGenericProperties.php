@@ -99,13 +99,17 @@ class TypeGenericProperties implements Storable
         Manipulate $manipulate
     ): Manipulate {
         $answer_form_table_definition = CoreTables::AnswerForms;
+
         return $manipulate->withAdditionalStatement(
             new Delete(
                 $answer_form_table_definition->getTable(),
                 [
                     new Where(
                         $answer_form_table_definition->getIdColumn(),
-                        $this->answer_form_id->toString()
+                        new Value(
+                            \ilDBConstants::T_TEXT,
+                            $this->answer_form_id->toString()
+                        )
                     )
                 ]
             )
@@ -142,14 +146,17 @@ class TypeGenericProperties implements Storable
             ]),
             [
                 new Value(\ilDBConstants::T_FLOAT, $this->available_points),
-                new Value(\ilDBConstants::T_INT, $this->image_size),
-                new Value(\ilDBConstants::T_INT, $this->shuffle_answer_options ? 1 : 0),
+                new Value(\ilDBConstants::T_INTEGER, $this->image_size),
+                new Value(\ilDBConstants::T_INTEGER, $this->shuffle_answer_options ? 1 : 0),
                 new Value(\ilDBConstants::T_TEXT, $this->additional_text)
 
             ],
             new Where(
                 $answer_form_table_definition->getIdColumn(),
-                $this->answer_form_id->toString()
+                new Value(
+                    \ilDBConstants::T_TEXT,
+                    $this->answer_form_id->toString()
+                )
             )
         );
     }

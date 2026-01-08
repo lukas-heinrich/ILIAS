@@ -22,7 +22,6 @@ namespace ILIAS\Questions\Persistence;
 
 use ILIAS\Questions\AnswerForm\Factory as AnswerFormFactory;
 use ILIAS\Questions\AnswerForm\Definition as AnswerFormDefinition;
-use ILIAS\Questions\AnswerForm\Properties as AnswerFormProperties;
 use ILIAS\Questions\Question\Definitions\Lifecycle;
 use ILIAS\Questions\Question\QuestionImplementation;
 use ILIAS\Data\UUID\Factory as UuidFactory;
@@ -60,8 +59,9 @@ class Repository
         );
     }
 
-    public function getForQuestionId(Uuid $question_id): ?QuestionImplementation
-    {
+    public function getForQuestionId(
+        Uuid $question_id
+    ): ?QuestionImplementation {
         return $this->getForBaseQuery(
             (new Query(
                 $this->db,
@@ -85,8 +85,9 @@ class Repository
      * @param array<\ILIAS\Data\Uuid> $question_ids
      * @return \Generator<\ILIAS\Questions\Question\QuestionImplementation>
      */
-    public function getForQuestionIds(array $question_ids): \Generator
-    {
+    public function getForQuestionIds(
+        array $question_ids
+    ): \Generator {
         yield from $this->getForBaseQuery(
             (new Query(
                 $this->db,
@@ -109,10 +110,61 @@ class Repository
     }
 
     /**
+     * @param array<\ILIAS\Questions\Question\QuestionImplementation> $questions
+     */
+    public function create(
+        array $questions
+    ): void {
+        $this->store(
+            array_map(
+                fn(QuestionImplementation $v): QuestionImplementation => $v
+                    ->withPageId($this->buildQuestionPage()),
+                $questions
+            ),
+            new Manipulate(
+                $this->db,
+                $this->answer_form_factory,
+                ManipulationType::Create
+            )
+        );
+    }
+
+    /**
+     * @param array<\ILIAS\Questions\Question\QuestionImplementation> $questions
+     */
+    public function update(
+        array $questions
+    ): void {
+        $this->store(
+            $questions,
+            new Manipulate(
+                $this->db,
+                $this->answer_form_factory,
+                ManipulationType::Update
+            )
+        );
+    }
+
+    public function delete(
+        array $questions
+    ): void {
+        array_reduce(
+            $questions,
+            fn(Manipulate $c, QuestionImplementation $v): Manipulate => $v->toDelete($c),
+            new Manipulate(
+                $this->db,
+                $this->answer_form_factory,
+                ManipulationType::Delete
+            )
+        )->run();
+    }
+
+    /**
      * @return \Generator<\ILIAS\Questions\Question\QuestionImplementation>
      */
-    private function getForBaseQuery(Query $query): \Generator
-    {
+    private function getForBaseQuery(
+        Query $query
+    ): \Generator {
         $query_with_answer_forms = array_reduce(
             $this->answer_form_factory->getAvailableDefinitions(),
             fn(Query $c, AnswerFormDefinition $v) => $v->getPersistence()->completeQuery(
@@ -128,32 +180,6 @@ class Repository
                 $this->retrieveAnswerFormsFromQuery($query_with_record)
             );
         }
-    }
-
-    public function create(
-        array $storable
-    ): void {
-        $this->store(
-            $storable,
-            new Manipulate(
-                $this->db,
-                $this->answer_form_factory,
-                ManipulationType::Create
-            )
-        );
-    }
-
-    public function update(
-        array $storable
-    ): void {
-        $this->store(
-            $storable,
-            new Manipulate(
-                $this->db,
-                $this->answer_form_factory,
-                ManipulationType::Update
-            )
-        );
     }
 
     private function retrieveQuestionFromQuery(
@@ -213,17 +239,15 @@ class Repository
     }
 
     /**
-     *
-     * @param array<\ILIAS\Questions\Persistence\Storable> $storable
-     * @return array<ILIAS\Data\UUID\Uuid>
+     * @param array<\ILIAS\Questions\Question\QuestionImplementation> $questions
      */
     private function store(
-        array $storable,
+        array $questions,
         Manipulate $manipulate
     ): void {
         array_reduce(
-            $storable,
-            fn(Manipulate $c, Storable $v): Manipulate => $v->toStorage($c),
+            $questions,
+            fn(Manipulate $c, QuestionImplementation $v): Manipulate => $v->toStorage($c),
             $manipulate
         )->run();
     }
@@ -238,11 +262,12 @@ class Repository
         } while (true);
     }
 
-    private function checkAvailabilityOfId(Uuid $uuid): bool
-    {
+    private function checkAvailabilityOfId(
+        Uuid $uuid
+    ): bool {
         return $this->db->fetchObject(
             $this->db->query(
-                'SELECT COUNT(*) as cnt FROM ' . self::QUESTION_TABLE
+                'SELECT COUNT(*) as cnt FROM ' . CoreTables::Questions->value
                     . " WHERE id='{$uuid->toString()}'"
             )
         )->cnt === 0;

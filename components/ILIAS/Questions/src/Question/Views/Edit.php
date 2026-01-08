@@ -20,8 +20,8 @@ declare(strict_types=1);
 
 namespace ILIAS\Questions\Question\Views;
 
-use ILIAS\Questions\Presentation\Layout\Definitions\EditForm;
-use ILIAS\Questions\Presentation\Layout\Definitions\EnvironmentImplementation;
+use ILIAS\Questions\Presentation\Layout\EditForm;
+use ILIAS\Questions\Presentation\Definitions\EnvironmentImplementation;
 use ILIAS\Questions\Question\Question;
 use ILIAS\Questions\Question\QuestionImplementation;
 use ILIAS\Questions\Question\Definitions\Lifecycle;
@@ -74,7 +74,7 @@ class Edit
     private function buildBasicPropertiesForm(
         EnvironmentImplementation $environment
     ): EditForm {
-        return $environment->getDefinitionsFactory()->getEditForm(
+        return $environment->getPresentationFactory()->getEditForm(
             $environment->getUrlBuilderWithStepParameter(self::CMD_SAVE_QUESTION),
             $this->buildBasicPropertiesInputs(),
             true
@@ -101,8 +101,7 @@ class Edit
             [
                 'title' => $ff->text($this->lng->txt('title'))
                     ->withRequired(true),
-                'author' => $ff->text($this->lng->txt('author'))
-                    ->withValue($this->current_user->getFullname()),
+                'author' => $ff->text($this->lng->txt('author')),
                 'lifecycle' => $ff->select(
                     $this->lng->txt('qst_lifecycle'),
                     array_reduce(
@@ -121,7 +120,9 @@ class Edit
 
         return $section->withValue([
             'title' => $this->question->getTitle(),
-            'author' => $this->question->getAuthor(),
+            'author' => $this->question->getAuthor() !== ''
+                ? $this->question->getAuthor()
+                : $this->current_user->getFullname(),
             'lifecycle' => $this->question->getLifecycle()->value,
             'remarks' => $this->question->getRemarks()
         ]);

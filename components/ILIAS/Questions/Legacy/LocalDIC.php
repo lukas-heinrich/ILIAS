@@ -25,7 +25,7 @@ use ILIAS\Questions\AnswerFormTypes\Cloze;
 use ILIAS\Questions\Persistence\TableNameSpaceCore;
 use ILIAS\Questions\AnswerForm\Factory as AnswerFormFactory;
 use ILIAS\Questions\Presentation\Views\Edit;
-use ILIAS\Questions\Presentation\Layout\Definitions\Factory as DefinitionsFactory;
+use ILIAS\Questions\Presentation\Layout\Factory as DefinitionsFactory;
 use ILIAS\Questions\Units\Repository as UnitsRepository;
 use ILIAS\Data\Factory as DataFactory;
 use ILIAS\Data\UUID\Factory as UuidFactory;
@@ -73,6 +73,7 @@ class LocalDIC extends PimpleContainer
         $dic[DefinitionsFactory::class] = static fn($c): DefinitionsFactory =>
             new DefinitionsFactory(
                 $DIC['ui.factory'],
+                $DIC['http'],
                 $DIC['lng']
             );
         $dic[Edit::class] = static fn($c): Edit => new Edit(
@@ -130,8 +131,8 @@ class LocalDIC extends PimpleContainer
                     )
                 ]
             );
-        $dic[Cloze\Properties\AnswerForm\Factory::class] = static fn($c): Cloze\Properties\AnswerForm\Factory
-            => new Cloze\Properties\AnswerForm\Factory(
+        $dic[Cloze\Properties\Factory::class] = static fn($c): Cloze\Properties\Factory
+            => new Cloze\Properties\Factory(
                 $c[Cloze\Properties\ClozeText\Factory::class],
                 $c[Cloze\Properties\Gaps\Factory::class]
             );
@@ -145,14 +146,14 @@ class LocalDIC extends PimpleContainer
                 $DIC['ui.factory'],
                 $DIC['refinery'],
                 $DIC['http'],
-                $c[Cloze\Properties\AnswerForm\Factory::class],
+                $c[Cloze\Properties\Factory::class],
                 $c[Cloze\Properties\ClozeText\Factory::class],
                 $c[Cloze\Properties\Gaps\Factory::class]
             );
         $dic[Cloze\Views\Participant::class] = static fn($c): Cloze\Views\Participant
             => new Cloze\Views\Participant();
         $dic[Cloze\Definition::class] = static fn($c): Cloze\Definition => new Cloze\Definition(
-            $c[Cloze\Properties\AnswerForm\Factory::class],
+            $c[Cloze\Properties\Factory::class],
             $c[Cloze\Persistence::class],
             [
                 Cloze\Capabilities\Marking::class => new Cloze\Capabilities\Marking(),

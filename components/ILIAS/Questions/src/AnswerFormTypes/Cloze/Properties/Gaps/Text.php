@@ -41,11 +41,13 @@ class Text extends Type
         parent::__construct($refinery);
     }
 
+    #[\Override]
     public function getIdentifier(): string
     {
         return 'text';
     }
 
+    #[\Override]
     public function getEditAnswerOptionsInputs(
         Gap $gap
     ): array {
@@ -67,6 +69,7 @@ class Text extends Type
         ];
     }
 
+    #[\Override]
     public function getEditAnswerOptionsSectionConstraint(): ?Constraint
     {
         return $this->refinery->custom()->constraint(
@@ -78,6 +81,7 @@ class Text extends Type
         );
     }
 
+    #[\Override]
     public function getEditPointsInputs(
         AnswerOptions $answer_options
     ): array {
@@ -87,6 +91,7 @@ class Text extends Type
         );
     }
 
+    #[\Override]
     public function getEditPointsSectionConstraint(): ?Constraint
     {
         return $this->refinery->custom()->constraint(
@@ -102,6 +107,7 @@ class Text extends Type
         );
     }
 
+    #[\Override]
     public function getBuildGapTransformation(
         Gap $gap
     ): Transformation {
@@ -112,13 +118,13 @@ class Text extends Type
                         ?? self::DEFAULT_TECT_MATCHING_METHOD
                 )->withAnswerOptions(
                     $gap->getAnswerOptions()->withAnswerOptionsFromTags(
-                        $gap->getAnswerInputId(),
                         $vs['answer_options']
                     )
                 )
         );
     }
 
+    #[\Override]
     public function getAnswerInput(): \ilFormPropertyGUI
     {
         ;

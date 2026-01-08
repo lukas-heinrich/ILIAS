@@ -21,16 +21,17 @@ declare(strict_types=1);
 namespace ILIAS\Questions\AnswerFormTypes\Cloze\Views;
 
 use ILIAS\Questions\AnswerForm\Views\Participant as ParticipantViewInterface;
-use ILIAS\Questions\AnswerFormTypes\Cloze\Type;
 use ILIAS\Questions\Response\Response;
 
 class Participant implements ParticipantViewInterface
 {
+    #[\Override]
     public function isAsyncPresentationAvailable(): bool
     {
         return true;
     }
 
+    #[\Override]
     public function get(
         ?Response $response
     ): array {

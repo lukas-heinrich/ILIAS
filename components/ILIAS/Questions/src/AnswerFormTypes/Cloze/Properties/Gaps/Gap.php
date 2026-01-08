@@ -26,7 +26,7 @@ use ILIAS\Questions\Persistence\Replace;
 use ILIAS\Questions\Persistence\TableNameBuilder;
 use ILIAS\Questions\Persistence\TableTypes;
 use ILIAS\Questions\Persistence\Value;
-use ILIAS\Questions\Presentation\Layout\Definitions\CarryWrapper;
+use ILIAS\Questions\Presentation\Definitions\CarryWrapper;
 use ILIAS\Questions\Question\Definitions\TextMatchingOptions;
 use ILIAS\Data\UUID\Uuid;
 use ILIAS\Language\Language;
@@ -34,6 +34,8 @@ use ILIAS\Refinery\Factory as Refinery;
 use ILIAS\UI\Component\Input\Field\Factory as FieldFactory;
 use ILIAS\UI\Component\Input\Field\Section;
 use ILIAS\UI\Component\Input\Field\Group;
+use ILIAS\UI\Component\Table\DataRow;
+use ILIAS\UI\Component\Table\DataRowBuilder;
 use ILIAS\Refinery\Transformation;
 
 class Gap
@@ -325,6 +327,34 @@ class Gap
         );
     }
 
+    public function toTableRow(
+        DataRowBuilder $row_builder,
+        Language $lng
+    ): DataRow {
+        $total_points = 0;
+        $answer_options_list = '';
+        foreach ($this->answer_options->getAnswerOptionsAwardingPoints() as $option) {
+            $total_points += $option->getAvailablePoints();
+
+            $gap_text = $option->getTextValue();
+            if ($gap_text === '') {
+                $gap_text = $option->getLowerlimit();
+            }
+
+            $answer_options_list .= "{$gap_text} ({$option->getAvailablePoints()})<br>";
+        }
+
+        return $row_builder->buildDataRow(
+            $this->answer_input_id->toString(),
+            [
+                'gap' => $this->buildShortenedGapName(),
+                'type' => $lng->txt("{$this->type->getIdentifier()}_gap"),
+                'answers_options_awarding_points' => $answer_options_list,
+                'available_points' => $total_points
+            ]
+        );
+    }
+
     private function buildValuesForGapReplace(): array
     {
         return [
@@ -427,10 +457,8 @@ class Gap
         return $carry->retrieve(
             self::FORM_KEY_ANSWER_OPTIONS . $this->getShortenedAnswerInputId(),
             $refinery->custom()->transformation(
-                fn(?string $v): AnswerOptions => $this->answer_options->withValuesFromHiddenInputValue(
-                    $this->answer_input_id,
-                    $v
-                )
+                fn(?string $v): AnswerOptions => $this->answer_options
+                    ->withValuesFromHiddenInputValue($v)
             )
         );
     }

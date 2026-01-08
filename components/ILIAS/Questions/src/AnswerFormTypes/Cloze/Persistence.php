@@ -81,11 +81,13 @@ class Persistence implements PersistenceInterface
     ) {
     }
 
+    #[\Override]
     public function getPublicNameSpace(): TableNameSpace
     {
         return $this->table_namespace;
     }
 
+    #[\Override]
     public function getColumns(
         TableNameBuilder $table_name_builder,
         TableTypes $table_type,
@@ -108,6 +110,7 @@ class Persistence implements PersistenceInterface
         );
     }
 
+    #[\Override]
     public function getIdColumn(
         TableNameBuilder $table_name_builder,
         TableTypes $table_type,
@@ -125,6 +128,7 @@ class Persistence implements PersistenceInterface
         };
     }
 
+    #[\Override]
     public function getForeignKeyColumn(
         TableNameBuilder $table_name_builder,
         TableTypes $table_type,
@@ -150,6 +154,7 @@ class Persistence implements PersistenceInterface
         };
     }
 
+    #[\Override]
     public function completeQuery(
         Query $query,
         Column $answer_form_id_column

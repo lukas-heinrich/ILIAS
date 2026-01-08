@@ -22,7 +22,6 @@ namespace ILIAS\Questions\AnswerFormTypes\Cloze\Properties\Gaps;
 
 use ILIAS\Questions\AnswerFormTypes\Cloze\Properties\Gaps\AnswerOptions\AnswerOptions;
 use ILIAS\Questions\AnswerFormTypes\Cloze\Properties\Gaps\AnswerOptions\AnswerOption;
-use ILIAS\Questions\AnswerFormTypes\Cloze\Properties\Gaps\AnswerOptions\Properties;
 use ILIAS\Language\Language;
 use ILIAS\Refinery\Factory as Refinery;
 use ILIAS\Refinery\Constraint;
@@ -42,18 +41,17 @@ class Numeric extends Type
         parent::__construct($refinery);
     }
 
+    #[\Override]
     public function getIdentifier(): string
     {
         return 'numeric';
     }
 
+    #[\Override]
     public function getEditAnswerOptionsInputs(
         Gap $gap
     ): array {
-        $answer_option = $gap->getAnswerOptions()->getAnswerOptionForPositionOrNew(
-            $gap->getAnswerInputId(),
-            0
-        );
+        $answer_option = $gap->getAnswerOptions()->getAnswerOptionForPositionOrNew(0);
 
         $ff = $this->ui_factory->input()->field();
         return [
@@ -71,6 +69,7 @@ class Numeric extends Type
         ];
     }
 
+    #[\Override]
     public function getEditAnswerOptionsSectionConstraint(): ?Constraint
     {
         return $this->refinery->custom()->constraint(
@@ -81,6 +80,7 @@ class Numeric extends Type
         );
     }
 
+    #[\Override]
     public function getEditPointsInputs(
         AnswerOptions $answer_options
     ): array {
@@ -107,27 +107,28 @@ class Numeric extends Type
         );
     }
 
+    #[\Override]
     public function getEditPointsSectionConstraint(): ?Constraint
     {
         return null;
     }
 
+    #[\Override]
     public function getBuildGapTransformation(
         Gap $gap
     ): Transformation {
         return $this->refinery->custom()->transformation(
             fn(array $vs): Gap => $gap->withAnswerOptions(
                 $gap->getAnswerOptions()->withAnswerOptions([
-                    $gap->getAnswerOptions()->getAnswerOptionForPositionOrNew(
-                        $gap->getAnswerInputId(),
-                        0
-                    )->withLowerLimit($vs['lower_limit'])
-                    ->withUpperLimit($vs['upper_limit'])
+                    $gap->getAnswerOptions()->getAnswerOptionForPositionOrNew(0)
+                        ->withLowerLimit($vs['lower_limit'])
+                        ->withUpperLimit($vs['upper_limit'])
                 ])
             )->withStepSize($vs['step_size'])
         );
     }
 
+    #[\Override]
     public function getAnswerInput(): \ilFormPropertyGUI
     {
         ;

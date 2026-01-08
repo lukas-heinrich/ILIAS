@@ -95,36 +95,41 @@ class Query
         return $this->refinery;
     }
 
-    public function withAdditionalSelect(Select $select): self
-    {
+    public function withAdditionalSelect(
+        Select $select
+    ): self {
         $clone = clone $this;
         $clone->select[] = $select;
         return $clone;
     }
 
-    public function withAdditionalJoin(Join $join): self
-    {
+    public function withAdditionalJoin(
+        Join $join
+    ): self {
         $clone = clone $this;
         $clone->joins[] = $join;
         return $clone;
     }
 
-    public function withAdditionalWhere(Where $where): self
-    {
+    public function withAdditionalWhere(
+        Where $where
+    ): self {
         $clone = clone $this;
         $clone->where[] = $where;
         return $clone;
     }
 
-    public function withAdditionalOrder(Order $order): self
-    {
+    public function withAdditionalOrder(
+        Order $order
+    ): self {
         $clone = clone $this;
         $clone->order[] = $order;
         return $clone;
     }
 
-    public function withLimit(int $limit): self
-    {
+    public function withLimit(
+        int $limit
+    ): self {
         $clone = clone $this;
         $clone->limit = $limit;
         return $clone;
@@ -203,9 +208,10 @@ class Query
         ) ?? '';
     }
 
-    private function addValueToBinding(Value $value): void
-    {
-        if (!is_array($value)) {
+    private function addValueToBinding(
+        Value $value
+    ): void {
+        if (!is_array($value->getValue())) {
             $this->binding_types[] = $value->getType();
             $this->binding_values[] = $value->getValue();
             return;

@@ -25,6 +25,7 @@ use ILIAS\Questions\Response\Response;
 interface Participant
 {
     public function isAsyncPresentationAvailable(): bool;
+
     public function get(
         ?Response $response
     ): array;

@@ -18,6 +18,8 @@
 
 declare(strict_types=1);
 
+use ILIAS\Questions\AnswerForm\Factory as AnswerFormFactory;
+use ILIAS\Questions\Legacy\LocalDIC;
 use ILIAS\Questions\Presentation\Views\Edit;
 use ILIAS\Data\Factory as DataFactory;
 use ILIAS\UI\Renderer as UIRenderer;
@@ -30,6 +32,7 @@ class ilPCAnswerFormGUI extends ilPageContentGUI
     private readonly ilTabsGUI $tabs;
     private readonly UIRenderer $ui_renderer;
     private readonly DataFactory $data_factory;
+    private readonly AnswerFormFactory $answer_form_factory;
     private readonly Edit $edit_view;
 
     public function __construct(
@@ -43,8 +46,12 @@ class ilPCAnswerFormGUI extends ilPageContentGUI
         $this->ui_renderer = $DIC['ui.renderer'];
         $this->data_factory = new DataFactory();
 
+        $local_dic = LocalDIC::dic();
+        $this->answer_form_factory = $local_dic[AnswerFormFactory::class];
+        $this->edit_view = $local_dic[Edit::class];
+
+
         parent::__construct($pg_obj, $content_obj, $hier_id, $pc_id);
-        $this->edit_view = $this->pg_obj->getEditView();
     }
 
     public function executeCommand()
@@ -71,16 +78,24 @@ class ilPCAnswerFormGUI extends ilPageContentGUI
 
     public function editCmd(): void
     {
-        $this->setInsertTabs();
-        $content_obj = new ilPCAnswerForm($this->pg_obj);
-        $content_obj->setHierId($this->hier_id);
+        $this->setEditTabs();
+
+        /** @var \ILIAS\Questions\Question\QuestionImplementation $question */
+        $question = $this->pg_obj->getQuestion();
+        $answer_form_properties = $question->getAnswerFormPropertiesByIdString(
+            $this->getContentObject()->getAnswerFormIdStringFromAttribute()
+        );
+
         $this->tpl->setContent(
             $this->edit_view->editAnswerForm(
                 $this->data_factory->uri(
-                    ILIAS_HTTP_PATH . '/' . $this->ctrl->getLinkTargetByClass(self::class, 'insert')
+                    ILIAS_HTTP_PATH . '/' . $this->ctrl->getLinkTargetByClass(self::class, 'edit')
                 ),
-                $this->pg_obj->getQuestion(),
-                $content_obj
+                $question,
+                $answer_form_properties,
+                $this->answer_form_factory->getDefinitionForClass(
+                    $answer_form_properties->getDefinitionClass()
+                )
             )->render($this->ui_renderer)
         );
     }

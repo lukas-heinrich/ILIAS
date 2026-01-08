@@ -18,10 +18,10 @@
 
 declare(strict_types=1);
 
-namespace ILIAS\Questions\Presentation\Layout\Definitions;
+namespace ILIAS\Questions\Presentation\Definitions;
 
 use ILIAS\Questions\AnswerForm\Properties;
-use ILIAS\Questions\Presentation\Definitions\Editability;
+use ILIAS\Questions\Presentation\Layout\Factory;
 use ILIAS\Data\URI;
 use ILIAS\Data\UUID\Factory as UuidFactory;
 use ILIAS\Data\UUID\Uuid;
@@ -37,7 +37,10 @@ class EnvironmentImplementation implements Environment
     private const string TOKEN_STRING_ACTION = 'a';
     private const string TOKEN_STRING_STEP = 's';
     private const string TOKEN_STRING_QUESTION_ID = 'q';
+    private const string TOKEN_STRING_QUESTION_IDS = 'qs';
     private const string TOKEN_TYPE_HASH = 't';
+
+    private const string INTERRUPTIVE_ITEMS_KEY = 'interruptive_items';
 
     private ?Properties $properties = null;
 
@@ -47,6 +50,7 @@ class EnvironmentImplementation implements Environment
     private readonly URLBuilderToken $action_token;
     private readonly URLBuilderToken $step_token;
     private readonly URLBuilderToken $question_id_token;
+    private readonly URLBuilderToken $question_ids_token;
     private readonly URLBuilderToken $type_hash_token;
 
     public function __construct(
@@ -54,28 +58,33 @@ class EnvironmentImplementation implements Environment
         private readonly HTTPServices $http,
         private readonly Refinery $refinery,
         private readonly UuidFactory $uuid_factory,
-        private readonly Factory $definitions_factory,
+        private readonly Factory $presentation_factory,
         private readonly Editability $editability,
         URI $base_uri
     ) {
         $this->acquireURLBuilderAndParameters($base_uri);
     }
 
-    public function getDefinitionsFactory(): Factory
+    #[\Override]
+    public function getPresentationFactory(): Factory
     {
-        return $this->definitions_factory;
+        return $this->presentation_factory;
     }
 
+    #[\Override]
     public function getUrlBuilder(): URLBuilder
     {
         return $this->url_builder;
     }
 
-    public function getUrlBuilderWithStepParameter(string $step): URLBuilder
-    {
+    #[\Override]
+    public function getUrlBuilderWithStepParameter(
+        string $step
+    ): URLBuilder {
         return $this->getUrlBuilder()->withParameter($this->step_token, $step);
     }
 
+    #[\Override]
     public function withDefaultStep(): self
     {
         $clone = clone $this;
@@ -83,6 +92,7 @@ class EnvironmentImplementation implements Environment
         return $clone;
     }
 
+    #[\Override]
     public function getStep(): string
     {
         return $this->default_step
@@ -90,21 +100,30 @@ class EnvironmentImplementation implements Environment
             : $this->retrieveStringValueForToken($this->step_token, self::TOKEN_STRING_STEP);
     }
 
+    #[\Override]
     public function getEditability(): Editability
     {
         return $this->editability;
     }
 
-    public function getProperties(): ?Properties
+    #[\Override]
+    public function getAnswerFormProperties(): ?Properties
     {
         return $this->properties;
     }
 
-    public function withProperties(Properties $properties): self
-    {
+    #[\Override]
+    public function withAnswerFormProperties(
+        Properties $properties
+    ): self {
         $clone = clone $this;
         $clone->properties = $properties;
         return $clone;
+    }
+
+    public function getQuestionIdsToken(): URLBuilderToken
+    {
+        return $this->question_ids_token;
     }
 
     public function getAction(): string
@@ -112,24 +131,27 @@ class EnvironmentImplementation implements Environment
         return $this->retrieveStringValueForToken($this->action_token);
     }
 
-    public function withActionParameter(string $action): self
-    {
+    public function withActionParameter(
+        string $action
+    ): self {
         $clone = clone $this;
         $clone->url_builder = $this->url_builder
             ->withParameter($this->action_token, $action);
         return $clone;
     }
 
-    public function withQuestionIdParameter(Uuid $question_id): self
-    {
+    public function withQuestionIdParameter(
+        Uuid $question_id
+    ): self {
         $clone = clone $this;
         $clone->url_builder = $this->url_builder
             ->withParameter($this->question_id_token, $question_id->toString());
         return $clone;
     }
 
-    public function withAnswerFormTypeHashParameter(string $type_hash): self
-    {
+    public function withAnswerFormTypeHashParameter(
+        string $type_hash
+    ): self {
         $clone = clone $this;
         $clone->url_builder = $this->url_builder
             ->withParameter($this->type_hash_token, $type_hash);
@@ -142,10 +164,43 @@ class EnvironmentImplementation implements Environment
             $this->question_id_token->getName(),
             $this->refinery->byTrying([
                 $this->refinery->custom()->transformation(
-                    fn($v): Uuid => $this->uuid_factory->fromString($v)
+                    $this->buildRetrieveQuestionIdClosure()
                 ),
                 $this->refinery->always(null)
             ])
+        );
+    }
+
+    /**
+     * This function will either return the QuestionIds from the corresponding
+     * $_GET parameter OR from an InterruptiveItems $_POST value.
+     * @return array<\ILIAS\Data\UUID\Uuid>|string|null
+     */
+    public function getQuestionIds(): array|string|null
+    {
+        return $this->http->wrapper()->query()->retrieve(
+            $this->question_ids_token->getName(),
+            $this->refinery->byTrying([
+                $this->refinery->custom()->transformation(
+                    fn($v): string => $v === ['ALL_OBJECTS']
+                        ? 'ALL_OBJECTS'
+                        : throw new \UnexpectedValueException()
+                ),
+                $this->refinery->kindlyTo()->listOf(
+                    $this->refinery->custom()->transformation(
+                        $this->buildRetrieveQuestionIdClosure()
+                    )
+                ),
+                $this->refinery->always(null)
+            ])
+        ) ?? $this->http->wrapper()->post()->retrieve(
+            self::INTERRUPTIVE_ITEMS_KEY,
+            $this->refinery->kindlyTo()->listOf(
+                $this->refinery->custom()->transformation(
+                    $this->buildRetrieveQuestionIdClosure()
+                )
+            ),
+            $this->refinery->always(null)
         );
     }
 
@@ -163,13 +218,15 @@ class EnvironmentImplementation implements Environment
         );
     }
 
-    private function acquireURLBuilderAndParameters(URI $base_uri): void
-    {
+    private function acquireURLBuilderAndParameters(
+        URI $base_uri
+    ): void {
         [
             $this->url_builder,
             $this->action_token,
             $this->step_token,
             $this->question_id_token,
+            $this->question_ids_token,
             $this->type_hash_token
         ] = (new URLBuilder($base_uri))
             ->acquireParameters(
@@ -177,6 +234,7 @@ class EnvironmentImplementation implements Environment
                 self::TOKEN_STRING_ACTION,
                 self::TOKEN_STRING_STEP,
                 self::TOKEN_STRING_QUESTION_ID,
+                self::TOKEN_STRING_QUESTION_IDS,
                 self::TOKEN_TYPE_HASH
             );
     }
@@ -196,5 +254,12 @@ class EnvironmentImplementation implements Environment
             $this->refinery->kindlyTo()->string(),
             $this->refinery->always('')
         ]);
+    }
+
+    private function buildRetrieveQuestionIdClosure(): \Closure
+    {
+        return fn($v): Uuid => is_string($v)
+            ? $this->uuid_factory->fromString($v)
+            : throw new \UnexpectedValueException();
     }
 }

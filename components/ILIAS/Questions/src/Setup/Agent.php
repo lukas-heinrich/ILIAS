@@ -30,8 +30,10 @@ use ILIAS\Setup\Config;
 
 class Agent extends NullAgent
 {
-    public function getUpdateObjective(?Config $config = null): Objective
-    {
+    #[\Override]
+    public function getUpdateObjective(
+        ?Config $config = null
+    ): Objective {
         return new ObjectiveCollection(
             'Database is updated for ILIAS\Questions',
             false,
@@ -52,8 +54,10 @@ class Agent extends NullAgent
         );
     }
 
-    public function getStatusObjective(Storage $storage): Objective
-    {
+    #[\Override]
+    public function getStatusObjective(
+        Storage $storage
+    ): Objective {
         return new ObjectiveCollection(
             'ILIAS\Questions',
             true,
