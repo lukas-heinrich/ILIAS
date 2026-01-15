@@ -31,7 +31,6 @@ use ILIAS\Questions\Persistence\Value;
 use ILIAS\Questions\Persistence\Where;
 use ILIAS\Questions\Presentation\Definitions\EnvironmentImplementation;
 use ILIAS\Questions\Question\Definitions\Lifecycle;
-use ILIAS\Data\Factory as DataFactory;
 use ILIAS\Data\UUID\Uuid;
 use ILIAS\Language\Language;
 use ILIAS\UI\Factory as UIFactory;
@@ -44,6 +43,7 @@ use Psr\Http\Message\RequestInterface;
 
 class QuestionImplementation implements Question
 {
+    private bool $linking_information_updated = false;
     private bool $self_updated = false;
     private array $updated_answer_forms = [];
     private array $deleted_answer_forms = [];
@@ -55,6 +55,8 @@ class QuestionImplementation implements Question
      */
     public function __construct(
         private readonly Uuid $id,
+        private int $parent_obj_id,
+        private ?int $position = null,
         private ?int $page_id = null,
         private string $title = '',
         private string $author = '',
@@ -80,6 +82,29 @@ class QuestionImplementation implements Question
     public function getId(): ?Uuid
     {
         return $this->id;
+    }
+
+    public function getParentObjId(): int
+    {
+        return $this->parent_obj_id;
+    }
+
+    public function withParentObjId(
+        int $parent_obj_id
+    ): self {
+        $clone = clone $this;
+        $clone->parent_obj_id = $parent_obj_id;
+        $clone->linking_information_updated = true;
+        return $clone;
+    }
+
+    public function withPosition(
+        int $position
+    ): self {
+        $clone = clone $this;
+        $clone->position = $position;
+        $clone->linking_information_updated = true;
+        return $clone;
     }
 
     public function getPageId(): ?int
@@ -224,17 +249,24 @@ class QuestionImplementation implements Question
         UIFactory $ui_factory,
         Refinery $refinery,
         RequestInterface $request,
-        \ilCtrl $ctrl,
-        DataFactory $data_factory
+        \ilCtrl $ctrl
     ): Views\Edit {
-        return new Views\Edit($lng, $current_user, $ui_factory, $refinery, $request, $ctrl, $data_factory, $this);
+        return new Views\Edit(
+            $lng,
+            $current_user,
+            $ui_factory,
+            $refinery,
+            $request,
+            $ctrl,
+            $this
+        );
     }
 
+    #[\Override]
     public function getParticipantView(): Views\Participant
     {
         return new Views\Participant(
-            new \QstsQuestionPageGUI($this),
-            $this->answer_forms
+            $this
         );
     }
 
@@ -294,9 +326,12 @@ class QuestionImplementation implements Question
         Manipulate $manipulate
     ): Manipulate {
         if ($this->created === null) {
-            $manipulate = $manipulate->withAdditionalStatement(
-                $this->buildInsertQuestionStatement()
-            );
+            $manipulate = $manipulate
+                ->withAdditionalStatement(
+                    $this->buildInsertLinkingStatement()
+                )->withAdditionalStatement(
+                    $this->buildInsertQuestionStatement()
+                );
         }
 
         if ($this->updated_answer_forms !== []) {
@@ -319,6 +354,13 @@ class QuestionImplementation implements Question
     private function addUpdateStatementsToManipulation(
         Manipulate $manipulate
     ): Manipulate {
+        if ($this->linking_information_updated) {
+            $manipulate = $manipulate
+                ->withAdditionalStatement(
+                    $this->buildUpdateLinkingStatement()
+                );
+        }
+
         if ($this->self_updated) {
             $manipulate = $manipulate->withAdditionalStatement(
                 $this->buildUpdateQuestionStatement()
@@ -335,41 +377,6 @@ class QuestionImplementation implements Question
         return $this->addAnswerFormStatementsToManipulate(
             $manipulate,
             $this->updated_answer_forms
-        );
-    }
-
-    private function buildInsertQuestionStatement(): Insert
-    {
-        return new Insert(
-            CoreTables::Questions->getColumns(),
-            [
-                new Value(\ilDBConstants::T_TEXT, $this->id->toString()),
-                new Value(\ilDBConstants::T_INTEGER, $this->page_id),
-                new Value(\ilDBConstants::T_TEXT, $this->title),
-                new Value(\ilDBConstants::T_TEXT, $this->author),
-                new Value(\ilDBConstants::T_TEXT, $this->lifecycle->value),
-                new Value(\ilDBConstants::T_TEXT, $this->remarks),
-                new Value(\ilDBConstants::T_TEXT, $this->original_id?->toString()),
-                new Value(\ilDBConstants::T_INTEGER, time()),
-                new Value(\ilDBConstants::T_INTEGER, time())
-            ]
-        );
-    }
-
-    private function buildDeleteQuestionStatement(): Delete
-    {
-        $table_definition = CoreTables::Questions;
-        return new Delete(
-            $table_definition->getTable(),
-            [
-                new Where(
-                    $table_definition->getIdColumn(),
-                    new Value(
-                        \ilDBConstants::T_TEXT,
-                        $this->id->toString()
-                    )
-                )
-            ]
         );
     }
 
@@ -399,6 +406,58 @@ class QuestionImplementation implements Question
         );
     }
 
+
+
+    private function buildInsertLinkingStatement(): Insert
+    {
+        return new Insert(
+            CoreTables::Linking->getColumns(),
+            [
+                new Value(\ilDBConstants::T_TEXT, $this->id->toString()),
+                new Value(\ilDBConstants::T_INTEGER, $this->parent_obj_id),
+                new Value(\ilDBConstants::T_INTEGER, $this->position)
+            ]
+        );
+    }
+
+    private function buildInsertQuestionStatement(): Insert
+    {
+        return new Insert(
+            CoreTables::Questions->getColumns(),
+            [
+                new Value(\ilDBConstants::T_TEXT, $this->id->toString()),
+                new Value(\ilDBConstants::T_INTEGER, $this->page_id),
+                new Value(\ilDBConstants::T_TEXT, $this->title),
+                new Value(\ilDBConstants::T_TEXT, $this->author),
+                new Value(\ilDBConstants::T_TEXT, $this->lifecycle->value),
+                new Value(\ilDBConstants::T_TEXT, $this->remarks),
+                new Value(\ilDBConstants::T_TEXT, $this->original_id?->toString()),
+                new Value(\ilDBConstants::T_INTEGER, time()),
+                new Value(\ilDBConstants::T_INTEGER, time())
+            ]
+        );
+    }
+
+    private function buildUpdateLinkingStatement(): Update
+    {
+        $linking_table_definition = CoreTables::Linking;
+        return new Update(
+            $linking_table_definition->getColumns(
+                [CoreTables::LINKING_TABLE_ID_COLUMN]
+            ),
+            [
+                new Value(\ilDBConstants::T_INTEGER, $this->parent_obj_id),
+                new Value(\ilDBConstants::T_INTEGER, $this->position)
+            ],
+            [
+                new Where(
+                    $linking_table_definition->getIdColumn(),
+                    new Value(\ilDBConstants::T_TEXT, $this->id->toString())
+                )
+            ]
+        );
+    }
+
     private function buildUpdateQuestionStatement(): Update
     {
         $questions_table_definition = CoreTables::Questions;
@@ -420,6 +479,23 @@ class QuestionImplementation implements Question
                 new Where(
                     $questions_table_definition->getIdColumn(),
                     new Value(\ilDBConstants::T_TEXT, $this->id->toString())
+                )
+            ]
+        );
+    }
+
+    private function buildDeleteQuestionStatement(): Delete
+    {
+        $table_definition = CoreTables::Questions;
+        return new Delete(
+            $table_definition->getTable(),
+            [
+                new Where(
+                    $table_definition->getIdColumn(),
+                    new Value(
+                        \ilDBConstants::T_TEXT,
+                        $this->id->toString()
+                    )
                 )
             ]
         );

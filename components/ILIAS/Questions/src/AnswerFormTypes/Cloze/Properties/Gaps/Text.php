@@ -48,6 +48,31 @@ class Text extends Type
     }
 
     #[\Override]
+    public function getParticipantViewLegacyInput(
+        Gap $gap
+    ): string {
+        $gaptemplate = new \ilTemplate(
+            'tpl.il_as_qpl_cloze_question_gap_text.html',
+            true,
+            true,
+            'components/ILIAS/TestQuestionPool'
+        );
+
+        $gap_size = $gap->getMaxChars();
+        if ($gap_size > 0) {
+            $gaptemplate->setCurrentBlock('size_and_maxlength');
+            $gaptemplate->setVariable('TEXT_GAP_SIZE', $gap_size);
+            $gaptemplate->parseCurrentBlock();
+        }
+        $gaptemplate->setVariable(
+            'GAP_COUNTER',
+            $gap->getAnswerInputId()->toString()
+        );
+
+        return $gaptemplate->get();
+    }
+
+    #[\Override]
     public function getEditAnswerOptionsInputs(
         Gap $gap
     ): array {

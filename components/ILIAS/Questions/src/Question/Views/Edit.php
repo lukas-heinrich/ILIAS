@@ -25,7 +25,6 @@ use ILIAS\Questions\Presentation\Definitions\EnvironmentImplementation;
 use ILIAS\Questions\Question\Question;
 use ILIAS\Questions\Question\QuestionImplementation;
 use ILIAS\Questions\Question\Definitions\Lifecycle;
-use ILIAS\Data\Factory as DataFactory;
 use ILIAS\Language\Language;
 use ILIAS\UI\Factory as UIFactory;
 use ILIAS\UI\Component\Panel\Standard as StandardPanel;
@@ -45,7 +44,6 @@ class Edit
         private readonly Refinery $refinery,
         private readonly RequestInterface $request,
         private readonly \ilCtrl $ctrl,
-        private readonly DataFactory $data_factory,
         private readonly QuestionImplementation $question
     ) {
 
@@ -61,12 +59,13 @@ class Edit
     }
 
     public function edit(
-        EnvironmentImplementation $environment
+        EnvironmentImplementation $environment,
+        Participant $participant_view
     ): EditForm|Question {
         return match ($environment->getStep()) {
             self::CMD_SAVE_QUESTION => $this->processBasicPropertiesForm($environment),
             default => $this->buildBasicPropertiesForm($environment)->withContentAfterForm(
-                $this->buildPreviewPanel($environment)
+                $this->buildPreviewPanel($environment, $participant_view)
             )
         };
     }
@@ -148,12 +147,15 @@ class Edit
     }
 
     private function buildPreviewPanel(
-        EnvironmentImplementation $environment
+        EnvironmentImplementation $environment,
+        Participant $participant_view
     ): StandardPanel {
         $environment->setParametersForQuestionCmds();
         return $this->ui_factory->panel()->standard(
             $this->lng->txt('preview'),
-            $this->ui_factory->legacy()->content($this->question->getTitle())
+            $this->ui_factory->legacy()->content(
+                $participant_view->get($environment->getObjId())
+            )
         )->withActions(
             $this->ui_factory->dropdown()->standard([
                 $this->ui_factory->link()->standard(

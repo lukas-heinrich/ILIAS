@@ -41,13 +41,13 @@ class Edit implements EditViewInterface
 {
     private const string STEP_EDIT_BASIC_PROPERTIES = 'ebp';
     private const string STEP_CONFIRMED_GAP_REMOVAL = 'cgr';
-    public const string STEP_SET_GAP_TYPES = 'sgt';
-    public const string STEP_SET_ANSWER_OPTIONS = 'sao';
-    public const string STEP_SET_POINTS = 'sp';
+    private const string STEP_SET_GAP_TYPES = 'sgt';
+    public const string STEP_JUMP_TO_SET_GAP_TYPES = 'jsgt';
+    private const string STEP_SET_ANSWER_OPTIONS = 'sao';
+    public const string STEP_JUMP_TO_SET_ANSWER_OPTIONS = 'jsao';
+    private const string STEP_SET_POINTS = 'sp';
+    public const string STEP_JUMP_TO_SET_POINTS = 'jsp';
     private const string STEP_SAVE = 's';
-
-    public const array PARAMETER_NAMESPACE = ['c'];
-    public const string OVERVIEW_TABLE_ROW_ID = 'g';
 
     public function __construct(
         private readonly Language $lng,
@@ -64,9 +64,11 @@ class Edit implements EditViewInterface
     public function create(
         Environment $environment
     ): EditForm|Properties {
-        return match($environment->getStep()) {
+        $step = $environment->getStep();
+
+        return match($step) {
             '' => $this->buildBasicEditingForm($environment),
-            default => $this->callIntermediateStep($environment)
+            default => $this->callIntermediateStep($environment, $step)
         };
     }
 
@@ -74,14 +76,21 @@ class Edit implements EditViewInterface
     public function edit(
         Environment $environment
     ): EditOverview|EditForm|Properties {
-        return match ($environment->getStep()) {
-            '' => $environment->getPresentationFactory()->getEditOverview(
+        $step = $environment->getStep();
+
+        if ($step === '') {
+            return $environment->getPresentationFactory()->getEditOverview(
                 $environment,
                 $environment->getUrlBuilderWithStepParameter(self::STEP_EDIT_BASIC_PROPERTIES)
                     ->buildURI()
-            ),
+            );
+        }
+
+        $environment->setEditAnswerFormBackTarget();
+
+        return match ($step) {
             self::STEP_EDIT_BASIC_PROPERTIES => $this->buildBasicEditingForm($environment),
-            default => $this->callIntermediateStep($environment)
+            default => $this->callIntermediateStep($environment, $step)
         };
     }
 
@@ -93,39 +102,49 @@ class Edit implements EditViewInterface
     }
 
     private function callIntermediateStep(
-        Environment $environment
+        Environment $environment,
+        string $step
     ): EditForm|Properties {
-        $environment_with_properties = $environment->getAnswerFormProperties()->withValuesFromCarry(
-            $this->refinery,
-            $this->cloze_text_factory,
-            $this->gap_factory,
-            $environment->getPresentationFactory()->getCarrySectionData(
-                $this->http->wrapper()->post(),
-                $this->refinery
-            )
-        );
+        $initialized_environment = $environment->withPreservedTableRowIdsParameter();
 
-        return match ($environment->getStep()) {
+        if ($step !== self::STEP_JUMP_TO_SET_ANSWER_OPTIONS
+            && $step !== self::STEP_JUMP_TO_SET_ANSWER_OPTIONS
+            && $step !== self::STEP_JUMP_TO_SET_POINTS) {
+            $initialized_environment = $initialized_environment->withAnswerFormProperties(
+                $environment->getAnswerFormProperties()->withValuesFromCarry(
+                    $this->refinery,
+                    $this->cloze_text_factory,
+                    $this->gap_factory,
+                    $environment->getPresentationFactory()->getCarrySectionData(
+                        $this->http->wrapper()->post(),
+                        $this->refinery
+                    )
+                )
+            );
+        }
+
+        return match ($step) {
             self::STEP_SET_GAP_TYPES,
             self::STEP_CONFIRMED_GAP_REMOVAL => $this->processBasicEditingForm(
-                $environment->withAnswerFormProperties(
-                    $environment_with_properties
-                )
+                $initialized_environment
+            ),
+            self::STEP_JUMP_TO_SET_GAP_TYPES => $this->buildGapTypesForm(
+                $initialized_environment
             ),
             self::STEP_SET_ANSWER_OPTIONS => $this->processGapTypesForm(
-                $environment->withAnswerFormProperties(
-                    $environment_with_properties
-                )
+                $initialized_environment
+            ),
+            self::STEP_JUMP_TO_SET_ANSWER_OPTIONS => $this->buildAnswerOptionsForm(
+                $initialized_environment
             ),
             self::STEP_SET_POINTS => $this->processAnswerOptionsForm(
-                $environment->withAnswerFormProperties(
-                    $environment_with_properties
-                )
+                $initialized_environment
+            ),
+            self::STEP_JUMP_TO_SET_POINTS => $this->buildAssignPointsForm(
+                $initialized_environment
             ),
             self::STEP_SAVE => $this->processAssignPointsForm(
-                $environment->withAnswerFormProperties(
-                    $environment_with_properties
-                )
+                $initialized_environment
             )
         };
     }
@@ -193,7 +212,8 @@ class Edit implements EditViewInterface
                 $this->lng,
                 $ff,
                 $this->refinery,
-                $this->gap_factory->getAvailableGapTypesOptionsArray($this->lng)
+                $this->gap_factory->getAvailableGapTypesOptionsArray($this->lng),
+                $environment->getTableRowIds()
             ),
             false,
             $properties->withClozeText($properties->getClozeText())
@@ -227,7 +247,12 @@ class Edit implements EditViewInterface
         $ff = $this->ui_factory->input()->field();
         return $environment->getPresentationFactory()->getEditForm(
             $environment->getUrlBuilderWithStepParameter(self::STEP_SET_POINTS),
-            $properties->getGaps()->buildAnswerOptionsInputs($this->lng, $ff, $this->refinery),
+            $properties->getGaps()->buildAnswerOptionsInputs(
+                $this->lng,
+                $ff,
+                $this->refinery,
+                $environment->getTableRowIds()
+            ),
             false,
             $properties->buildCarryInputs($ff)
         )->withContentBeforeForm(
@@ -259,7 +284,12 @@ class Edit implements EditViewInterface
         $ff = $this->ui_factory->input()->field();
         return $environment->getPresentationFactory()->getEditForm(
             $environment->getUrlBuilderWithStepParameter(self::STEP_SAVE),
-            $properties->getGaps()->buildPointInputs($this->lng, $ff, $this->refinery),
+            $properties->getGaps()->buildPointInputs(
+                $this->lng,
+                $ff,
+                $this->refinery,
+                $environment->getTableRowIds()
+            ),
             true,
             $properties->buildCarryInputs($ff)
         )->withContentBeforeForm(

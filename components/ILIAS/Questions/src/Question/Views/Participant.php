@@ -20,7 +20,7 @@ declare(strict_types=1);
 
 namespace ILIAS\Questions\Question\Views;
 
-use ILIAS\Questions\Question\Question;
+use ILIAS\Questions\Question\QuestionImplementation;
 
 class Participant
 {
@@ -30,7 +30,7 @@ class Participant
     private bool $show_correct_solution = false;
 
     public function __construct(
-        private readonly Question $question
+        private readonly QuestionImplementation $question
     ) {
     }
 
@@ -81,5 +81,33 @@ class Participant
         $clone = clone $this;
         $clone->show_correct_solution = $show_correct_solution;
         return $clone;
+    }
+
+    public function get(
+        int $obj_id
+    ): string {
+        $tpl = new \ilTemplate(
+            'tpl.qpl_question_preview.html',
+            true,
+            true,
+            'components/ILIAS/TestQuestionPool'
+        );
+
+        $tpl->setVariable(
+            'PREVIEW_FORMACTION',
+            ''
+        );
+
+        $question_page = new \QstsQuestionPageGUI(
+            $this->question,
+            $obj_id
+        );
+        $question_page->setPresentationTitle($this->question->getTitle());
+
+        $tpl->setVariable(
+            'QUESTION_OUTPUT',
+            $question_page->presentation()
+        );
+        return $tpl->get();
     }
 }

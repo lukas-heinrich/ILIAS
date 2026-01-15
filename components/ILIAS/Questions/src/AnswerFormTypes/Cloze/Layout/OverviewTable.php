@@ -91,18 +91,18 @@ class OverviewTable implements DataRetrieval
         return [
             'edit_gaps' => $this->table_factory->action()->standard(
                 $this->lng->txt('edit_gaps'),
-                ...$this->environment->getUrlBuilderWithStepParameter(Edit::STEP_SET_GAP_TYPES)
-                    ->acquireParameter(Edit::PARAMETER_NAMESPACE, Edit::OVERVIEW_TABLE_ROW_ID)
+                $this->environment->getUrlBuilderWithStepParameter(Edit::STEP_JUMP_TO_SET_GAP_TYPES),
+                $this->environment->getTableRowIdToken()
             ),
             'edit_answer_options' => $this->table_factory->action()->standard(
                 $this->lng->txt('edit_answer_options'),
-                ...$this->environment->getUrlBuilderWithStepParameter(Edit::STEP_SET_ANSWER_OPTIONS)
-                    ->acquireParameter(Edit::PARAMETER_NAMESPACE, Edit::OVERVIEW_TABLE_ROW_ID)
+                $this->environment->getUrlBuilderWithStepParameter(Edit::STEP_JUMP_TO_SET_ANSWER_OPTIONS),
+                $this->environment->getTableRowIdToken()
             ),
             'edit_points' => $this->table_factory->action()->standard(
                 $this->lng->txt('edit_available_points'),
-                ...$this->environment->getUrlBuilderWithStepParameter(Edit::STEP_SET_POINTS)
-                    ->acquireParameter(Edit::PARAMETER_NAMESPACE, Edit::OVERVIEW_TABLE_ROW_ID)
+                $this->environment->getUrlBuilderWithStepParameter(Edit::STEP_JUMP_TO_SET_POINTS),
+                $this->environment->getTableRowIdToken()
             )
         ];
     }

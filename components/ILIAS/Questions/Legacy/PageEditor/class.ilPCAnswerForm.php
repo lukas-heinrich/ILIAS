@@ -18,10 +18,13 @@
 
 declare(strict_types=1);
 
+use ILIAS\Questions\AnswerForm\Properties as AnswerFormProperties;
 use ILIAS\Questions\Legacy\LocalDIC;
 use ILIAS\Questions\Persistence\Repository;
-use ILIAS\Data\UUID\Factory as UuidFactory;
 use ILIAS\Data\UUID\Uuid;
+use ILIAS\Language\Language;
+use ILIAS\UI\Factory as UIFactory;
+use ILIAS\UI\Renderer as UIRenderer;
 
 class ilPCAnswerForm extends ilPageContent
 {
@@ -50,27 +53,22 @@ class ilPCAnswerForm extends ilPageContent
             return $output;
         }
 
-        /** @var \ILIAS\Questions\Question\QuestionImplementation $question */
+        global $DIC;
+        $ui_factory = $DIC['ui.factory'];
+        $ui_renderer = $DIC['ui.renderer'];
+        $lng = $DIC['lng'];
         $question = $this->pg_obj->getQuestion();
 
         return mb_ereg_replace_callback(
             self::ANSWER_FORM_PLACEHOLDER,
-            fn(array $matches): string => $question
-                ->getAnswerFormPropertiesByIdString($matches[1])?->getTypeGenericProperties()
-                ->getAdditionalText() ?? '',
+            fn(array $matches): string => $this->renderAnswerForm(
+                $ui_factory,
+                $ui_renderer,
+                $lng,
+                $question->getAnswerFormPropertiesByIdString($matches[1])
+            ),
             $output
         );
-    }
-
-    #[\Override]
-    public function getCssFiles(
-        string $a_mode
-    ): array {
-        if ($this->getPage()->getPageConfig()->getEnableSelfAssessment()) {
-            return array("./components/ILIAS/TestQuestionPool/resources/js/dist/question_handling.css",
-                "components/ILIAS/TestQuestionPool/templates/default/test_javascript.css");
-        }
-        return array();
     }
 
     #[\Override]
@@ -173,5 +171,26 @@ class ilPCAnswerForm extends ilPageContent
     {
         return $this->getChildNode()->attributes
                 ->getNamedItem(self::ANSWER_FORM_ID_ATTRIBUTE)->nodeValue;
+    }
+
+    private function renderAnswerForm(
+        UIFactory $ui_factory,
+        UIRenderer $ui_renderer,
+        Language $lng,
+        ?AnswerFormProperties $answer_form_properties,
+    ): string {
+        if ($answer_form_properties === null) {
+            return $lng->txt('broken_answer_form');
+        }
+
+        return $ui_renderer->render(
+            $ui_factory->legacy()->latexContent(
+                $answer_form_properties->getDefinition()->getParticipantView()
+                    ->get(
+                        $answer_form_properties,
+                        null
+                    )
+            )
+        );
     }
 }

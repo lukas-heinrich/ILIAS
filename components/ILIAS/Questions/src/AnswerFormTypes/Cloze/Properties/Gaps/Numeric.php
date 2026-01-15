@@ -48,6 +48,25 @@ class Numeric extends Type
     }
 
     #[\Override]
+    public function getParticipantViewLegacyInput(
+        Gap $gap
+    ): string {
+        $gaptemplate = new \ilTemplate(
+            'tpl.il_as_qpl_cloze_question_gap_numeric.html',
+            true,
+            true,
+            'components/ILIAS/TestQuestionPool'
+        );
+
+        $gaptemplate->setVariable(
+            'GAP_COUNTER',
+            $gap->getAnswerInputId()->toString()
+        );
+
+        return $gaptemplate->get();
+    }
+
+    #[\Override]
     public function getEditAnswerOptionsInputs(
         Gap $gap
     ): array {

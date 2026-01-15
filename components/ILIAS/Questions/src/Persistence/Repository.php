@@ -38,10 +38,12 @@ class Repository
     ) {
     }
 
-    public function getNew(): QuestionImplementation
-    {
+    public function getNew(
+        int $parent_obj_id
+    ): QuestionImplementation {
         return new QuestionImplementation(
-            $this->buildAvailableUuid()
+            $this->buildAvailableUuid(),
+            $parent_obj_id
         );
     }
 
@@ -118,7 +120,7 @@ class Repository
         $this->store(
             array_map(
                 fn(QuestionImplementation $v): QuestionImplementation => $v
-                    ->withPageId($this->buildQuestionPage()),
+                    ->withPageId($this->buildQuestionPage($v->getParentObjId())),
                 $questions
             ),
             new Manipulate(
@@ -157,6 +159,10 @@ class Repository
                 ManipulationType::Delete
             )
         )->run();
+
+        foreach ($questions as $question) {
+            (new \QstsQuestionPage($question->getPageId()))->delete();
+        }
     }
 
     /**
@@ -186,11 +192,18 @@ class Repository
         Query $query,
         array $answer_forms
     ): QuestionImplementation {
+        $linking_info = $query->retrieveCurrentRecord(
+            CoreTables::Linking->getTable(),
+            $this->refinery->identity()
+        );
+
         return $query->retrieveCurrentRecord(
             CoreTables::Questions->getTable(),
             $this->refinery->custom()->transformation(
                 fn(array $vs): QuestionImplementation => new QuestionImplementation(
                     $this->uuid_factory->fromString($vs[0]['id']),
+                    $linking_info[0]['obj_id'],
+                    $linking_info[0]['position'],
                     $vs[0]['page_id'],
                     $vs[0]['title'],
                     $vs[0]['author'],
@@ -273,10 +286,12 @@ class Repository
         )->cnt === 0;
     }
 
-    private function buildQuestionPage(): int
-    {
+    private function buildQuestionPage(
+        int $parent_obj_id
+    ): int {
         $page = new \QstsQuestionPage();
         $page->setId($this->getNextAvailableQuestionPageId());
+        $page->setParentId($parent_obj_id);
         $page->createFromXML();
         return $page->getId();
     }

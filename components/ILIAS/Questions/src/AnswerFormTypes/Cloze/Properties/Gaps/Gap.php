@@ -285,24 +285,28 @@ class Gap
         return self::GAP_PLACEHOLDER_NAME . '_' . $this->getAnswerInputId()->toString();
     }
 
+    public function buildParticipantViewLegacyInput(): string
+    {
+        return $this->type->getParticipantViewLegacyInput($this);
+    }
+
     public function getEditAnswerOptionsSection(
         Language $lng,
         FieldFactory $ff
     ): Section {
-        $type = $this->getType();
         $section = $ff->section(
-            $type->getEditAnswerOptionsInputs($this),
-            "{$this->buildShortenedGapName()} ({$lng->txt("{$type->getIdentifier()}_gap")})"
+            $this->getType()->getEditAnswerOptionsInputs($this),
+            "{$this->buildShortenedGapName()} ({$lng->txt("{$this->getType()->getIdentifier()}_gap")})"
         );
 
-        $edit_section_constraint = $type->getEditAnswerOptionsSectionConstraint();
+        $edit_section_constraint = $this->getType()->getEditAnswerOptionsSectionConstraint();
         if ($edit_section_constraint !== null) {
             $section = $section->withAdditionalTransformation($edit_section_constraint);
         }
 
 
         return $section->withAdditionalTransformation(
-            $type->getBuildGapTransformation($this)
+            $this->getType()->getBuildGapTransformation($this)
         );
     }
 

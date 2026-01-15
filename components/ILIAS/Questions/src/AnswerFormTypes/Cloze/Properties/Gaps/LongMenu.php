@@ -28,6 +28,7 @@ use ILIAS\Refinery\Factory as Refinery;
 use ILIAS\Refinery\Constraint;
 use ILIAS\Refinery\Transformation;
 use ILIAS\UI\Factory as UIFactory;
+use ILIAS\UICore\GlobalTemplate;
 
 class LongMenu extends Type
 {
@@ -37,7 +38,8 @@ class LongMenu extends Type
     public function __construct(
         Refinery $refinery,
         private readonly Language $lng,
-        private readonly UIFactory $ui_factory
+        private readonly UIFactory $ui_factory,
+        private readonly GlobalTemplate $global_tpl
     ) {
         parent::__construct($refinery);
     }
@@ -46,6 +48,36 @@ class LongMenu extends Type
     public function getIdentifier(): string
     {
         return 'long_menu';
+    }
+
+    #[\Override]
+    public function getParticipantViewLegacyInput(
+        Gap $gap
+    ): string {
+        $answer_input_id = $gap->getAnswerInputId()->toString();
+        $gaptemplate = new \ilTemplate(
+            'tpl.il_as_qpl_longmenu_question_text_gap.html',
+            true,
+            true,
+            'components/ILIAS/TestQuestionPool'
+        );
+
+        $gaptemplate->setVariable(
+            'KEY',
+            $answer_input_id
+        );
+
+        $this->global_tpl->addOnLoadCode('il.test.player.longmenu.init('
+            . "document.querySelector('input[name=\"answer[{$answer_input_id}]\"]'), "
+            . "{$gap->getMinAutocomplete()}, "
+            . json_encode(
+                array_values(
+                    $gap->getAnswerOptions()->buildArrayForInput(
+                        $this->refinery->random()->dontShuffle()
+                    )
+                )
+            ) . ')');
+        return $gaptemplate->get();
     }
 
     #[\Override]
@@ -73,9 +105,11 @@ class LongMenu extends Type
             )
             ->withRequired(true)
             ->withValue(
-                array_map(
-                    fn(AnswerOption $v): string => $v->getTextValue(),
-                    $gap->getAnswerOptions()->getAnswerOptionsAwardingPoints()
+                array_values(
+                    array_map(
+                        fn(AnswerOption $v): string => $v->getTextValue(),
+                        $gap->getAnswerOptions()->getAnswerOptionsAwardingPoints()
+                    )
                 )
             )
         ];

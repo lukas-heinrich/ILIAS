@@ -76,12 +76,21 @@ class Text
         return $this->cloze_text->getRawRepresentation();
     }
 
+    public function getRenderedMarkdownForParticipantPresentation(): string
+    {
+        return $this->refinery->string()->markdown()->toHTML()->transform(
+            $this->cloze_text->getRawRepresentation()
+        );
+    }
+
     public function getRenderedMarkdownForEditingPresentation(
         Gaps $gaps
     ): string {
         return $this->mustache_engine->render(
-            $this->cloze_text->getRawRepresentation(),
-            $gaps->getPlaceholderArrayForPreview()
+            $this->refinery->string()->markdown()->toHTML()->transform(
+                $this->cloze_text->getRawRepresentation()
+            ),
+            $gaps->getPlaceholderArrayForEditFormPanel()
         );
     }
 

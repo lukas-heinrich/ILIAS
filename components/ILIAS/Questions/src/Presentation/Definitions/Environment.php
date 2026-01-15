@@ -23,9 +23,18 @@ namespace ILIAS\Questions\Presentation\Definitions;
 use ILIAS\Questions\AnswerForm\Properties;
 use ILIAS\Questions\Presentation\Layout\Factory;
 use ILIAS\UI\URLBuilder;
+use ILIAS\UI\URLBuilderToken;
 
 interface Environment
 {
+    public function setEditAnswerFormBackTarget(): void;
+
+    public function addEditAnswerFormSubTab(
+        string $id,
+        string $text,
+        string $step
+    ): void;
+
     public function getPresentationFactory(): Factory;
 
     public function getUrlBuilder(): URLBuilder;
@@ -33,6 +42,10 @@ interface Environment
     public function getUrlBuilderWithStepParameter(
         string $step
     ): URLBuilder;
+
+    public function getTableRowIdToken(): URLBuilderToken;
+
+    public function getTableRowIds(): array;
 
     public function getStep(): string;
 
@@ -45,4 +58,6 @@ interface Environment
     public function withAnswerFormProperties(
         Properties $properties
     ): self;
+
+    public function withPreservedTableRowIdsParameter(): self;
 }

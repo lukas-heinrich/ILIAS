@@ -21,7 +21,6 @@ declare(strict_types=1);
 namespace ILIAS\Questions\AnswerFormTypes\Cloze\Properties;
 
 use ILIAS\Questions\AnswerForm\TypeGenericProperties;
-use ILIAS\Questions\AnswerFormTypes\Cloze\Definition;
 use ILIAS\Questions\AnswerFormTypes\Cloze\Properties\ClozeText\Factory as ClozeTextFactory;
 use ILIAS\Questions\AnswerFormTypes\Cloze\Properties\ClozeText\Text as ClozeText;
 use ILIAS\Questions\AnswerFormTypes\Cloze\Properties\Definitions\ScoringIdentical;
@@ -45,6 +44,7 @@ class Factory
             return new Properties(
                 $type_generic_properties->getAnswerFormId(),
                 $type_generic_properties->getQuestionId(),
+                $type_generic_properties->getDefinition(),
                 $this->cloze_text_factory->buildFromTextString(
                     $type_generic_properties->getAdditionalText()
                 ),
@@ -60,7 +60,7 @@ class Factory
             'combinations_activated' => $combinations_activated
         ] = $query->retrieveCurrentRecord(
             TableTypes::TypeSpecificAnswerForms->getTable(
-                $query->getTableNameBuilder(Definition::class)
+                $query->getTableNameBuilder($type_generic_properties->getDefinition()::class)
             ),
             $query->getRefinery()->custom()->transformation(
                 fn(array $vs): array => [
@@ -73,6 +73,7 @@ class Factory
         return new Properties(
             $type_generic_properties->getAnswerFormId(),
             $type_generic_properties->getQuestionId(),
+            $type_generic_properties->getDefinition(),
             $this->cloze_text_factory->buildFromTextString(
                 $type_generic_properties->getAdditionalText()
             ),

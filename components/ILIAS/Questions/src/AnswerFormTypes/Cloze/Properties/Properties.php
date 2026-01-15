@@ -65,18 +65,13 @@ class Properties implements PropertiesInterface
     public function __construct(
         private readonly Uuid $answer_form_id,
         private readonly Uuid $question_id,
+        private readonly Definition $definition,
         private Text $cloze_text,
         private readonly string $legacy_cloze_text,
         private Gaps $gaps,
         private ScoringIdentical $scoring_identical = ScoringIdentical::ScoreAll,
         private bool $combinations_enabled = false
     ) {
-    }
-
-    #[\Override]
-    public function getDefinitionClass(): string
-    {
-        return Definition::class;
     }
 
     #[\Override]
@@ -92,12 +87,18 @@ class Properties implements PropertiesInterface
     }
 
     #[\Override]
+    public function getDefinition(): Definition
+    {
+        return $this->definition;
+    }
+
+    #[\Override]
     public function getTypeGenericProperties(): TypeGenericProperties
     {
         return new TypeGenericProperties(
             $this->answer_form_id,
             $this->question_id,
-            Definition::class,
+            $this->definition,
             null,
             null,
             null,
@@ -122,6 +123,13 @@ class Properties implements PropertiesInterface
     public function getLegacyClozeText(): string
     {
         return $this->legacy_cloze_text;
+    }
+
+    public function getClozeTextForPresentation(): string
+    {
+        return $this->cloze_text === null
+            ? $this->legacy_cloze_text
+            : $this->cloze_text->getRenderedMarkdownForParticipantPresentation();
     }
 
     public function getScoringOfIdenticalResponses(): ScoringIdentical
@@ -231,7 +239,8 @@ class Properties implements PropertiesInterface
     ): Group {
         return $ff->group(
             [
-                self::FORM_KEY_ID => $ff->hidden()->withValue($this->answer_form_id->toString()),
+                self::FORM_KEY_ID => $ff->hidden()->withValue($this->answer_form_id->toString())
+                    ->withDedicatedName(self::FORM_KEY_ID),
                 self::FORM_KEY_CLOZE_TEXT => $this->getClozeText()->getCarryInputs($ff)
                     ->withDedicatedName(self::FORM_KEY_CLOZE_TEXT),
                 self::FORM_KEY_GAPS_TO_EDIT => $this->gaps->getCarryInputs($ff)
@@ -303,8 +312,13 @@ class Properties implements PropertiesInterface
     public function toStorage(
         Manipulate $manipulate
     ): Manipulate {
-        $persistence = $manipulate->getPersistenceForDefinitionClass(Definition::class);
-        $table_name_builder = $manipulate->getTableNameBuilder(Definition::class);
+        $persistence = $manipulate->getPersistenceForDefinitionClass(
+            $this->definition::class
+        );
+
+        $table_name_builder = $manipulate->getTableNameBuilder(
+            $this->definition::class
+        );
 
         $answer_form_statement = $manipulate->getManipulationType() === ManipulationType::Create
             ? $this->buildInsertAnswerFormStatement(
@@ -328,8 +342,13 @@ class Properties implements PropertiesInterface
     public function toDelete(
         Manipulate $manipulate
     ): Manipulate {
-        $persistence = $manipulate->getPersistenceForDefinitionClass(Definition::class);
-        $table_name_builder = $manipulate->getTableNameBuilder(Definition::class);
+        $persistence = $manipulate->getPersistenceForDefinitionClass(
+            $this->definition::class
+        );
+
+        $table_name_builder = $manipulate->getTableNameBuilder(
+            $this->definition::class
+        );
 
         return $this->gaps->toDelete(
             $manipulate->withAdditionalStatement(

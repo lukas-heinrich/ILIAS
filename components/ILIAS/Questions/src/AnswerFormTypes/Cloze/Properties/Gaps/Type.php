@@ -34,6 +34,10 @@ abstract class Type
 
     abstract public function getIdentifier(): string;
 
+    abstract public function getParticipantViewLegacyInput(
+        Gap $gap
+    ): string;
+
     abstract public function getEditAnswerOptionsInputs(
         Gap $gap
     ): array;

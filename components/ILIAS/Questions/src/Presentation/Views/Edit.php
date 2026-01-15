@@ -35,9 +35,9 @@ use ILIAS\Questions\AnswerForm\TypeGenericProperties;
 use ILIAS\Questions\AnswerForm\Views\Edit as AnswerFormEditView;
 use ILIAS\Questions\Persistence\Repository;
 use ILIAS\Questions\Question\QuestionImplementation;
-use ILIAS\Data\Factory as DataFactory;
 use ILIAS\Data\URI;
 use ILIAS\Data\UUID\Factory as UuidFactory;
+use ILIAS\UICore\GlobalTemplate;
 use ILIAS\Language\Language;
 use ILIAS\Refinery\Factory as Refinery;
 use ILIAS\HTTP\Services as HTTP;
@@ -46,6 +46,7 @@ use ILIAS\UI\Renderer as UIRenderer;
 use ILIAS\UI\Component\Item\Standard as StandardItem;
 use ILIAS\UI\Component\Item\Group as ItemGroup;
 use ILIAS\UI\Component\MainControls\Slate\Legacy as LegacySlate;
+use ILIAS\Style\Content\Service as ContentStyle;
 use ILIAS\GlobalScreen\Services as GlobalScreen;
 
 class Edit
@@ -55,6 +56,8 @@ class Edit
     public const string CMD_DELETE_QUESTION = 'delete';
     private const string CMD_CREATE_ANSWER_FORM = 'create_af';
     private const string CMD_EDIT_ANSWER_FORM = 'edit_af';
+    private const string CMD_EDIT_FEEDBACK = 'edit_f';
+    private const string CMD_EDIT_CONTENT_FOR_REPETITION = 'edit_cfr';
 
     private array $required_capabilities = [];
     private Editability $editability = Editability::Full;
@@ -67,10 +70,12 @@ class Edit
         private readonly UIFactory $ui_factory,
         private readonly UIRenderer $ui_renderer,
         private readonly GlobalScreen $global_screen,
+        private readonly GlobalTemplate $global_tpl,
+        private readonly ContentStyle $content_style,
         private readonly \ilCtrl $ctrl,
         private readonly HTTP $http,
+        private readonly \ilTabsGUI $tabs_gui,
         private readonly \ilUIService $ui_services,
-        private readonly DataFactory $data_factory,
         private readonly UuidFactory $uuid_factory,
         private readonly AnswerFormFactory $answer_form_factory,
         private readonly Repository $questions_repository,
@@ -105,9 +110,20 @@ class Edit
 
     public function view(
         \ilToolbarGUI $toolbar,
-        URI $base_uri
+        URI $base_uri,
+        int $obj_id,
+        int $ref_id
     ): Async|QuestionsTable|EditForm {
-        $environment = $this->buildEnvironment($base_uri);
+        $this->content_style->gui()->addCss(
+            $this->global_tpl,
+            $ref_id
+        );
+
+        $environment = $this->buildEnvironment(
+            $base_uri,
+            $obj_id
+        );
+
         return match($environment->getAction()) {
             self::CMD_CREATE_QUESTION => $this->createQuestion($environment),
             self::CMD_EDIT_QUESTION => $this->editQuestion($environment),
@@ -119,20 +135,34 @@ class Edit
     public function forwardPageCmds(
         \ilGlobalTemplateInterface $tpl,
         URI $base_uri,
+        int $obj_id,
+        int $ref_id
     ): void {
-        $environment = $this->buildEnvironment($base_uri);
+        $environment = $this->buildEnvironment(
+            $base_uri,
+            $obj_id
+        );
         $this->initializeEditMode($environment);
         $environment->setParametersForQuestionCmds();
+
+        $this->content_style->gui()->addCss(
+            $tpl,
+            $ref_id
+        );
 
         $tpl->setContent(
             $this->ctrl->forwardCommand(
                 new \QstsQuestionPageGUI(
+                    $this->questions_repository->getForQuestionId(
+                        $environment->getQuestionId()
+                    ),
+                    $obj_id
+                )->withReturnURI(
                     $environment
-                        ->withActionParameter(self::CMD_EDIT_QUESTION)
-                        ->withQuestionIdParameter($environment->getQuestionId())
-                        ->getUrlBuilder()
-                        ->buildURI(),
-                    $this->questions_repository->getForQuestionId($environment->getQuestionId())
+                            ->withActionParameter(self::CMD_EDIT_QUESTION)
+                            ->withQuestionIdParameter($environment->getQuestionId())
+                            ->getUrlBuilder()
+                            ->buildURI()
                 )
             )
         );
@@ -140,12 +170,15 @@ class Edit
 
     public function createAnswerForm(
         URI $base_uri,
+        int $obj_id,
         QuestionImplementation $question,
         \ilPCAnswerForm $content_object
     ): EditForm {
-        $environment = $this->buildEnvironment($base_uri)
-            ->withActionParameter(self::CMD_CREATE_ANSWER_FORM)
-            ->withQuestionIdParameter($question->getId());
+        $environment = $this->buildEnvironment(
+            $base_uri,
+            $obj_id
+        )->withActionParameter(self::CMD_CREATE_ANSWER_FORM)
+        ->withQuestionIdParameter($question->getId());
 
         $answer_form_type_class_hash = $environment->getTypeClassHast();
 
@@ -181,14 +214,22 @@ class Edit
 
     public function editAnswerForm(
         URI $base_uri,
+        int $obj_id,
         QuestionImplementation $question,
         AnswerFormProperties $answer_form_properties,
         Definition $type
     ): Async|EditForm|EditOverview {
-        $environment = $this->buildEnvironment($base_uri)
-            ->withAnswerFormProperties($answer_form_properties)
-            ->withActionParameter(self::CMD_EDIT_ANSWER_FORM)
-            ->withQuestionIdParameter($question->getId());
+        $environment = $this->buildEnvironment(
+            $base_uri,
+            $obj_id
+        )->withAnswerFormProperties($answer_form_properties)
+        ->withActionParameter(self::CMD_EDIT_ANSWER_FORM)
+        ->withQuestionIdParameter($question->getId());
+
+        $environment->setEditAnswerFormTabs(
+            self::CMD_EDIT_FEEDBACK,
+            self::CMD_EDIT_CONTENT_FOR_REPETITION
+        );
 
         $edit = $type->getEditView()->edit($environment);
 
@@ -208,14 +249,15 @@ class Edit
     ): EditForm {
         $this->initializeEditMode($environment);
 
-        $create = $this->questions_repository->getNew()->getEditView(
+        $create = $this->questions_repository->getNew(
+            $environment->getObjId()
+        )->getEditView(
             $this->lng,
             $this->current_user,
             $this->ui_factory,
             $this->refinery,
             $this->http->request(),
-            $this->ctrl,
-            $this->data_factory
+            $this->ctrl
         )->create(
             $environment->withActionParameter(self::CMD_CREATE_QUESTION)
         );
@@ -243,19 +285,21 @@ class Edit
         $this->initializeEditMode($environment);
 
         $question_id = $environment->getQuestionId();
+        $question = $this->questions_repository->getForQuestionId($question_id);
+        $environment_with_question_parameter = $environment
+            ->withQuestionIdParameter($question_id);
 
-        $edit = $this->questions_repository->getForQuestionId($question_id)->getEditView(
+        $edit = $question->getEditView(
             $this->lng,
             $this->current_user,
             $this->ui_factory,
             $this->refinery,
             $this->http->request(),
-            $this->ctrl,
-            $this->data_factory
+            $this->ctrl
         )->edit(
-            $environment
-                ->withActionParameter(self::CMD_EDIT_QUESTION)
-                ->withQuestionIdParameter($question_id)
+            $environment_with_question_parameter
+                ->withActionParameter(self::CMD_EDIT_QUESTION),
+            $question->getParticipantView()
         );
 
         if ($edit instanceof EditForm) {
@@ -264,10 +308,9 @@ class Edit
 
         $this->questions_repository->update([$edit]);
         return $this->buildEditStartView(
-            $environment
+            $environment_with_question_parameter
                 ->withDefaultStep()
-                ->withActionParameter(self::CMD_EDIT_QUESTION)
-                ->withQuestionIdParameter($question_id),
+                ->withActionParameter(self::CMD_EDIT_QUESTION),
             $edit
         );
     }
@@ -384,14 +427,6 @@ class Edit
         $this->ctrl->redirectByClass(\QstsQuestionPageGUI::class, 'edit');
     }
 
-    private function forwardEditAnswerFormCmd(
-        EnvironmentImplementation $environment,
-        QuestionImplementation $question,
-        AnswerFormEditView $answer_form_edit_view
-    ): EditForm|EditOverview|Async|null {
-
-    }
-
     private function initializeEditMode(
         EnvironmentImplementation $environment
     ): void {
@@ -462,9 +497,11 @@ class Edit
             $this->ui_factory,
             $this->refinery,
             $this->http->request(),
-            $this->ctrl,
-            $this->data_factory
-        )->edit($environment);
+            $this->ctrl
+        )->edit(
+            $environment,
+            $question->getParticipantView()
+        );
     }
 
     private function buildCreateAnswerForm(
@@ -525,16 +562,20 @@ class Edit
     }
 
     public function buildEnvironment(
-        URI $base_uri
+        URI $base_uri,
+        int $obj_id
     ): EnvironmentImplementation {
         return new EnvironmentImplementation(
             $this->ctrl,
             $this->http,
             $this->refinery,
+            $this->lng,
+            $this->tabs_gui,
             $this->uuid_factory,
             $this->definitions_factory,
             $this->editability,
-            $base_uri
+            $base_uri,
+            $obj_id
         );
     }
 }

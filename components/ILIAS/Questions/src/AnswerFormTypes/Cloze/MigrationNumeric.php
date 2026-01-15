@@ -18,17 +18,23 @@
 
 declare(strict_types=1);
 
-namespace ILIAS\Questions\AnswerForm\Views;
+namespace ILIAS\Questions\AnswerFormTypes\Cloze;
 
-use ILIAS\Questions\AnswerForm\Properties;
-use ILIAS\Questions\Response\Response;
+use ILIAS\Questions\AnswerForm\Migration;
+use ILIAS\Questions\Persistence\Manipulate;
 
-interface Participant
+class MigrationNumeric implements Migration
 {
-    public function isAsyncPresentationAvailable(): bool;
+    #[\Override]
+    public function getOldQuestionIdentifier(): string
+    {
+        return 'assNumeric';
+    }
 
-    public function get(
-        Properties $properties,
-        ?Response $response
-    ): string;
+    #[\Override]
+    public function toStorage(
+        Manipulate $manipulate
+    ): Manipulate {
+
+    }
 }

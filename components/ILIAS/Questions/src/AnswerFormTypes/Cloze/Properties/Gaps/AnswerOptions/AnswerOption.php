@@ -130,7 +130,7 @@ class AnswerOption
             $values[self::FORM_KEY_UPPER_LIMIT] = (string) $this->getUpperLimit();
         }
 
-        if ($this->getUpperLimit() !== null) {
+        if ($this->getAvailablePoints() !== null) {
             $values[self::FORM_KEY_AVAILABLE_POINTS] = (string) $this->getAvailablePoints();
         }
 

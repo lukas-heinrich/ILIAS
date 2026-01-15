@@ -38,6 +38,7 @@ use ILIAS\UI\Component\Input\Field\Factory as FieldFactory;
 use ILIAS\UI\Component\Input\Field\Section;
 use ILIAS\UI\Component\Input\Field\Group;
 use ILIAS\UI\Component\Table\DataRowBuilder;
+use ILIAS\UICore\GlobalTemplate;
 
 class Gaps
 {
@@ -142,12 +143,24 @@ class Gaps
         return array_diff_key($this->gaps, $old_gaps->gaps);
     }
 
-    public function getPlaceholderArrayForPreview(): array
+    public function getPlaceholderArrayForParticipantView(): array
     {
         return array_reduce(
             $this->gaps,
             function (array $c, Gap $v): array {
-                $c[$v->buildGapPlaceholderNameWithId($v)] = $v->buildShortenedGapRepresentation($v);
+                $c[$v->buildGapPlaceholderNameWithId($v)] = $v->buildParticipantViewLegacyInput();
+                return $c;
+            },
+            []
+        );
+    }
+
+    public function getPlaceholderArrayForEditFormPanel(): array
+    {
+        return array_reduce(
+            $this->gaps,
+            function (array $c, Gap $v): array {
+                $c[$v->buildGapPlaceholderNameWithId($v)] = $v->buildShortenedGapRepresentation();
                 return $c;
             },
             []
@@ -158,11 +171,14 @@ class Gaps
         Language $lng,
         FieldFactory $ff,
         Refinery $refinery,
-        array $available_gap_types
+        array $available_gap_types,
+        array $selected_gaps
     ): Section {
         return $ff->section(
             array_reduce(
-                $this->getUndefinedGaps(),
+                $selected_gaps !== []
+                    ? $this->filterGapsBySelected($selected_gaps)
+                    : $this->getUndefinedGaps(),
                 function (array $c, Gap $v) use ($ff, $available_gap_types): array {
                     $c[$v->getAnswerInputId()->toString()] = $ff->select(
                         $v->buildShortenedGapName(),
@@ -191,16 +207,15 @@ class Gaps
     public function buildAnswerOptionsInputs(
         Language $lng,
         FieldFactory $ff,
-        Refinery $refinery
+        Refinery $refinery,
+        array $selected_gaps
     ): Section {
         return $ff->section(
             array_reduce(
-                $this->gaps,
+                $selected_gaps !== []
+                    ? $this->filterGapsBySelected($selected_gaps)
+                    : $this->getGapsWithIncompleteAnswerOptions(),
                 function (array $c, Gap $v) use ($lng, $ff): array {
-                    if (!$v->getAnswerOptions()->isIncomplete()) {
-                        return $c;
-                    }
-
                     $c[$v->getAnswerInputId()->toString()] = $v->getEditAnswerOptionsSection(
                         $lng,
                         $ff
@@ -224,16 +239,15 @@ class Gaps
     public function buildPointInputs(
         Language $lng,
         FieldFactory $ff,
-        Refinery $refinery
+        Refinery $refinery,
+        array $selected_gaps
     ): Section {
         return $ff->section(
             array_reduce(
-                $this->gaps,
+                $selected_gaps !== []
+                    ? $this->filterGapsBySelected($selected_gaps)
+                    : $this->getGapsWithIncompleteAnswerOptions(),
                 function (array $c, Gap $v) use ($lng, $ff): array {
-                    if (!$v->getAnswerOptions()->isIncomplete()) {
-                        return $c;
-                    }
-
                     $c[$v->getAnswerInputId()->toString()] = $v->getEditPointsSection(
                         $lng,
                         $ff
@@ -426,9 +440,27 @@ class Gaps
         );
     }
 
+    private function getGapsWithIncompleteAnswerOptions(): array
+    {
+        return array_filter(
+            $this->gaps,
+            fn(Gap $v): bool => $v->getAnswerOptions()->isIncomplete()
+        );
+    }
+
     private function extractIdFromTagName(
         string $tag_name
     ): string {
         return mb_substr($tag_name, mb_strlen(Gap::GAP_PLACEHOLDER_NAME) + 1);
+    }
+
+    private function filterGapsBySelected(
+        array $selected_gaps
+    ): array {
+        return array_filter(
+            $this->gaps,
+            fn(string $k): bool => in_array($k, $selected_gaps),
+            ARRAY_FILTER_USE_KEY
+        );
     }
 }

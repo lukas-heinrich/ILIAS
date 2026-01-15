@@ -29,6 +29,7 @@ use ILIAS\Questions\Persistence\Where;
 use ILIAS\Questions\AnswerFormTypes\Cloze\Persistence;
 use ILIAS\Data\UUID\Uuid;
 use ILIAS\Refinery\Factory as Refinery;
+use ILIAS\Refinery\Transformation;
 use ILIAS\UI\Component\Input\Field\Factory as FieldFactory;
 
 class AnswerOptions
@@ -61,9 +62,16 @@ class AnswerOptions
 
     public function getTagsArrayFromAnswerOptions(): array
     {
-        return array_map(
-            fn(AnswerOption $v): string => $v->getTextValue(),
-            $this->answer_options
+        return array_reduce(
+            $this->answer_options,
+            function (array $c, AnswerOption $v): array {
+                if ($v->getTextValue() === '') {
+                    return $c;
+                }
+                $c[] = $v->getTextValue();
+                return $c;
+            },
+            []
         );
     }
 
@@ -175,6 +183,19 @@ class AnswerOptions
         $clone->answer_options_awarding_points = $clone
             ->buildAnswerOptionsAwardingPointsFromAnswerOptions($clone->answer_options);
         return $clone;
+    }
+
+    public function buildArrayForInput(
+        Transformation $shuffle_transformation
+    ): array {
+        return array_reduce(
+            $shuffle_transformation->transform($this->answer_options),
+            function (array $c, AnswerOption $v): array {
+                $c[$v->getAnswerOptionId()->toString()] = $v->getTextValue();
+                return $c;
+            },
+            []
+        );
     }
 
     public function buildHiddenInputValue(): string

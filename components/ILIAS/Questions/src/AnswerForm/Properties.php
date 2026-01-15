@@ -31,11 +31,11 @@ use Psr\Http\Message\ServerRequestInterface;
 
 interface Properties extends Storable
 {
-    public function getDefinitionClass(): string;
-
     public function getAnswerFormId(): Uuid;
 
     public function getQuestionId(): Uuid;
+
+    public function getDefinition(): Definition;
 
     public function getTypeGenericProperties(): TypeGenericProperties;
 
