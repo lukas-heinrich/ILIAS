@@ -22,13 +22,15 @@ use ILIAS\Test\TestDIC;
 use ILIAS\Test\RequestDataCollector;
 use ILIAS\Test\Logging\TestLogViewer;
 use ILIAS\Test\Logging\LogTable;
+use ILIAS\Questions\Units\GlobalConfigurationGUI;
+use ILIAS\Questions\Units\Repository as UnitsRepository;
 use ILIAS\Data\Factory as DataFactory;
 use ILIAS\UI\URLBuilder;
 use ILIAS\UI\Component\Input\Container\Form\Form;
 
 /**
  * @author Helmut Schottmüller <hschottm@gmx.de>
- * @ilCtrl_Calls ilObjTestFolderGUI: ilPermissionGUI, ilGlobalUnitConfigurationGUI
+ * @ilCtrl_Calls ilObjTestFolderGUI: ilPermissionGUI, ILIAS\Questions\Units\GlobalConfigurationGUI
  */
 class ilObjTestFolderGUI extends ilObjectGUI
 {
@@ -36,6 +38,8 @@ class ilObjTestFolderGUI extends ilObjectGUI
 
     private RequestDataCollector $testrequest;
     private TestLogViewer $log_viewer;
+    private ilDBInterface $db;
+    private ilHelpGUI $help;
 
     private DataFactory $data_factory;
 
@@ -47,6 +51,8 @@ class ilObjTestFolderGUI extends ilObjectGUI
     ) {
         global $DIC;
         $rbacsystem = $DIC['rbacsystem'];
+        $this->db = $DIC['ilDB'];
+        $this->help = $DIC['ilHelp'];
         $this->data_factory = new DataFactory();
 
         $local_dic = TestDIC::dic();
@@ -82,15 +88,25 @@ class ilObjTestFolderGUI extends ilObjectGUI
                 $perm_gui = new \ilPermissionGUI($this);
                 $this->ctrl->forwardCommand($perm_gui);
                 break;
-            case 'ilglobalunitconfigurationgui':
+            case strtolower(GlobalConfigurationGUI::class):
                 if (!$this->rbac_system->checkAccess('read', $this->getTestFolder()->getRefId())) {
                     $this->ilias->raiseError($this->lng->txt('permission_denied'), $this->ilias->error_obj->WARNING);
                 }
 
                 $this->tabs_gui->setTabActive('units');
 
-                $gui = new \ilGlobalUnitConfigurationGUI(
-                    new \ilUnitConfigurationRepository(0)
+                $gui = new GlobalConfigurationGUI(
+                    new UnitsRepository(
+                        $this->lng,
+                        $this->db
+                    ),
+                    $this->lng,
+                    $this->ctrl,
+                    $this->rbac_system,
+                    $this->tpl,
+                    $this->toolbar,
+                    $this->tabs_gui,
+                    $this->help
                 );
                 $this->ctrl->forwardCommand($gui);
                 break;
@@ -292,7 +308,7 @@ class ilObjTestFolderGUI extends ilObjectGUI
 
             $this->tabs_gui->addTarget(
                 'units',
-                $this->ctrl->getLinkTargetByClass('ilGlobalUnitConfigurationGUI', ''),
+                $this->ctrl->getLinkTargetByClass(GlobalConfigurationGUI::class, ''),
                 '',
                 'ilglobalunitconfigurationgui'
             );
