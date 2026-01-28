@@ -74,12 +74,12 @@ class Combination
         Language $lng
     ): string {
         return implode(
-            ' - ',
+            '<br>',
             array_map(
                 fn(MatchingValue $v): string => $v->buildPresentationString($lng),
                 $this->matching_values
             )
-        ) . " ({$this->available_points})";
+        );
     }
 
     public function containsAnswerOptionsExactly(
@@ -226,7 +226,7 @@ class Combination
         return implode(
             '<br>',
             array_map(
-                fn(MatchingValue $v): string => $v->getGapId()->toString(),
+                fn(MatchingValue $v): string => $v->getGap()->buildShortenedGapRepresentation(),
                 $this->matching_values
             )
         );
@@ -281,7 +281,7 @@ class Combination
     {
         return json_encode([
             $this->id->toString() => array_map(
-                fn(MatchingValue $v) => $v->getGapId()->toString(),
+                fn(MatchingValue $v) => $v->getGap()->getAnswerInputId()->toString(),
                 $this->matching_values
             )
         ]);
@@ -295,8 +295,9 @@ class Combination
             array_reduce(
                 $this->matching_values,
                 function (array $c, MatchingValue $v) use ($field_factory, $properties): array {
-                    $gap = $properties->getGaps()->getGapById($v->getGapId());
-                    $c[$v->getGapId()->toString()] = $field_factory->select(
+                    $gap_id = $v->getGap()->getAnswerInputId();
+                    $gap = $properties->getGaps()->getGapById($gap_id);
+                    $c[$gap_id] = $field_factory->select(
                         $gap->buildShortenedGapName(),
                         $gap->getType()->getCombinationsSelectValues($gap)
                     )->withRequired(true)

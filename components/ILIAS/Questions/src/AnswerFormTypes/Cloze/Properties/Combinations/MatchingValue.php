@@ -21,6 +21,7 @@ declare(strict_types=1);
 namespace ILIAS\Questions\AnswerFormTypes\Cloze\Properties\Combinations;
 
 use ILIAS\Questions\AnswerFormTypes\Cloze\Properties\Gaps\AnswerOptions\AnswerOption;
+use ILIAS\Questions\AnswerFormTypes\Cloze\Properties\Gaps\Gap;
 use ILIAS\Questions\AnswerFormTypes\Cloze\Persistence;
 use ILIAS\Questions\Persistence\Replace;
 use ILIAS\Questions\Persistence\TableNameBuilder;
@@ -36,15 +37,15 @@ class MatchingValue
 
     public function __construct(
         private readonly Uuid $combination_id,
-        private readonly Uuid $gap_id,
+        private readonly Gap $gap,
         private readonly ?AnswerOption $answer_option = null,
         private readonly ?InRange $in_range = null
     ) {
     }
 
-    public function getGapId(): Uuid
+    public function getGap(): Gap
     {
-        return $this->gap_id;
+        return $this->gap;
     }
 
     public function getAnswerOption(): ?AnswerOption
@@ -90,7 +91,7 @@ class MatchingValue
             ),
             [
                 new Value(\ilDBConstants::T_TEXT, $this->combination_id->toString()),
-                new Value(\ilDBConstants::T_TEXT, $this->gap_id->toString()),
+                new Value(\ilDBConstants::T_TEXT, $this->gap->getAnswerInputId()->toString()),
                 new Value(\ilDBConstants::T_TEXT, $this->answer_option->getAnswerOptionId()->toString()),
                 new Value(\ilDBConstants::T_TEXT, $this->in_range?->value)
             ]

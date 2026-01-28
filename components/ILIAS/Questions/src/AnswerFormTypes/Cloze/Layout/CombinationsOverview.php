@@ -136,8 +136,8 @@ class CombinationsOverview implements DataRetrieval, Renderable
         $cf = $this->ui_factory->table()->column();
         return [
             'gaps' => $cf->text($this->lng->txt('gaps')),
-            'values' => $cf->text($this->lng->txt('combinations_awarding_points')),
-            'available_points' => $cf->number($this->lng->txt('available_points'))->withDecimals(2)
+            'values' => $cf->text($this->lng->txt('values')),
+            'available_points' => $cf->number($this->lng->txt('points'))->withDecimals(2)
         ];
     }
 
@@ -211,7 +211,7 @@ class CombinationsOverview implements DataRetrieval, Renderable
                 )->withAdditionalTransformation(
                     $this->refinery->custom()->transformation(
                         fn(array $v): Combination => $this->combinations_factory
-                        ->buildNewCombination($v)
+                        ->buildNewCombination($gaps, $v)
                     )
                 )
             ],

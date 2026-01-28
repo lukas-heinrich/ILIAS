@@ -69,6 +69,7 @@ class Factory
      * @param array<string> $gap_ids
      */
     public function buildNewCombination(
+        Gaps $gaps,
         array $gap_ids,
     ): Combination {
         $combination_id = $this->uuid_factory->uuid4();
@@ -78,7 +79,9 @@ class Factory
             array_map(
                 fn(string $v): MatchingValue => new MatchingValue(
                     $combination_id,
-                    $this->uuid_factory->fromString($v)
+                    $gaps->getGapById(
+                        $this->uuid_factory->fromString($v)
+                    )
                 ),
                 $gap_ids
             )
@@ -115,10 +118,11 @@ class Factory
                 $values_array,
                 $combination_id
             ): array {
-                $gap_id = $this->uuid_factory->fromString($v);
-                $answer_option = $properties->getGaps()
-                    ->getGapById($gap_id)
-                    ->getAnswerOptions()
+                $gap = $properties->getGaps()->getGapById(
+                    $this->uuid_factory->fromString($v)
+                );
+                $answer_option =
+                    $gap->getAnswerOptions()
                     ->getAnswerOptionById(
                         $this->uuid_factory->fromString($values_array[$v])
                     );
@@ -129,7 +133,7 @@ class Factory
 
                 $c[] = new MatchingValue(
                     $combination_id,
-                    $gap_id,
+                    $gap,
                     $answer_option,
                     null
                 );
@@ -162,7 +166,9 @@ class Factory
                     array_map(
                         fn(string $v): MatchingValue => new MatchingValue(
                             $combination_id,
-                            $this->uuid_factory->fromString($v)
+                            $properties->getGaps()->getGapById(
+                                $this->uuid_factory->fromString($v)
+                            )
                         ),
                         $values_array[$combination_id->toString()]
                     )
@@ -255,15 +261,16 @@ class Factory
 
                         $already_added[] = $v['combination_id'] . $v['gap_id'];
 
-                        $gap_id = $this->uuid_factory->fromString($v['gap_id']);
+                        $gap = $gaps->getGapById(
+                            $this->uuid_factory->fromString($v['gap_id'])
+                        );
 
                         $combinations[$v['combination_id']] = $combinations[$v['combination_id']]
                             ->withAdditionalMatchingValue(
                                 new MatchingValue(
                                     $this->uuid_factory->fromString($v['combination_id']),
-                                    $gap_id,
-                                    $gaps->getGapById($gap_id)
-                                        ->getAnswerOptions()
+                                    $gap,
+                                    $gap->getAnswerOptions()
                                         ->getAnswerOptionById(
                                             $this->uuid_factory->fromString($v['answer_option_id'])
                                         )
