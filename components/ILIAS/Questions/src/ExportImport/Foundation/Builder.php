@@ -1,0 +1,209 @@
+<?php
+
+/**
+ * This file is part of ILIAS, a powerful learning management system
+ * published by ILIAS open source e-Learning e.V.
+ *
+ * ILIAS is licensed with the GPL-3.0,
+ * see https://www.gnu.org/licenses/gpl-3.0.en.html
+ * You should have received a copy of said license along with the
+ * source code, too.
+ *
+ * If this is not the case or you just want to try ILIAS, you'll find
+ * us at:
+ * https://www.ilias.de
+ * https://github.com/ILIAS-eLearning
+ *
+ *********************************************************************/
+
+declare(strict_types=1);
+
+namespace ILIAS\Questions\ExportImport\Foundation;
+
+use ILIAS\DI\Container as ILIASContainer;
+use ILIAS\Questions\ExportImport\Foundation\Contracts\Transformations as TransformationsContract;
+use ILIAS\Questions\ExportImport\Foundation\Normalizing\Normalizer\Registry;
+use ILIAS\Questions\ExportImport\Foundation\Normalizing\Pipes\DenormalizingPipe;
+use ILIAS\Questions\ExportImport\Foundation\Normalizing\Pipes\NormalizingPipe;
+use ILIAS\Questions\ExportImport\Foundation\Normalizing\Pipes\UUIDMappingPipe;
+use ILIAS\Questions\ExportImport\Foundation\Normalizing\Transformations;
+use ILIAS\Questions\Legacy\LocalDIC;
+use ILIAS\Questions\Setup\Artifact\NormalizerArtifactObjective;
+use ReflectionClass;
+use ReflectionNamedType;
+use ReflectionParameter;
+use RuntimeException;
+
+/**
+ * Builder class to create a Transformations instance for the export and import process.
+ */
+class Builder
+{
+    private bool $default_normalizers = true;
+    private ?string $legacy_version = null;
+    private bool $enable_mappings = false;
+
+    public function __construct(
+        private readonly ILIASContainer $ilias_container,
+        private readonly LocalDIC $local_container,
+    ) {
+    }
+
+    /*
+        Fluent interface methods
+    */
+
+    public function withEnableMappings(bool $enable = true): self
+    {
+        $clone = clone $this;
+        $clone->enable_mappings = $enable;
+        return $clone;
+    }
+
+    public function withDefaultNormalizers(bool $enable = true): self
+    {
+        $clone = clone $this;
+        $clone->default_normalizers = $enable;
+        return $clone;
+    }
+
+    public function withLegacyNormalizers(string $version): self
+    {
+        $clone = clone $this;
+        $clone->legacy_version = $version;
+        return $clone;
+    }
+
+    /*
+        Object creation
+    */
+
+    /**
+     * Create a Transformations instance which was configured by the builder.
+     */
+
+    public function create(): TransformationsContract
+    {
+        $pipeline = new Pipeline();
+        $object = new Transformations(
+            $this->ilias_container->refinery(),
+            $pipeline
+        );
+
+        if ($this->legacy_version !== null) {
+            // TODO: Implement semver comparison here? Use ILIAS\Data\Version class?
+
+            $registry = $this->buildRegistry($object, $this->legacy_version);
+            $pipeline->pipe(new NormalizingPipe($registry));
+            $pipeline->pipe(new DenormalizingPipe($registry));
+        }
+
+        if ($this->default_normalizers) {
+            $registry = $this->buildRegistry($object);
+            $pipeline->pipe(new NormalizingPipe($registry));
+            $pipeline->pipe(new DenormalizingPipe($registry));
+        }
+
+        if ($this->enable_mappings) {
+            $pipeline->pipe(new UUIDMappingPipe());
+        }
+
+        return $object;
+    }
+
+    /**
+     * Register all normalizer classes from the type map artifact by checking for the given version and skipping if
+     * the normalizer is already registered.
+     */
+    private function buildRegistry(Transformations $object, string $version = NormalizerArtifactObjective::DEFAULT_KEY): Registry
+    {
+        $type_map = require NormalizerArtifactObjective::PATH();
+        $registry = new Registry();
+
+        foreach ($type_map as $type => $normalizer_classes) {
+            if (!isset($normalizer_classes[$version]) || $registry->hasNormalizer($type)) {
+                continue;
+            }
+
+            $normalizer = $this->createInstance($normalizer_classes[$version], $object);
+            $registry->registerNormalizer($type, $normalizer);
+        }
+
+        return $registry;
+    }
+
+    /*
+        Factory & Autowiring
+    */
+
+    /**
+     * Create an instance of a class by resolving the constructor arguments.
+     *
+     * @template T of object
+     *
+     * @param class-string<T> $class_name
+     * @param Transformations $transformations
+     * @return T
+     */
+    private function createInstance(string $class_name, Transformations $transformations): object
+    {
+        $reflection_class = new ReflectionClass($class_name);
+        $constructor = $reflection_class->getConstructor();
+
+        if ($constructor === null || $constructor->getNumberOfParameters() === 0) {
+            return $reflection_class->newInstance();
+        }
+
+        $arguments = [];
+        foreach ($constructor->getParameters() as $parameter) {
+            $arguments[] = $this->resolveConstructorArgument(
+                $parameter,
+                $transformations,
+                $class_name
+            );
+        }
+
+        return $reflection_class->newInstanceArgs($arguments);
+    }
+
+    /**
+     * Resolve a constructor argument by trying to resolve it from the global ilias container, the local container or
+     * the default value.
+     *
+     * @throws RuntimeException if the argument cannot be resolved
+     */
+    private function resolveConstructorArgument(
+        ReflectionParameter $parameter,
+        Transformations $transformations,
+        string $class_name
+    ) {
+        if ($parameter->isDefaultValueAvailable()) {
+            return $parameter->getDefaultValue();
+        }
+
+        $type = $parameter->getType();
+        if ($type instanceof ReflectionNamedType && $type->allowsNull()) {
+            return null;
+        }
+
+
+        if ($type instanceof ReflectionNamedType && !$type->isBuiltin()) {
+            $type_name = $type->getName();
+
+            if ($type_name === Transformations::class || $type_name === TransformationsContract::class) {
+                return $transformations;
+            }
+
+            if (isset($this->local_container[$type_name])) {
+                return $this->local_container[$type_name];
+            }
+
+            if (isset($this->ilias_container[$type_name])) {
+                return $this->ilias_container[$type_name];
+            }
+        }
+
+        $name = $parameter->getName();
+        throw new RuntimeException("Unable to resolve constructor parameter \${$name} for class {$class_name}.");
+    }
+}
