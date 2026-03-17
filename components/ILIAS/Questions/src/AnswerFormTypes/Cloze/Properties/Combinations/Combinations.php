@@ -21,16 +21,19 @@ declare(strict_types=1);
 namespace ILIAS\Questions\AnswerFormTypes\Cloze\Properties\Combinations;
 
 use ILIAS\Questions\AnswerFormTypes\Cloze\Persistence;
+use ILIAS\Questions\ExportImport\Foundation\Contracts\Normalizable;
+use ILIAS\Questions\ExportImport\Foundation\Contracts\Transformations;
 use ILIAS\Questions\Persistence\Manipulate;
 use ILIAS\Questions\Persistence\TableNameBuilder;
 use ILIAS\Data\UUID\Uuid;
 use ILIAS\Language\Language;
 use ILIAS\HTTP\Services as HttpServices;
 use ILIAS\Refinery\Factory as Refinery;
+use ILIAS\Refinery\Transformation;
 use ILIAS\UI\Factory as UIFactory;
 use ILIAS\UI\Component\Table\DataRowBuilder;
 
-class Combinations
+class Combinations implements Normalizable
 {
     private array $combinations;
 
@@ -172,5 +175,17 @@ class Combinations
     public function getNumberOfCombinations(): int
     {
         return count($this->combinations);
+    }
+
+    public function toNormalized(Transformations $tt): Transformation
+    {
+        //TODO
+        return $tt->custom()->transformation(fn() => []);
+    }
+
+    public function fromNormalized(Transformations $tt): Transformation
+    {
+        //TODO
+        return $tt->custom()->transformation(fn() => $this);
     }
 }

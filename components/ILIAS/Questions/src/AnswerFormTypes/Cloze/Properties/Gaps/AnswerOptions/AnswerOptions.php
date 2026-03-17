@@ -13,13 +13,15 @@
  * us at:
  * https://www.ilias.de
  * https://github.com/ILIAS-eLearning
- *
+ *N
  *********************************************************************/
 
 declare(strict_types=1);
 
 namespace ILIAS\Questions\AnswerFormTypes\Cloze\Properties\Gaps\AnswerOptions;
 
+use ILIAS\Questions\ExportImport\Foundation\Contracts\Normalizable;
+use ILIAS\Questions\ExportImport\Foundation\Contracts\Transformations;
 use ILIAS\Questions\Persistence\Delete;
 use ILIAS\Questions\Persistence\Replace;
 use ILIAS\Questions\Persistence\TableNameBuilder;
@@ -32,7 +34,7 @@ use ILIAS\Refinery\Factory as Refinery;
 use ILIAS\Refinery\Transformation;
 use ILIAS\UI\Component\Input\Field\Factory as FieldFactory;
 
-class AnswerOptions
+class AnswerOptions implements Normalizable
 {
     private array $answer_options_awarding_points;
 
@@ -309,5 +311,35 @@ class AnswerOptions
             fn(AnswerOption $v): bool => $v->getTextValue() === $value
         );
         return array_shift($filtered_array) ?? null;
+    }
+
+    /**
+     * @inheritDoc
+     */
+    public function toNormalized(Transformations $tt): Transformation
+    {
+        return $tt->custom()->transformation(fn(): array => [
+            'options' => $tt->normalize($this->answer_options),
+        ]);
+        //TODO: answer_options_awarding_points
+    }
+
+    /**
+     * @inheritDoc
+     */
+    public function fromNormalized(Transformations $tt): Transformation
+    {
+        return $tt->custom()->transformation(function (array $normalized) use ($tt): AnswerOptions {
+            $clone = clone $this;
+            foreach ($normalized['options'] as $option_data) {
+                $answer_option = $this->factory->getDefaultAnswerOptionForPosition(
+                    $this->answer_input_id,
+                    $tt->int($option_data['position'])
+                );
+                $clone->answer_options[] = $tt->denormalize($option_data, $answer_option);
+            }
+            return $clone;
+        });
+        //TODO: answer_options_awarding_points
     }
 }

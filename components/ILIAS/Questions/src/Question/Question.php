@@ -21,8 +21,9 @@ declare(strict_types=1);
 namespace ILIAS\Questions\Question;
 
 use ILIAS\Questions\Question\Views\Participant;
+use ILIAS\Questions\ExportImport\Foundation\Contracts\Normalizable;
 
-interface Question
+interface Question extends Normalizable
 {
     public function getParticipantView(): Participant;
 }

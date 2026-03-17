@@ -20,6 +20,8 @@ declare(strict_types=1);
 
 namespace ILIAS\Questions\AnswerFormTypes\Cloze\Properties\Gaps;
 
+use ILIAS\Questions\ExportImport\Foundation\Contracts\Transformations;
+use ILIAS\Questions\ExportImport\Foundation\Contracts\Normalizable;
 use ILIAS\Questions\Persistence\Delete;
 use ILIAS\Questions\Persistence\Junctor;
 use ILIAS\Questions\Persistence\Manipulate;
@@ -40,7 +42,7 @@ use ILIAS\UI\Component\Input\Field\Section;
 use ILIAS\UI\Component\Input\Field\MultiSelect;
 use ILIAS\UI\Component\Table\DataRowBuilder;
 
-class Gaps
+class Gaps implements Normalizable
 {
     /**
      * @var array<string, \ILIAS\Questions\AnswerFormTypes\Cloze\Properties\Gaps\Gap>
@@ -485,5 +487,30 @@ class Gaps
             fn(string $k): bool => in_array($k, $selected_gaps),
             ARRAY_FILTER_USE_KEY
         );
+    }
+
+    /**
+     * @inheritDoc
+     */
+    public function toNormalized(Transformations $tt): Transformation
+    {
+        return $tt->custom()->transformation(fn(): array => $tt->normalize($this->gaps));
+    }
+
+    /**
+     * @inheritDoc
+     */
+    public function fromNormalized(Transformations $tt): Transformation
+    {
+        return $tt->custom()->transformation(function (array $normalized) use ($tt): Gaps {
+            $clone = clone $this;
+            foreach ($normalized as $gap_data) {
+                $gap = $this->factory->getNewGap($this->answer_form_id, $tt->int($gap_data['position']))
+                        ->withType($this->factory->getGapTypeByIdentifier($gap_data['type']));
+
+                $clone = $clone->withGap($tt->denormalize($gap_data, $gap));
+            }
+            return $clone;
+        });
     }
 }
