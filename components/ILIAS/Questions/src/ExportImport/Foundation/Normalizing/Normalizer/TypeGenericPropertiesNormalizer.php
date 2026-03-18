@@ -28,6 +28,8 @@ use ILIAS\Questions\ExportImport\Foundation\Contracts\Normalizer;
 use ILIAS\Questions\ExportImport\Foundation\Contracts\Transformations;
 use ILIAS\Questions\ExportImport\Foundation\Normalizing\Attributes\Normalizes;
 use ILIAS\Questions\ExportImport\Foundation\Normalizing\NormalizingException;
+use ILIAS\Questions\ExportImport\Foundation\Objects\IdContainer;
+use ILIAS\Questions\Legacy\LocalDIC;
 
 /**
  * @implements Normalizer<TypeGenericProperties, array>
@@ -35,11 +37,15 @@ use ILIAS\Questions\ExportImport\Foundation\Normalizing\NormalizingException;
 #[Normalizes(TypeGenericProperties::class)]
 class TypeGenericPropertiesNormalizer implements Normalizer
 {
+    private readonly Factory $factory;
+
     public function __construct(
         private readonly Transformations $tt,
-        private readonly Factory $factory
+        LocalDIC $container
     ) {
+        $this->factory = $container[Factory::class];
     }
+
     /**
      * @inheritDoc
      */

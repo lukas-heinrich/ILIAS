@@ -43,6 +43,10 @@ class NormalizingPipe implements Pipe
             return $next($passable);
         }
 
+        if (is_scalar($passable->value)) {
+            return $next($passable->setResult($passable->value));
+        }
+
         // Check if object is self-normalizable and use the toNormalized method
         if ($passable->value instanceof Normalizable) {
             $normalized = $passable->value->toNormalized($passable->transformations)->transform([]);
