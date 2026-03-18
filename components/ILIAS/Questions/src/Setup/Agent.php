@@ -22,6 +22,7 @@ namespace ILIAS\Questions\Setup;
 
 use ILIAS\Questions\Persistence\TableNameBuilder;
 use ILIAS\Questions\Persistence\TableNameSpaceCore;
+use ILIAS\Questions\Setup\Artifact\NormalizerArtifactObjective;
 use ILIAS\Refinery\Transformation;
 use ILIAS\Setup\Agent as SetupAgent;
 use ILIAS\Setup\Agent\HasNoNamedObjective;
@@ -109,7 +110,7 @@ class Agent implements SetupAgent
     #[\Override]
     public function getBuildObjective(): Objective
     {
-        return new NullObjective();
+        return new NormalizerArtifactObjective();
     }
 
     #[\Override]

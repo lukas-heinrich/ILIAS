@@ -20,11 +20,14 @@ declare(strict_types=1);
 
 namespace ILIAS\Questions\AnswerFormTypes\Cloze\Properties\Gaps\AnswerOptions;
 
+use ILIAS\Questions\ExportImport\Foundation\Contracts\Normalizable;
+use ILIAS\Questions\ExportImport\Foundation\Contracts\Transformations;
 use ILIAS\Questions\Persistence\Replace;
 use ILIAS\Questions\Persistence\Value;
 use ILIAS\Data\UUID\Uuid;
+use ILIAS\Refinery\Transformation;
 
-class AnswerOption
+class AnswerOption implements Normalizable
 {
     public const string FORM_KEY_ID = 'id';
     public const string FORM_KEY_POSITION = 'position';
@@ -165,5 +168,36 @@ class AnswerOption
             new Value(\ilDBConstants::T_FLOAT, $this->upper_limit)
 
         ];
+    }
+
+    /**
+     * @inheritDoc
+     */
+    public function toNormalized(Transformations $tt): Transformation
+    {
+        return $tt->custom()->transformation(fn(): array => [
+            'answer_option_id' => $tt->normalize($this->answer_option_id),
+            'answer_input_id' => $tt->normalize($this->answer_input_id),
+            'position' => $this->position,
+            'text_value' => $this->text_value,
+            'lower_limit' => $this->lower_limit,
+            'upper_limit' => $this->upper_limit,
+            'available_points' => $this->available_points,
+        ]);
+    }
+
+    /**
+     * @inheritDoc
+     */
+    public function fromNormalized(Transformations $tt): Transformation
+    {
+        return $tt->custom()->transformation(function (array $normalized) use ($tt): AnswerOption {
+            $clone = clone $this;
+            $clone->text_value = $tt->string($normalized['text_value']);
+            $clone->lower_limit = $tt->nullableFloat($normalized['lower_limit']);
+            $clone->upper_limit = $tt->nullableFloat($normalized['upper_limit']);
+            $clone->available_points = $tt->float($normalized['available_points']);
+            return $clone;
+        });
     }
 }

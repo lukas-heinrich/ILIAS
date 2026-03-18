@@ -20,6 +20,7 @@ declare(strict_types=1);
 
 namespace ILIAS\Questions\AnswerForm;
 
+use ILIAS\Questions\ExportImport\Foundation\Contracts\Normalizable;
 use ILIAS\Questions\Persistence\Storable;
 use ILIAS\Questions\Presentation\Definitions\Environment;
 use ILIAS\Data\UUID\Uuid;
@@ -29,7 +30,7 @@ use ILIAS\UI\Component\Table\Data as DataTable;
 use ILIAS\UI\Component\Table\Ordering as OrderingTable;
 use Psr\Http\Message\ServerRequestInterface;
 
-interface Properties extends Storable
+interface Properties extends Storable, Normalizable
 {
     public function getAnswerFormId(): Uuid;
 

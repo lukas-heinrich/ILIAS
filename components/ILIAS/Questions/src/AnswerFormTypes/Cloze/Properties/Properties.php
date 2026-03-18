@@ -31,6 +31,7 @@ use ILIAS\Questions\AnswerFormTypes\Cloze\Properties\Combinations\Combinations;
 use ILIAS\Questions\AnswerFormTypes\Cloze\Properties\Definitions\ScoringIdentical;
 use ILIAS\Questions\AnswerFormTypes\Cloze\Properties\Gaps\Gaps;
 use ILIAS\Questions\AnswerFormTypes\Cloze\Properties\Gaps\Factory as GapsFactory;
+use ILIAS\Questions\ExportImport\Foundation\Contracts\Transformations;
 use ILIAS\Questions\Persistence\Delete;
 use ILIAS\Questions\Persistence\Insert;
 use ILIAS\Questions\Persistence\Update;
@@ -45,6 +46,7 @@ use ILIAS\Questions\Presentation\Definitions\CarryWrapper;
 use ILIAS\Data\UUID\Uuid;
 use ILIAS\Language\Language;
 use ILIAS\Refinery\Factory as Refinery;
+use ILIAS\Refinery\Transformation;
 use ILIAS\UI\Component\Input\Field\Factory as FieldFactory;
 use ILIAS\UI\Component\Input\Field\Section;
 use ILIAS\UI\Component\Input\Field\Group;
@@ -62,9 +64,6 @@ class Properties implements PropertiesInterface
 
     private bool $updated_combinations = false;
 
-    /**
-     * @param array<string, \ILIAS\Questions\AnswerFormTypes\Cloze\Gap> $gaps
-     */
     public function __construct(
         private readonly Uuid $answer_form_id,
         private readonly Uuid $question_id,
@@ -467,5 +466,31 @@ class Properties implements PropertiesInterface
                 )
             ]
         );
+    }
+
+    /**
+     * @inheritDoc
+     */
+    public function toNormalized(Transformations $tt): Transformation {
+        return $tt->custom()->transformation(fn(): array => [
+            ...$tt->normalize($this->getTypeGenericProperties()),
+            'scoring_identical' => $this->scoring_identical->value,
+            'gaps' => $tt->normalize($this->gaps),
+            'combinations' => $tt->normalize($this->combinations),
+        ]);
+    }
+
+    /**
+     * @inheritDoc
+     */
+    public function fromNormalized(Transformations $tt): Transformation {
+        // Generic properties will be set in the QuestionImplementation::fromNormalized method
+        return $tt->custom()->transformation(function (array $normalized) use ($tt): Properties {
+            $clone = clone $this;
+            $clone->scoring_identical = ScoringIdentical::from($tt->string($normalized['scoring_identical']));
+            $clone->gaps = $tt->denormalize($normalized['gaps'], $this->gaps);
+            $clone->combinations = $tt->denormalize($normalized['combinations'], $this->combinations);
+            return $clone;
+        });
     }
 }

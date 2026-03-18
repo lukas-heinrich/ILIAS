@@ -18,12 +18,18 @@
 
 declare(strict_types=1);
 
-namespace ILIAS\Questions\Question;
+namespace ILIAS\Questions\ExportImport\Foundation\Contracts;
 
-use ILIAS\Questions\Question\Views\Participant;
-use ILIAS\Questions\ExportImport\Foundation\Contracts\Normalizable;
-
-interface Question extends Normalizable
+/**
+ * Interface for data collectors that extract and assemble data relevant for
+ * question exports into exportable structures.
+ *
+ * Implementations use the provided repositories and domain objects as return
+ * values and follow a builder-style API: configuration methods are fluent and
+ * return the collector instance itself, while query methods typically expose
+ * generators to stream potentially large data sets efficiently for export.
+ */
+interface DataCollector
 {
-    public function getParticipantView(): Participant;
+    //
 }

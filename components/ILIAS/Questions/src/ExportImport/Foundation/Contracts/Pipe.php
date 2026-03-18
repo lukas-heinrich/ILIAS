@@ -18,12 +18,22 @@
 
 declare(strict_types=1);
 
-namespace ILIAS\Questions\Question;
+namespace ILIAS\Questions\ExportImport\Foundation\Contracts;
 
-use ILIAS\Questions\Question\Views\Participant;
-use ILIAS\Questions\ExportImport\Foundation\Contracts\Normalizable;
-
-interface Question extends Normalizable
+/**
+ * A pipe is responsible for processing the passable object. It can manipulate the passable object and pass it to the
+ * next pipe.
+ *
+ * @template TPassable
+ */
+interface Pipe
 {
-    public function getParticipantView(): Participant;
+    /**
+     * Handle the passable object and return it
+     *
+     * @param TPassable $passable
+     * @param \Closure $next
+     * @return TPassable
+     */
+    public function handle(mixed $passable, \Closure $next): mixed;
 }

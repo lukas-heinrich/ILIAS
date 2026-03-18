@@ -108,6 +108,33 @@ class ilObjQuestionsGUI extends ilObjectGUI
                 break;
 
             default:
+                if ($cmd === 'export') {
+                    global $DIC;
+                    $local_dic = LocalDIC::dic();
+
+                    $builder = new \ILIAS\Questions\ExportImport\Foundation\Builder(
+                        $DIC,
+                        $local_dic
+                    );
+
+                    $exporter = new \ILIAS\Questions\ExportImport\QuestionsExporter($builder);
+                    $collector = new \ILIAS\Questions\ExportImport\QuestionsDataCollector(
+                        $local_dic[\ILIAS\Questions\Persistence\Repository::class]
+                    );
+                    $serializer = new \ILIAS\Questions\ExportImport\Foundation\Serializing\JSONMemorySerializer();
+
+                    $importer = new \ILIAS\Questions\ExportImport\QuestionsImporter(
+                        $builder,
+                        $local_dic[\ILIAS\Questions\Persistence\Repository::class]
+                    );
+                    $deserializer = new \ILIAS\Questions\ExportImport\Foundation\Serializing\JSONMemoryDeserializer();
+
+                    $exported = $exporter->export($collector, $serializer->open('memory'));
+                    $importer->import($deserializer->open($exported), 320);
+
+                    exit();
+                }
+
                 if ($cmd === null || $cmd === '' || $cmd === 'view') {
                     $cmd = 'viewQuestions';
                 }

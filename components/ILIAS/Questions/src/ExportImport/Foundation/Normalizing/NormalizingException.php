@@ -18,12 +18,20 @@
 
 declare(strict_types=1);
 
-namespace ILIAS\Questions\Question;
+namespace ILIAS\Questions\ExportImport\Foundation\Normalizing;
 
-use ILIAS\Questions\Question\Views\Participant;
-use ILIAS\Questions\ExportImport\Foundation\Contracts\Normalizable;
+use InvalidArgumentException;
 
-interface Question extends Normalizable
+/**
+ * Exception thrown when a value cannot be normalized or denormalized.
+ */
+class NormalizingException extends InvalidArgumentException
 {
-    public function getParticipantView(): Participant;
+    public function __construct(string $message, mixed $value = null)
+    {
+        if ($value !== null) {
+            $message .= ' (Type: ' . get_debug_type($value) . ')';
+        }
+        parent::__construct($message);
+    }
 }

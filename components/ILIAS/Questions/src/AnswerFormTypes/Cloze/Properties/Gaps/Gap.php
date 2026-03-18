@@ -23,6 +23,8 @@ namespace ILIAS\Questions\AnswerFormTypes\Cloze\Properties\Gaps;
 use ILIAS\Questions\AnswerForm\Persistence;
 use ILIAS\Questions\AnswerFormTypes\Cloze\Properties\Gaps\AnswerOptions\AnswerOptions;
 use ILIAS\Questions\Definitions\TextMatchingOptions;
+use ILIAS\Questions\ExportImport\Foundation\Contracts\Normalizable;
+use ILIAS\Questions\ExportImport\Foundation\Contracts\Transformations;
 use ILIAS\Questions\Persistence\Replace;
 use ILIAS\Questions\Persistence\TableNameBuilder;
 use ILIAS\Questions\Persistence\TableTypes;
@@ -38,7 +40,7 @@ use ILIAS\UI\Component\Table\DataRow;
 use ILIAS\UI\Component\Table\DataRowBuilder;
 use ILIAS\Refinery\Transformation;
 
-class Gap
+class Gap implements Normalizable
 {
     public const string GAP_PLACEHOLDER_NAME = 'GAP';
 
@@ -50,9 +52,6 @@ class Gap
     private const string FORM_KEY_SHUFFLE_ANSWER_OPTIONS = 'shuffle';
     private const string FORM_KEY_ANSWER_OPTIONS = 'answer_options';
 
-    /**
-     * @param array<ILIAS\Questions\AnswerFormTypes\Cloze\Properties\Gaps\AnswerOptions\AnswerOption> $answer_options
-     */
     public function __construct(
         private readonly Uuid $answer_input_id,
         private readonly Uuid $answer_form_id,
@@ -475,5 +474,43 @@ class Gap
     private function getShortenedAnswerInputId(): string
     {
         return mb_substr($this->answer_input_id->toString(), 0, 4);
+    }
+
+    /**
+     * @inheritDoc
+     */
+    public function toNormalized(Transformations $tt): Transformation
+    {
+        return $tt->custom()->transformation(fn(): array => [
+            'answer_input_id' => $tt->normalize($this->answer_input_id),
+            'answer_form_id' => $tt->normalize($this->answer_form_id),
+            'position' => $this->position,
+            'type' => $this->type?->getIdentifier(),
+            'max_chars' => $this->max_chars,
+            'step_size' => $this->step_size,
+            'text_matching_method' => $this->text_matching_method?->value,
+            'min_autocomplete' => $this->min_autocomplete,
+            'shuffle_answer_options' => $this->shuffle_answer_options,
+            'answer_options' => $tt->normalize($this->answer_options),
+        ]);
+    }
+
+    /**
+     * @inheritDoc
+     */
+    public function fromNormalized(Transformations $tt): Transformation
+    {
+        // Answer Input Id, Answer Form Id, Position, Type will be set in Gaps::fromNormalized
+
+        return $tt->custom()->transformation(function (array $normalized) use ($tt): Gap {
+            $clone = clone $this;
+            $clone->max_chars = $tt->nullableInt($normalized['max_chars']);
+            $clone->step_size = $tt->nullableFloat($normalized['step_size']);
+            $clone->text_matching_method = $normalized['text_matching_method'] !== null ? TextMatchingOptions::tryFrom($normalized['text_matching_method']) : $this->getTextMatchingMethod();
+            $clone->min_autocomplete = $tt->nullableInt($normalized['min_autocomplete']);
+            $clone->shuffle_answer_options = $tt->nullableBool($normalized['shuffle_answer_options']);
+            $clone->answer_options = $tt->denormalize($normalized['answer_options'], $this->answer_options);
+            return $clone;
+        });
     }
 }

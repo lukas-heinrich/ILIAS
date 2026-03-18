@@ -171,6 +171,31 @@ class Text
         return $clone;
     }
 
+    public function replaceGapsWithIds(
+        array $gaps_to_replace
+    ): self {
+        if ($gaps_to_replace === []) {
+            return $this;
+        }
+
+        $clone = clone $this;
+        $clone->cloze_text = $this->text_factory->markdown(
+            mb_ereg_replace_callback(
+                '{{' . Gap::GAP_PLACEHOLDER_NAME . '_([0-9a-fA-F-]+)}}',
+                function (array $matches) use ($gaps_to_replace): string {
+                    $old_id = $matches[1];
+                    if (!isset($gaps_to_replace[$old_id]) || $gaps_to_replace[$old_id] === null) {
+                        return $matches[0];
+                    }
+
+                    return '{{' . Gap::GAP_PLACEHOLDER_NAME . '_' . $gaps_to_replace[$old_id] . '}}';
+                },
+                $this->cloze_text->getRawRepresentation()
+            )
+        );
+        return $clone;
+    }
+
     private function hasAtLeastOneGap(): bool
     {
         if ($this->cloze_text->getRawRepresentation() === '') {

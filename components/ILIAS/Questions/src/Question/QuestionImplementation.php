@@ -21,6 +21,8 @@ declare(strict_types=1);
 namespace ILIAS\Questions\Question;
 
 use ILIAS\Questions\AnswerForm\Properties as AnswerFormProperties;
+use ILIAS\Questions\AnswerForm\TypeGenericProperties;
+use ILIAS\Questions\ExportImport\Foundation\Contracts\Transformations;
 use ILIAS\Questions\Persistence\CoreTables;
 use ILIAS\Questions\Persistence\Column;
 use ILIAS\Questions\Persistence\Delete;
@@ -34,6 +36,7 @@ use ILIAS\Questions\Presentation\Definitions\EnvironmentImplementation;
 use ILIAS\Questions\Question\Definitions\Lifecycle;
 use ILIAS\Data\UUID\Uuid;
 use ILIAS\Language\Language;
+use ILIAS\Refinery\Transformation;
 use ILIAS\UI\Factory as UIFactory;
 use ILIAS\UI\Component\Link\Factory as LinkFactory;
 use ILIAS\UI\Component\Link\Standard as StandardLink;
@@ -580,5 +583,49 @@ class QuestionImplementation implements Question
                 )
             ]
         );
+    }
+
+    /**
+     * @inheritDoc
+     */
+    public function toNormalized(Transformations $tt): Transformation
+    {
+        return $tt->custom()->transformation(fn(): array => [
+            'id' => $tt->normalize($this->id),
+            'parent_obj_id' => $this->parent_obj_id,
+            'position' => $this->position,
+            'page_id' => $this->page_id,
+            'title' => $this->title,
+            'author' => $this->author,
+            'lifecycle' => $this->lifecycle->value,
+            'remarks' => $this->remarks,
+            'original_id' => $tt->normalize($this->original_id),
+            'last_update' => $tt->normalize($this->last_update),
+            'created' => $tt->normalize($this->created),
+            'answer_forms' => $tt->normalize($this->answer_forms),
+            'taxonomies' => $tt->normalize($this->taxonomies),
+            'content_for_recapitulation' => $tt->normalize($this->content_for_recapitulation),
+        ]);
+    }
+
+    public function fromNormalized(Transformations $tt): Transformation
+    {
+        return $tt->custom()->transformation(function (array $normalized) use ($tt): QuestionImplementation {
+            $clone = clone $this;
+            $clone->position = $tt->nullableInt($normalized['position']);
+            $clone->title = $tt->string($normalized['title']);
+            $clone->author = $tt->string($normalized['author']);
+            $clone->lifecycle = Lifecycle::from($tt->string($normalized['lifecycle']));
+            $clone->remarks = $tt->string($normalized['remarks']);
+            $clone->original_id = $tt->denormalize($normalized['id'], Uuid::class);
+
+            foreach ($normalized['answer_forms'] as $data) {
+                $generic_properties = $tt->denormalize($data, TypeGenericProperties::class);
+                $properties = $generic_properties->getDefinition()->buildProperties($generic_properties, null);
+                $clone = $clone->withAnswerForm($tt->denormalize($data, $properties));
+            }
+            return $clone;
+        });
+        //TODO: taxonomies, content for recapitulation
     }
 }
