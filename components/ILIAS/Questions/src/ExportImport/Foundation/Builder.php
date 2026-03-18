@@ -27,8 +27,8 @@ use ILIAS\Questions\ExportImport\Foundation\Normalizing\Pipes\DenormalizingPipe;
 use ILIAS\Questions\ExportImport\Foundation\Normalizing\Pipes\NormalizingPipe;
 use ILIAS\Questions\ExportImport\Foundation\Normalizing\Pipes\UUIDMappingPipe;
 use ILIAS\Questions\ExportImport\Foundation\Normalizing\Transformations;
-use ILIAS\Questions\Legacy\LocalDIC;
 use ILIAS\Questions\Setup\Artifact\NormalizerArtifactObjective;
+use Pimple\Container;
 use ReflectionClass;
 use ReflectionNamedType;
 use ReflectionParameter;
@@ -43,10 +43,16 @@ class Builder
     private ?string $legacy_version = null;
     private bool $enable_mappings = false;
 
+    /**
+     * @var list<Container> $containers
+     */
+    private array $containers = [];
+
     public function __construct(
-        private readonly ILIASContainer $ilias_container,
-        private readonly LocalDIC $local_container,
+        private readonly ILIASContainer $dic,
+        Container ...$local_containers,
     ) {
+        $this->containers = $local_containers;
     }
 
     /*
@@ -86,7 +92,7 @@ class Builder
     {
         $pipeline = new Pipeline();
         $object = new Transformations(
-            $this->ilias_container->refinery(),
+            $this->dic->refinery(),
             $pipeline
         );
 
@@ -190,16 +196,14 @@ class Builder
         if ($type instanceof ReflectionNamedType && !$type->isBuiltin()) {
             $type_name = $type->getName();
 
-            if ($type_name === Transformations::class || $type_name === TransformationsContract::class) {
+            if ($type_name === TransformationsContract::class || in_array(TransformationsContract::class, class_implements($type_name))) {
                 return $transformations;
             }
 
-            if (isset($this->local_container[$type_name])) {
-                return $this->local_container[$type_name];
-            }
-
-            if (isset($this->ilias_container[$type_name])) {
-                return $this->ilias_container[$type_name];
+            foreach ([$this->dic, ...$this->containers] as $container) {
+                if ($type_name === get_class($container)) {
+                    return $container;
+                }
             }
         }
 
