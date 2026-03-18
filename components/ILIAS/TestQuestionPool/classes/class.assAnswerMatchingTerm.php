@@ -18,13 +18,17 @@
 
 declare(strict_types=1);
 
+use ILIAS\Questions\ExportImport\Foundation\Contracts\Normalizable;
+use ILIAS\Questions\ExportImport\Foundation\Contracts\Transformations;
+use ILIAS\Refinery\Transformation;
+
 /**
 * Class for matching question terms
 *
 * @author		Helmut Schottmüller <helmut.schottmueller@mac.com>
 * @ingroup components\ILIASTestQuestionPool
 */
-class assAnswerMatchingTerm
+class assAnswerMatchingTerm implements Normalizable
 {
     protected string $text;
     protected string $picture;
@@ -75,5 +79,29 @@ class assAnswerMatchingTerm
         $clone = clone $this;
         $clone->identifier = $identifier;
         return $clone;
+    }
+
+    /**
+     * @inheritDoc
+     */
+    public function toNormalized(Transformations $tt): Transformation
+    {
+        return $tt->custom()->transformation(fn(): array => [
+            'text' => $this->text,
+            'picture' => $this->picture,
+            'identifier' => $this->identifier,
+        ]);
+    }
+
+    /**
+     * @inheritDoc
+     */
+    public function fromNormalized(Transformations $tt): Transformation
+    {
+        return $tt->custom()->transformation(function (array $normalized) use ($tt): self {
+            return $this->withText($tt->string($normalized['text']))
+                ->withPicture($tt->string($normalized['picture']))
+                ->withIdentifier($tt->int($normalized['identifier']));
+        });
     }
 }

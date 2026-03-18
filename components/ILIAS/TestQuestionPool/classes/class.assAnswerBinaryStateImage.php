@@ -18,6 +18,9 @@
 
 declare(strict_types=1);
 
+use ILIAS\Questions\ExportImport\Foundation\Contracts\Transformations;
+use ILIAS\Refinery\Transformation;
+
 /**
  * Class for answers with a binary state indicator
  *
@@ -69,5 +72,28 @@ class ASS_AnswerBinaryStateImage extends ASS_AnswerBinaryState
     public function hasImage(): bool
     {
         return $this->image !== null;
+    }
+
+    /**
+    * @inheritDoc
+    */
+    public function toNormalized(Transformations $tt): Transformation
+    {
+        return $tt->custom()->transformation(fn(): array => [
+            ...parent::toNormalized($tt)->transform([]),
+            'image' => $this->image,
+        ]);
+    }
+
+    /**
+     * @inheritDoc
+     */
+    public function fromNormalized(Transformations $tt): Transformation
+    {
+        return $tt->custom()->transformation(function (array $normalized) use ($tt): self {
+            $clone = parent::fromNormalized($tt)->transform($normalized);
+            $clone->setImage($tt->string($normalized['image']));
+            return $clone;
+        });
     }
 }
