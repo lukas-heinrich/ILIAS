@@ -18,6 +18,7 @@
 
 declare(strict_types=1);
 
+use ILIAS\Questions\ExportImport\Foundation\Contracts\Normalizable;
 use ILIAS\Questions\ExportImport\Foundation\Contracts\Transformations;
 use ILIAS\Refinery\Transformation;
 
