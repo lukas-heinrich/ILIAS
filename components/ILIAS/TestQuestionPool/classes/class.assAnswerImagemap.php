@@ -152,7 +152,7 @@ class ASS_AnswerImagemap extends ASS_AnswerBinaryState
     public function toNormalized(Transformations $tt): Transformation
     {
         return $tt->custom()->transformation(fn(): array => [
-            ...parent::toNormalized($tt)->transform([]),
+            ...$tt->normalize(parent::toNormalized($tt)),
             'coords' => $this->coords,
             'area' => $this->area,
             'points_unchecked' => $this->points_unchecked,

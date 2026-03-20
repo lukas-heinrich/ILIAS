@@ -80,7 +80,7 @@ class ASS_AnswerBinaryStateImage extends ASS_AnswerBinaryState
     public function toNormalized(Transformations $tt): Transformation
     {
         return $tt->custom()->transformation(fn(): array => [
-            ...parent::toNormalized($tt)->transform([]),
+            ...$tt->normalize(parent::toNormalized($tt)),
             'image' => $this->image,
         ]);
     }

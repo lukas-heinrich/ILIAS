@@ -107,7 +107,7 @@ class ASS_AnswerMultipleResponse extends ASS_AnswerSimple
     public function toNormalized(Transformations $tt): Transformation
     {
         return $tt->custom()->transformation(fn(): array => [
-            ...parent::toNormalized($tt)->transform([]),
+            ...$tt->normalize(parent::toNormalized($tt)),
             'points_unchecked' => $this->points_unchecked,
         ]);
     }

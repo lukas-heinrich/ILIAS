@@ -160,7 +160,7 @@ class assAnswerCloze extends ASS_AnswerSimple
     public function toNormalized(Transformations $tt): Transformation
     {
         return $tt->custom()->transformation(fn(): array => [
-            ...parent::toNormalized($tt)->transform([]),
+            ...$tt->normalize(parent::toNormalized($tt)),
             'lower_bound' => $this->lowerBound,
             'upper_bound' => $this->upperBound,
             'gap_size' => $this->gap_size,

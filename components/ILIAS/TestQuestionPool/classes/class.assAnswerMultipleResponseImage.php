@@ -84,7 +84,7 @@ class ASS_AnswerMultipleResponseImage extends ASS_AnswerMultipleResponse
     public function toNormalized(Transformations $tt): Transformation
     {
         return $tt->custom()->transformation(fn(): array => [
-            ...parent::toNormalized($tt)->transform([]),
+            ...$tt->normalize(parent::toNormalized($tt)),
             'image' => $this->image,
         ]);
     }
