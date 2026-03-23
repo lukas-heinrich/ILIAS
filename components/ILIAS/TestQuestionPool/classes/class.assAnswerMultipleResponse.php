@@ -119,7 +119,7 @@ class ASS_AnswerMultipleResponse extends ASS_AnswerSimple
     {
         return $tt->custom()->transformation(function (array $normalized) use ($tt): self {
             $clone = parent::fromNormalized($tt)->transform($normalized);
-            $clone->setPointsUnchecked($tt->float($normalized['points_unchecked']));
+            $clone->points_unchecked = $tt->nullableFloat($normalized['points_unchecked']);
             return $clone;
         });
     }

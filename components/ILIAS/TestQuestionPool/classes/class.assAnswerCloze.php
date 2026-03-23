@@ -174,9 +174,9 @@ class assAnswerCloze extends ASS_AnswerSimple
     {
         return $tt->custom()->transformation(function (array $normalized) use ($tt): self {
             $clone = parent::fromNormalized($tt)->transform($normalized);
-            $clone->setLowerBound($tt->string($normalized['lower_bound']));
-            $clone->setUpperBound($tt->string($normalized['upper_bound']));
-            $clone->setGapSize($tt->int($normalized['gap_size']));
+            $clone->lowerBound = $tt->nullableString($normalized['lower_bound']);
+            $clone->upperBound = $tt->nullableString($normalized['upper_bound']);
+            $clone->gap_size = $tt->int($normalized['gap_size']);
             return $clone;
         });
     }

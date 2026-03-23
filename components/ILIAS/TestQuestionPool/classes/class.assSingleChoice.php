@@ -18,6 +18,8 @@
 
 declare(strict_types=1);
 
+use ILIAS\Questions\ExportImport\Foundation\Contracts\Transformations;
+use ILIAS\Refinery\Transformation;
 use ILIAS\TestQuestionPool\Questions\QuestionLMExportable;
 use ILIAS\TestQuestionPool\Questions\QuestionAutosaveable;
 use ILIAS\TestQuestionPool\ManipulateImagesInChoiceQuestionsTrait;
@@ -943,5 +945,35 @@ class assSingleChoice extends assQuestion implements ilObjQuestionScoringAdjusta
             },
             []
         );
+    }
+
+    /**
+     * @inheritDoc
+     */
+    public function toNormalized(Transformations $tt): Transformation
+    {
+        return $tt->custom()->transformation(fn(): array => [
+            ...$tt->normalize(parent::toNormalized($tt)),
+            'is_singleline' => $this->is_singleline,
+            'feedback_setting' => $this->feedback_setting,
+            'answers' => array_map($tt->normalize(...), $this->answers),
+        ]);
+    }
+
+    /**
+     * @inheritDoc
+     */
+    public function fromNormalized(Transformations $tt): Transformation
+    {
+        return $tt->custom()->transformation(function (array $normalized) use ($tt): self {
+            $clone = parent::fromNormalized($tt)->transform($normalized);
+            $clone->is_singleline = $tt->bool($normalized['is_singleline']);
+            $clone->feedback_setting = $tt->int($normalized['feedback_setting']);
+            $clone->answers = array_map(
+                fn(array $answer) => $tt->denormalize($answer, new ASS_AnswerBinaryStateImage()),
+                $normalized['answers']
+            );
+            return $clone;
+        });
     }
 }

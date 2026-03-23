@@ -18,6 +18,8 @@
 
 declare(strict_types=1);
 
+use ILIAS\Questions\ExportImport\Foundation\Contracts\Transformations;
+use ILIAS\Refinery\Transformation;
 use ILIAS\TestQuestionPool\Questions\QuestionLMExportable;
 use ILIAS\TestQuestionPool\Questions\QuestionAutosaveable;
 use ILIAS\Test\Logging\AdditionalInformationGenerator;
@@ -854,5 +856,41 @@ class assTextQuestion extends assQuestion implements ilObjQuestionScoringAdjusta
                     $this->getAnswers()
                 );
         }
+    }
+
+    /**
+     * @inheritDoc
+     */
+    public function toNormalized(Transformations $tt): Transformation
+    {
+        return $tt->custom()->transformation(fn(): array => [
+            ...$tt->normalize(parent::toNormalized($tt)),
+            'word_counter_enabled' => $this->word_counter_enabled,
+            'max_num_of_chars' => $this->max_num_of_chars,
+            'text_rating' => $this->text_rating,
+            'matchcondition' => $this->matchcondition,
+            'keyword_relation' => $this->keyword_relation,
+            'answers' => array_map($tt->normalize(...), $this->answers),
+        ]);
+    }
+
+    /**
+     * @inheritDoc
+     */
+    public function fromNormalized(Transformations $tt): Transformation
+    {
+        return $tt->custom()->transformation(function (array $normalized) use ($tt): self {
+            $clone = parent::fromNormalized($tt)->transform($normalized);
+            $clone->word_counter_enabled = $tt->bool($normalized['word_counter_enabled']);
+            $clone->max_num_of_chars = $tt->int($normalized['max_num_of_chars']);
+            $clone->text_rating = $tt->string($normalized['text_rating']);
+            $clone->matchcondition = $tt->int($normalized['matchcondition']);
+            $clone->keyword_relation = $tt->string($normalized['keyword_relation']);
+            $clone->answers = array_map(
+                fn(array $answer) => $tt->denormalize($answer, new ASS_AnswerMultipleResponseImage()),
+                $normalized['answers']
+            );
+            return $clone;
+        });
     }
 }

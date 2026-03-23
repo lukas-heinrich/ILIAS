@@ -18,6 +18,8 @@
 
 declare(strict_types=1);
 
+use ILIAS\Questions\ExportImport\Foundation\Contracts\Transformations;
+use ILIAS\Refinery\Transformation;
 use ILIAS\TestQuestionPool\Questions\QuestionLMExportable;
 use ILIAS\TestQuestionPool\Questions\QuestionAutosaveable;
 use ILIAS\Test\Logging\AdditionalInformationGenerator;
@@ -754,5 +756,35 @@ class assTextSubset extends assQuestion implements ilObjQuestionScoringAdjustabl
     public function getCorrectSolutionForTextOutput(int $active_id, int $pass): array
     {
         return $this->getAvailableAnswers();
+    }
+
+    /**
+     * @inheritDoc
+     */
+    public function toNormalized(Transformations $tt): Transformation
+    {
+        return $tt->custom()->transformation(fn(): array => [
+            ...$tt->normalize(parent::toNormalized($tt)),
+            'text_rating' => $this->text_rating,
+            'correct_answers' => $this->correctanswers,
+            'answers' => array_map($tt->normalize(...), $this->answers),
+        ]);
+    }
+
+    /**
+     * @inheritDoc
+     */
+    public function fromNormalized(Transformations $tt): Transformation
+    {
+        return $tt->custom()->transformation(function (array $normalized) use ($tt): self {
+            $clone = parent::fromNormalized($tt)->transform($normalized);
+            $clone->text_rating = $tt->string($normalized['text_rating']);
+            $clone->correctanswers = $tt->int($normalized['correct_answers']);
+            $clone->answers = array_map(
+                fn(array $answer) => $tt->denormalize($answer, new ASS_AnswerBinaryStateImage()),
+                $normalized['answers']
+            );
+            return $clone;
+        });
     }
 }

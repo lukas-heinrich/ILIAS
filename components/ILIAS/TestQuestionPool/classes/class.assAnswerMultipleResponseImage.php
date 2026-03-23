@@ -96,7 +96,7 @@ class ASS_AnswerMultipleResponseImage extends ASS_AnswerMultipleResponse
     {
         return $tt->custom()->transformation(function (array $normalized) use ($tt): self {
             $clone = parent::fromNormalized($tt)->transform($normalized);
-            $clone->setImage($tt->string($normalized['image']));
+            $clone->setImage($tt->nullableString($normalized['image']));
             return $clone;
         });
     }

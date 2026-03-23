@@ -18,6 +18,8 @@
 
 declare(strict_types=1);
 
+use ILIAS\Questions\ExportImport\Foundation\Contracts\Transformations;
+use ILIAS\Refinery\Transformation;
 use ILIAS\TestQuestionPool\Questions\QuestionLMExportable;
 use ILIAS\TestQuestionPool\Questions\QuestionAutosaveable;
 use ILIAS\Test\Logging\AdditionalInformationGenerator;
@@ -991,5 +993,38 @@ class assErrorText extends assQuestion implements ilObjQuestionScoringAdjustable
     public function getCorrectSolutionForTextOutput(int $active_id, int $pass): string
     {
         return $this->createErrorTextExport($this->getBestSelection());
+    }
+
+    /**
+    * @inheritDoc
+    */
+    public function toNormalized(Transformations $tt): Transformation
+    {
+        return $tt->custom()->transformation(fn(): array => [
+            ...$tt->normalize(parent::toNormalized($tt)),
+            'errortext' => $this->errortext,
+            'errortext_parsed' => $this->parsed_errortext,
+            'errordata' => array_map($tt->normalize(...), $this->errordata),
+            'points_wrong' => $this->points_wrong,
+        ]);
+    }
+
+    /**
+     * @inheritDoc
+     */
+    public function fromNormalized(Transformations $tt): Transformation
+    {
+        return $tt->custom()->transformation(function (array $normalized) use ($tt): self {
+            $clone = parent::fromNormalized($tt)->transform($normalized);
+            $clone->errortext = $tt->string($normalized['errortext']);
+            $clone->parsed_errortext = $normalized['errortext_parsed'];
+            $clone->points_wrong = $tt->nullableFloat($normalized['points_wrong']);
+            $clone->errordata = array_map(
+                fn(array $error) => $tt->denormalize($error, new assAnswerErrorText()),
+                $normalized['errordata']
+            );
+
+            return $clone;
+        });
     }
 }
