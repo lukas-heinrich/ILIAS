@@ -21,8 +21,12 @@ declare(strict_types=1);
 namespace ILIAS\Questions\Units;
 
 use ILIAS\Language\Language;
+use ILIAS\Questions\ExportImport\Foundation\Contracts\Normalizable;
+use ILIAS\Questions\ExportImport\Foundation\Contracts\Transformations;
+use ILIAS\Questions\ExportImport\Foundation\Objects\IdContainer;
+use ILIAS\Refinery\Transformation;
 
-class Unit
+class Unit implements Normalizable
 {
     private int $id = 0;
     private string $unit = '';
@@ -126,5 +130,40 @@ class Unit
         }
 
         return $unit;
+    }
+
+    /**
+    * @inheritDoc
+    */
+    public function toNormalized(Transformations $tt): Transformation
+    {
+        return $tt->custom()->transformation(fn(): array => [
+            'id' => $tt->normalize(new IdContainer($this->id, 'unit')),
+            'unit' => $this->unit,
+            'factor' => $this->factor,
+            'category' => $this->category,
+            'sequence' => $this->sequence,
+            'baseunit' => $this->baseunit,
+            'baseunit_title' => $this->baseunit_title,
+        ]);
+    }
+
+    /**
+     * @inheritDoc
+     */
+    public function fromNormalized(Transformations $tt): Transformation
+    {
+        return $tt->custom()->transformation(function (array $normalized) use ($tt): self {
+            $clone = clone $this;
+            $clone->id = $tt->denormalize($normalized['id'], IdContainer::class)->getId();
+            $clone->unit = $tt->string($normalized['unit']);
+            $clone->factor = $tt->float($normalized['factor']);
+            $clone->category = $tt->int($normalized['category']);
+            $clone->sequence = $tt->int($normalized['sequence']);
+            $clone->baseunit = $tt->int($normalized['baseunit']);
+            $clone->baseunit_title = $tt->string($normalized['baseunit_title']);
+
+            return $clone;
+        });
     }
 }

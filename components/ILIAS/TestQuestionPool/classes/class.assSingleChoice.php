@@ -956,7 +956,7 @@ class assSingleChoice extends assQuestion implements ilObjQuestionScoringAdjusta
             ...$tt->normalize(parent::toNormalized($tt)),
             'is_singleline' => $this->is_singleline,
             'feedback_setting' => $this->feedback_setting,
-            'answers' => array_map($tt->normalize(...), $this->answers),
+            'answers' => $tt->normalize($this->answers),
         ]);
     }
 

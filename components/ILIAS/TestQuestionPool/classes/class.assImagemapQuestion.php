@@ -915,7 +915,7 @@ class assImagemapQuestion extends assQuestion implements ilObjAnswerScoringAdjus
                 new QuestionImageContainer($this->image_filename, $this->getId(), $this->getObjId())
             ),
             'multiple_choice' => $this->is_multiple_choice,
-            'answers' => array_map($tt->normalize(...), $this->answers),
+            'answers' => $tt->normalize($this->answers),
         ]);
     }
 

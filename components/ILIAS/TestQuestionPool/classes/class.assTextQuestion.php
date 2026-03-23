@@ -870,7 +870,7 @@ class assTextQuestion extends assQuestion implements ilObjQuestionScoringAdjusta
             'text_rating' => $this->text_rating,
             'matchcondition' => $this->matchcondition,
             'keyword_relation' => $this->keyword_relation,
-            'answers' => array_map($tt->normalize(...), $this->answers),
+            'answers' => $tt->normalize($this->answers),
         ]);
     }
 

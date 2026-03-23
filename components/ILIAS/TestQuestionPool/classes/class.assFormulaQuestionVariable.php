@@ -17,7 +17,11 @@
  *********************************************************************/
 
 declare(strict_types=1);
+
+use ILIAS\Questions\ExportImport\Foundation\Contracts\Normalizable;
+use ILIAS\Questions\ExportImport\Foundation\Contracts\Transformations;
 use ILIAS\Questions\Units\Unit;
+use ILIAS\Refinery\Transformation;
 
 /**
  * Formula Question Variable
@@ -25,7 +29,7 @@ use ILIAS\Questions\Units\Unit;
  * @version       $Id: class.assFormulaQuestionVariable.php 465 2009-06-29 08:27:36Z hschottm $
  * @ingroup components\ILIASTestQuestionPool
  * */
-class assFormulaQuestionVariable
+class assFormulaQuestionVariable implements Normalizable
 {
     private $value = null;
     private float $range_min;
@@ -197,5 +201,42 @@ class assFormulaQuestionVariable
     public function getRangeMinTxt(): string
     {
         return $this->range_min_txt;
+    }
+
+    /**
+    * @inheritDoc
+    */
+    public function toNormalized(Transformations $tt): Transformation
+    {
+        return $tt->custom()->transformation(fn(): array => [
+            'variable' => $this->variable,
+            'range_min' => $this->range_min,
+            'range_max' => $this->range_max,
+            'range_min_txt' => $this->range_min_txt,
+            'range_max_txt' => $this->range_max_txt,
+            'unit' => $tt->normalize($this->unit),
+            'precision' => $this->precision,
+            'intprecision' => $this->intprecision,
+        ]);
+    }
+
+    /**
+     * @inheritDoc
+     */
+    public function fromNormalized(Transformations $tt): Transformation
+    {
+        return $tt->custom()->transformation(function (array $normalized) use ($tt): self {
+            $clone = clone $this;
+            $clone->variable = $tt->string($normalized['variable']);
+            $clone->range_min = $tt->float($normalized['range_min']);
+            $clone->range_max = $tt->float($normalized['range_max']);
+            $clone->range_min_txt = $tt->string($normalized['range_min_txt']);
+            $clone->range_max_txt = $tt->string($normalized['range_max_txt']);
+            $clone->unit = $tt->denormalize($normalized['unit'], new Unit());
+            $clone->precision = $tt->int($normalized['precision']);
+            $clone->intprecision = $tt->int($normalized['intprecision']);
+
+            return $clone;
+        });
     }
 }

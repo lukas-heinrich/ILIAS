@@ -767,7 +767,7 @@ class assTextSubset extends assQuestion implements ilObjQuestionScoringAdjustabl
             ...$tt->normalize(parent::toNormalized($tt)),
             'text_rating' => $this->text_rating,
             'correct_answers' => $this->correctanswers,
-            'answers' => array_map($tt->normalize(...), $this->answers),
+            'answers' => $tt->normalize($this->answers),
         ]);
     }
 

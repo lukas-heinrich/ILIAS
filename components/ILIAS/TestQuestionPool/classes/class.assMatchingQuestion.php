@@ -1431,14 +1431,13 @@ class assMatchingQuestion extends assQuestion implements ilObjAnswerScoringAdjus
     */
     public function toNormalized(Transformations $tt): Transformation
     {
-        dd($this->definitions);
         return $tt->custom()->transformation(fn(): array => [
             ...$tt->normalize(parent::toNormalized($tt)),
             'shuffle_mode' => $this->shufflemode,
             'matching_mode' => $this->matching_mode,
             'matching_type' => $this->matching_type,
             'thumb_geometry' => $this->thumb_geometry,
-            'matching_pairs' => array_map($tt->normalize(...), $this->matchingpairs),
+            'matching_pairs' => $tt->normalize($this->matchingpairs),
         ]);
     }
 

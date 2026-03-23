@@ -1004,7 +1004,7 @@ class assErrorText extends assQuestion implements ilObjQuestionScoringAdjustable
             ...$tt->normalize(parent::toNormalized($tt)),
             'errortext' => $this->errortext,
             'errortext_parsed' => $this->parsed_errortext,
-            'errordata' => array_map($tt->normalize(...), $this->errordata),
+            'errordata' => $tt->normalize($this->errordata),
             'points_wrong' => $this->points_wrong,
         ]);
     }
