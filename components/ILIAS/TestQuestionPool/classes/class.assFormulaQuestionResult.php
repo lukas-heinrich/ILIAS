@@ -16,6 +16,7 @@
  *
  *********************************************************************/
 
+use ILIAS\Questions\Units\Unit;
 use ILIAS\Refinery\Factory as Refinery;
 
 /**
@@ -44,7 +45,7 @@ class assFormulaQuestionResult
         private ?string $range_min_txt,
         private ?string $range_max_txt,
         private float $tolerance,
-        private ?assFormulaQuestionUnit $unit,
+        private ?Unit $unit,
         private ?string $formula,
         private float $points,
         private int $precision,
@@ -412,13 +413,13 @@ class assFormulaQuestionResult
     }
 
     /**
-     * @param assFormulaQuestionUnit[] $units
+     * @param Unit[] $units
      */
     public function getReachedPoints(
         array $variables,
         array $results,
         string $answer_value,
-        ?assFormulaQuestionUnit $answer_unit,
+        ?Unit $answer_unit,
         array $units
     ): float {
         if ($this->getRatingSimple()) {
@@ -431,12 +432,12 @@ class assFormulaQuestionResult
         $float_value = $this->transformAnswerValueAccordingToType($answer_value, $answer_unit);
 
         $points = 0.0;
-        if ($answer_unit instanceof assFormulaQuestionUnit && $answer_unit instanceof assFormulaQuestionUnit) {
+        if ($answer_unit instanceof Unit && $answer_unit instanceof Unit) {
             $base1 = $units[$answer_unit->getBaseUnit()] ?? null;
             $base2 = $units[$answer_unit->getBaseUnit()] ?? null;
             if (
-                $base1 instanceof assFormulaQuestionUnit
-                && $base2 instanceof assFormulaQuestionUnit
+                $base1 instanceof Unit
+                && $base2 instanceof Unit
                 && $base1->getId() === $base2->getId()
             ) {
                 $points += ilMath::_mul($this->getPoints(), ilMath::_div($this->getRatingUnit(), 100));
@@ -468,7 +469,7 @@ class assFormulaQuestionResult
 
     private function transformAnswerValueAccordingToType(
         string $value,
-        ?assFormulaQuestionUnit $unit
+        ?Unit $unit
     ): ?float {
         switch ($this->getResultType()) {
             case self::RESULT_DEC:
@@ -633,12 +634,12 @@ class assFormulaQuestionResult
         return $this->tolerance;
     }
 
-    public function setUnit(?assFormulaQuestionUnit $unit): void
+    public function setUnit(?Unit $unit): void
     {
         $this->unit = $unit;
     }
 
-    public function getUnit(): ?assFormulaQuestionUnit
+    public function getUnit(): ?Unit
     {
         return $this->unit;
     }

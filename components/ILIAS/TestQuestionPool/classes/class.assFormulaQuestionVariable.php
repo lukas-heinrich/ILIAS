@@ -17,6 +17,7 @@
  *********************************************************************/
 
 declare(strict_types=1);
+use ILIAS\Questions\Units\Unit;
 
 /**
  * Formula Question Variable
@@ -34,7 +35,7 @@ class assFormulaQuestionVariable
         private string $variable,
         private string $range_min_txt,
         private string $range_max_txt,
-        private ?assFormulaQuestionUnit $unit = null,
+        private ?Unit $unit = null,
         private int $precision = 0,
         private int $intprecision = 1
     ) {
@@ -158,12 +159,12 @@ class assFormulaQuestionVariable
         return $this->range_max;
     }
 
-    public function setUnit(?assFormulaQuestionUnit $unit): void
+    public function setUnit(?Unit $unit): void
     {
         $this->unit = $unit;
     }
 
-    public function getUnit(): ?assFormulaQuestionUnit
+    public function getUnit(): ?Unit
     {
         return $this->unit;
     }

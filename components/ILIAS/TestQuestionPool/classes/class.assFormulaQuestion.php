@@ -18,6 +18,7 @@
 
 declare(strict_types=1);
 
+use ILIAS\Questions\Units\Unit;
 use ILIAS\TestQuestionPool\Questions\QuestionAutosaveable;
 use ILIAS\TestQuestionPool\QuestionPoolDIC;
 use ILIAS\Test\Logging\AdditionalInformationGenerator;
@@ -116,7 +117,7 @@ class assFormulaQuestion extends assQuestion implements iQuestionCondition, Ques
 
     public function addResultUnit(
         ?assFormulaQuestionResult $result,
-        ?assFormulaQuestionUnit $unit
+        ?Unit $unit
     ): void {
         if ($result === null || $unit === null) {
             return;
@@ -130,7 +131,7 @@ class assFormulaQuestion extends assQuestion implements iQuestionCondition, Ques
     }
 
     /**
-     * @return assFormulaQuestionUnit[]
+     * @return Unit[]
      */
     public function getResultUnits(assFormulaQuestionResult $result): array
     {
@@ -142,7 +143,7 @@ class assFormulaQuestion extends assQuestion implements iQuestionCondition, Ques
 
         usort(
             $result_units,
-            static fn(assFormulaQuestionUnit $a, assFormulaQuestionUnit $b) =>
+            static fn(Unit $a, Unit $b) =>
                 $a->getSequence() <=> $b->getSequence()
         );
 
