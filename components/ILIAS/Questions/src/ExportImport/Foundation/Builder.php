@@ -21,11 +21,12 @@ declare(strict_types=1);
 namespace ILIAS\Questions\ExportImport\Foundation;
 
 use ILIAS\DI\Container as ILIASContainer;
+use ILIAS\Questions\ExportImport\Foundation\Contracts\Pipe;
 use ILIAS\Questions\ExportImport\Foundation\Contracts\Transformations as TransformationsContract;
 use ILIAS\Questions\ExportImport\Foundation\Normalizing\Normalizer\Registry;
 use ILIAS\Questions\ExportImport\Foundation\Normalizing\Pipes\DenormalizingPipe;
+use ILIAS\Questions\ExportImport\Foundation\Normalizing\Pipes\FinalizeNormalizing;
 use ILIAS\Questions\ExportImport\Foundation\Normalizing\Pipes\NormalizingPipe;
-use ILIAS\Questions\ExportImport\Foundation\Normalizing\Pipes\UUIDMappingPipe;
 use ILIAS\Questions\ExportImport\Foundation\Normalizing\Transformations;
 use ILIAS\Questions\Setup\Artifact\NormalizerArtifactObjective;
 use Pimple\Container;
@@ -41,11 +42,14 @@ class Builder
 {
     private bool $default_normalizers = true;
     private ?string $legacy_version = null;
-    private bool $enable_mappings = false;
 
-    /**
-     * @var list<Container> $containers
-     */
+    /** @var list<Pipe> $prepend_pipes */
+    private array $prepend_pipes = [];
+
+    /** @var list<Pipe> $append_pipes */
+    private array $append_pipes = [];
+
+    /** @var list<Container> $containers */
     private array $containers = [];
 
     public function __construct(
@@ -59,13 +63,6 @@ class Builder
         Fluent interface methods
     */
 
-    public function withEnableMappings(bool $enable = true): self
-    {
-        $clone = clone $this;
-        $clone->enable_mappings = $enable;
-        return $clone;
-    }
-
     public function withDefaultNormalizers(bool $enable = true): self
     {
         $clone = clone $this;
@@ -77,6 +74,18 @@ class Builder
     {
         $clone = clone $this;
         $clone->legacy_version = $version;
+        return $clone;
+    }
+
+    /**
+     * @param list<Pipe> $append
+     * @param list<Pipe> $prepend
+     */
+    public function withAdditionalPipes(array $prepend = [], array $append = []): self
+    {
+        $clone = clone $this;
+        $clone->append_pipes += $append;
+        $clone->prepend_pipes += $prepend;
         return $clone;
     }
 
@@ -96,6 +105,10 @@ class Builder
             $pipeline
         );
 
+        foreach ($this->prepend_pipes as $pipe) {
+            $pipeline->pipe($pipe);
+        }
+
         if ($this->legacy_version !== null) {
             // TODO: Implement semver comparison here? Use ILIAS\Data\Version class?
 
@@ -110,9 +123,11 @@ class Builder
             $pipeline->pipe(new DenormalizingPipe($registry));
         }
 
-        if ($this->enable_mappings) {
-            $pipeline->pipe(new UUIDMappingPipe());
+        foreach ($this->append_pipes as $pipe) {
+            $pipeline->pipe($pipe);
         }
+
+        $pipeline->pipe(new FinalizeNormalizing());
 
         return $object;
     }

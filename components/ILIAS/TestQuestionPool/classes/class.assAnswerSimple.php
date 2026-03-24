@@ -18,7 +18,7 @@
 
 use ILIAS\Questions\ExportImport\Foundation\Contracts\Normalizable;
 use ILIAS\Questions\ExportImport\Foundation\Contracts\Transformations;
-use ILIAS\Questions\ExportImport\Foundation\Objects\IdContainer;
+use ILIAS\Questions\ExportImport\Foundation\Normalizing\Envelopes\Id;
 use ILIAS\Refinery\Transformation;
 
 /**
@@ -223,7 +223,7 @@ class ASS_AnswerSimple implements Normalizable
     public function toNormalized(Transformations $tt): Transformation
     {
         return $tt->custom()->transformation(fn(): array => [
-            'id' => $tt->normalize(new IdContainer($this->id, 'answer')),
+            'id' => $tt->normalize(new Id($this->id, 'answer')),
             'answertext' => $this->answertext,
             'points' => $this->points,
             'order' => $this->order,
@@ -239,7 +239,7 @@ class ASS_AnswerSimple implements Normalizable
             $tt->string($normalized['answertext']),
             $tt->float($normalized['points']),
             $tt->int($normalized['order']),
-            $tt->denormalize($normalized['id'], IdContainer::class)->getId()
+            $tt->denormalize($normalized['id'], Id::class)->getId()
         ));
     }
 }

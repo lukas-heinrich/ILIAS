@@ -19,7 +19,7 @@
 declare(strict_types=1);
 use ILIAS\Questions\ExportImport\Foundation\Contracts\Normalizable;
 use ILIAS\Questions\ExportImport\Foundation\Contracts\Transformations;
-use ILIAS\Questions\ExportImport\Foundation\Objects\IdContainer;
+use ILIAS\Questions\ExportImport\Foundation\Normalizing\Envelopes\Id;
 use ILIAS\Refinery\Transformation;
 
 /**
@@ -450,8 +450,8 @@ class ilAssOrderingElement implements Normalizable
      */
     public function toNormalized(Transformations $tt): Transformation
     {
-        return $tt->custom()->transformation(fn(): array => [
-            'id' => $tt->normalize(new IdContainer($this->id, 'ordering')),
+        return $tt->custom()->transformation(fn($options): array => [
+            'id' => $tt->normalize(new Id($this->id, 'ordering')),
             'random_identifier' => $this->random_identifier,
             'solution_identifier' => $this->solution_identifier,
             'position' => $this->position,
@@ -471,7 +471,7 @@ class ilAssOrderingElement implements Normalizable
                         ->withPosition($tt->int($normalized['position']))
                         ->withIndentation($tt->int($normalized['indentation']))
                         ->withContent($tt->string($normalized['content']));
-            $clone->setId($tt->denormalize($normalized['id'], IdContainer::class)->getId());
+            $clone->setId($tt->denormalize($normalized['id'], Id::class)->getId());
 
             return $clone;
         });

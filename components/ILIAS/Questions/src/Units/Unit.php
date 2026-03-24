@@ -23,7 +23,7 @@ namespace ILIAS\Questions\Units;
 use ILIAS\Language\Language;
 use ILIAS\Questions\ExportImport\Foundation\Contracts\Normalizable;
 use ILIAS\Questions\ExportImport\Foundation\Contracts\Transformations;
-use ILIAS\Questions\ExportImport\Foundation\Objects\IdContainer;
+use ILIAS\Questions\ExportImport\Foundation\Normalizing\Envelopes\Id;
 use ILIAS\Refinery\Transformation;
 
 class Unit implements Normalizable
@@ -138,7 +138,7 @@ class Unit implements Normalizable
     public function toNormalized(Transformations $tt): Transformation
     {
         return $tt->custom()->transformation(fn(): array => [
-            'id' => $tt->normalize(new IdContainer($this->id, 'unit')),
+            'id' => $tt->normalize(new Id($this->id, 'unit')),
             'unit' => $this->unit,
             'factor' => $this->factor,
             'category' => $this->category,
@@ -155,7 +155,7 @@ class Unit implements Normalizable
     {
         return $tt->custom()->transformation(function (array $normalized) use ($tt): self {
             $clone = clone $this;
-            $clone->id = $tt->denormalize($normalized['id'], IdContainer::class)->getId();
+            $clone->id = $tt->denormalize($normalized['id'], Id::class)->getId();
             $clone->unit = $tt->string($normalized['unit']);
             $clone->factor = $tt->float($normalized['factor']);
             $clone->category = $tt->int($normalized['category']);

@@ -2,7 +2,6 @@
 
 namespace ILIAS\Questions\ExportImport\Foundation\Normalizing;
 
-use ILIAS\Questions\ExportImport\Foundation\Contracts\Pipe;
 use ILIAS\Questions\ExportImport\Foundation\Contracts\Pipeline;
 use ILIAS\Questions\ExportImport\Foundation\Normalizing\Pipes\DenormalizeCarry;
 use ILIAS\Questions\ExportImport\Foundation\Normalizing\Pipes\NormalizeCarry;
@@ -56,25 +55,6 @@ class Transformations implements TransformationsContract
 
         return $this->pipeline->send(new DenormalizeCarry($this, $normalized, $expected))
             ->then(fn(DenormalizeCarry $carry) => $carry->result());
-    }
-
-    /**
-     * Get a pipe from the pipeline.
-     *
-     * @template T of Pipe
-     * @param class-string<T> $pipe
-     * @return T
-     *
-     * @throws NormalizingException if the pipe is not found
-     */
-    public function context(string $pipe): Pipe
-    {
-        foreach ($this->pipeline->pipes() as $pipe) {
-            if ($pipe instanceof $pipe) {
-                return $pipe;
-            }
-        }
-        throw new NormalizingException("Pipe {$pipe} not found");
     }
 
     /*

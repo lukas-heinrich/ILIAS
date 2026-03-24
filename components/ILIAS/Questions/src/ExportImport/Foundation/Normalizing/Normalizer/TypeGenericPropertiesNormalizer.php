@@ -28,7 +28,7 @@ use ILIAS\Questions\ExportImport\Foundation\Contracts\Normalizer;
 use ILIAS\Questions\ExportImport\Foundation\Contracts\Transformations;
 use ILIAS\Questions\ExportImport\Foundation\Normalizing\Attributes\Normalizes;
 use ILIAS\Questions\ExportImport\Foundation\Normalizing\NormalizingException;
-use ILIAS\Questions\ExportImport\Foundation\Objects\IdContainer;
+use ILIAS\Questions\ExportImport\Foundation\Normalizing\Envelopes\Id;
 use ILIAS\Questions\Legacy\LocalDIC;
 
 /**
@@ -53,8 +53,8 @@ class TypeGenericPropertiesNormalizer implements Normalizer
     {
         if ($value instanceof TypeGenericProperties) {
             return [
-                'answer_form_id' => $this->tt->normalize($value->getAnswerFormId()),
-                'question_id' => $this->tt->normalize($value->getQuestionId()),
+                'answer_form_id' => $value->getAnswerFormId() ? $this->tt->normalize(new Id($value->getAnswerFormId())) : null,
+                'question_id' => $value->getQuestionId() ? $this->tt->normalize(new Id($value->getQuestionId())) : null,
                 'definition' => $this->normalizeDefinition($value->getDefinition()),
                 'available_points' => $value->getAvailablePoints(),
                 'image_size' => $value->getImageSize(),
@@ -77,8 +77,8 @@ class TypeGenericPropertiesNormalizer implements Normalizer
         }
 
         return new TypeGenericProperties(
-            $this->tt->denormalize($value['answer_form_id'], Uuid::class),
-            $this->tt->denormalize($value['question_id'], Uuid::class),
+            $this->tt->denormalize($value['answer_form_id'], Id::class)?->getId(),
+            $this->tt->denormalize($value['question_id'], Id::class)?->getId(),
             $this->denormalizeDefinition($value['definition']),
             $this->tt->nullableFloat($value['available_points']),
             $this->tt->nullableInt($value['image_size']),

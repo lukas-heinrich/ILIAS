@@ -20,7 +20,7 @@ declare(strict_types=1);
 
 use ILIAS\Questions\ExportImport\Foundation\Contracts\Normalizable;
 use ILIAS\Questions\ExportImport\Foundation\Contracts\Transformations;
-use ILIAS\Questions\ExportImport\Foundation\Objects\IdContainer;
+use ILIAS\Questions\ExportImport\Foundation\Normalizing\Envelopes\Id;
 use ILIAS\Test\Results\Data\Repository as TestResultRepository;
 use ILIAS\Test\TestDIC;
 use ILIAS\TestQuestionPool\Questions\QuestionPartiallySaveable;
@@ -2958,7 +2958,7 @@ abstract class assQuestion implements Question, Normalizable
     public function toNormalized(Transformations $tt): Transformation
     {
         return $tt->custom()->transformation(fn(): array => [
-            'id' => $tt->normalize(new IdContainer($this->id, 'question')),
+            'id' => $tt->normalize(new Id($this->id, 'question')),
             'original_id' => $this->original_id,
             'external_id' => $this->external_id,
             'type' => $this->getQuestionType(),
@@ -2985,8 +2985,8 @@ abstract class assQuestion implements Question, Normalizable
     {
         return $tt->custom()->transformation(function (array $normalized) use ($tt): self {
             $clone = clone $this;
-            $clone->id = $tt->denormalize($normalized['id'], IdContainer::class)->getId();
-            $clone->original_id = $tt->nullableString($normalized['original_id']);
+            $clone->id = $tt->denormalize($normalized['id'], Id::class)->getId();
+            $clone->original_id = $tt->nullableInt($normalized['original_id']);
             $clone->external_id = $tt->nullableString($normalized['external_id']);
             $clone->owner = $tt->int($normalized['owner']);
             $clone->title = $tt->string($normalized['title']);
