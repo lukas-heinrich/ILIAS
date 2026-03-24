@@ -21,8 +21,12 @@ declare(strict_types=1);
 namespace ILIAS\Questions\Units;
 
 use ILIAS\Language\Language;
+use ILIAS\Questions\ExportImport\Foundation\Contracts\Normalizable;
+use ILIAS\Questions\ExportImport\Foundation\Contracts\Transformations;
+use ILIAS\Questions\ExportImport\Foundation\Normalizing\Envelopes\Id;
+use ILIAS\Refinery\Transformation;
 
-class Category
+class Category implements Normalizable
 {
     private int $id = 0;
     private string $category = '';
@@ -78,5 +82,26 @@ class Category
         }
 
         return $category;
+    }
+
+    public function toNormalized(Transformations $tt): Transformation
+    {
+        return $tt->custom()->transformation(fn(): array => [
+            'id' => $tt->normalize(new Id($this->id, 'unit_category')),
+            'name' => $this->category,
+            'question_id' => $tt->normalize(new Id($this->question_fi, 'question')),
+        ]);
+    }
+
+    public function fromNormalized(Transformations $tt): Transformation
+    {
+        return $tt->custom()->transformation(function (array $normalized) use ($tt): self {
+            $clone = clone $this;
+            $clone->id = $tt->denormalize($normalized['id'], Id::class)->getId();
+            $clone->category = $tt->string($normalized['name']);
+            $clone->question_fi = $tt->denormalize($normalized['question_id'], Id::class)->getId();
+
+            return $clone;
+        });
     }
 }

@@ -43,7 +43,7 @@ class Unit implements Normalizable
         $this->factor = (float) $data['factor'];
         $this->baseunit = (int) $data['baseunit_fi'];
         $this->baseunit_title = $data['baseunit_title'] ?? null;
-        $this->category = (int) $data['category'];
+        $this->category = (int) $data['category_fi'];
         $this->sequence = (int) $data['sequence'];
     }
 
@@ -141,7 +141,7 @@ class Unit implements Normalizable
             'id' => $tt->normalize(new Id($this->id, 'unit')),
             'unit' => $this->unit,
             'factor' => $this->factor,
-            'category' => $this->category,
+            'category_id' => $tt->normalize(new Id($this->category, 'unit_category')),
             'sequence' => $this->sequence,
             'baseunit' => $this->baseunit,
             'baseunit_title' => $this->baseunit_title,
@@ -158,7 +158,7 @@ class Unit implements Normalizable
             $clone->id = $tt->denormalize($normalized['id'], Id::class)->getId();
             $clone->unit = $tt->string($normalized['unit']);
             $clone->factor = $tt->float($normalized['factor']);
-            $clone->category = $tt->int($normalized['category']);
+            $clone->category = $tt->denormalize($normalized['category_id'], Id::class)->getId();
             $clone->sequence = $tt->int($normalized['sequence']);
             $clone->baseunit = $tt->int($normalized['baseunit']);
             $clone->baseunit_title = $tt->string($normalized['baseunit_title']);

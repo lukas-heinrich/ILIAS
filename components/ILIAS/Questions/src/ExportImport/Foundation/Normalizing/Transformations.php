@@ -36,6 +36,10 @@ class Transformations implements TransformationsContract
             return null;
         }
 
+        if (is_object($value) && $value instanceof Generator) {
+            $value = iterator_to_array($value);
+        }
+
         if (is_array($value)) {
             return array_map($this->normalize(...), $value);
         }
