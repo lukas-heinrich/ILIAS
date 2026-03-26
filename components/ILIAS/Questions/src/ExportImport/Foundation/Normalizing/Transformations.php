@@ -2,6 +2,7 @@
 
 namespace ILIAS\Questions\ExportImport\Foundation\Normalizing;
 
+use Generator;
 use ILIAS\Questions\ExportImport\Foundation\Contracts\Pipeline;
 use ILIAS\Questions\ExportImport\Foundation\Normalizing\Pipes\DenormalizeCarry;
 use ILIAS\Questions\ExportImport\Foundation\Normalizing\Pipes\NormalizeCarry;
@@ -30,7 +31,7 @@ class Transformations implements TransformationsContract
     /**
      * @inheritDoc
      */
-    public function normalize(mixed $value): array|float|bool|int|string|null
+    public function normalize(mixed $value, array $context = []): array|float|bool|int|string|null
     {
         if ($value === null) {
             return null;
@@ -41,10 +42,10 @@ class Transformations implements TransformationsContract
         }
 
         if (is_array($value)) {
-            return array_map($this->normalize(...), $value);
+            return array_map(fn(mixed $value) => $this->normalize($value, $context), $value);
         }
 
-        return $this->pipeline->send(new NormalizeCarry($this, $value))
+        return $this->pipeline->send(new NormalizeCarry($this, $value, $context))
             ->then(fn(NormalizeCarry $carry) => $carry->result());
     }
 

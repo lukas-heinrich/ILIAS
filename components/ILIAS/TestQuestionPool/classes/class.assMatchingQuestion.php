@@ -1437,7 +1437,7 @@ class assMatchingQuestion extends assQuestion implements ilObjAnswerScoringAdjus
             'matching_mode' => $this->matching_mode,
             'matching_type' => $this->matching_type,
             'thumb_geometry' => $this->thumb_geometry,
-            'matching_pairs' => $tt->normalize($this->matchingpairs),
+            'matching_pairs' => $tt->normalize($this->matchingpairs, ['question_id' => $this->getId()]),
         ]);
     }
 

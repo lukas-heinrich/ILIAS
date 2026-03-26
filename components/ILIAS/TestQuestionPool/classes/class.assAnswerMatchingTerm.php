@@ -21,6 +21,7 @@ declare(strict_types=1);
 use ILIAS\Questions\ExportImport\Foundation\Contracts\Normalizable;
 use ILIAS\Questions\ExportImport\Foundation\Contracts\Transformations;
 use ILIAS\Refinery\Transformation;
+use ILIAS\TestQuestionPool\ExportImport\Envelopes\QuestionImage;
 
 /**
 * Class for matching question terms
@@ -86,9 +87,11 @@ class assAnswerMatchingTerm implements Normalizable
      */
     public function toNormalized(Transformations $tt): Transformation
     {
-        return $tt->custom()->transformation(fn(): array => [
+        return $tt->custom()->transformation(fn(array $context): array => [
             'text' => $this->text,
-            'picture' => $this->picture,
+            'picture' => $this->picture ? $tt->normalize(
+                new QuestionImage($this->picture, $context['question_id'] ?? null)
+            ) : null,
             'identifier' => $this->identifier,
         ]);
     }
@@ -100,7 +103,7 @@ class assAnswerMatchingTerm implements Normalizable
     {
         return $tt->custom()->transformation(function (array $normalized) use ($tt): self {
             return $this->withText($tt->string($normalized['text']))
-                ->withPicture($tt->string($normalized['picture']))
+                ->withPicture($tt->denormalize($normalized['picture'], QuestionImage::class)->getFilename())
                 ->withIdentifier($tt->int($normalized['identifier']));
         });
     }

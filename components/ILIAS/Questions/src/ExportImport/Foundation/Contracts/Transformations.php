@@ -40,7 +40,7 @@ interface Transformations
      *
      * @throws NormalizingException if the value is not supported
      */
-    public function normalize(mixed $value): array|float|bool|int|string|null;
+    public function normalize(mixed $value, array $context = []): array|float|bool|int|string|null;
 
     /**
      * Converts a normalized form back. If the expected type is a class string, it attempts to create a new instance of

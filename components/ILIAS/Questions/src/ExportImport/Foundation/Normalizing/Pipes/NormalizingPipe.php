@@ -49,7 +49,7 @@ class NormalizingPipe implements Pipe
 
         // Check if object is self-normalizable and use the toNormalized method
         if ($passable->value instanceof Normalizable) {
-            $normalized = $passable->value->toNormalized($passable->transformations)->transform([]);
+            $normalized = $passable->value->toNormalized($passable->transformations)->transform($passable->context);
 
             return $next($passable->setResult($normalized));
         }

@@ -20,6 +20,7 @@ declare(strict_types=1);
 
 use ILIAS\Questions\ExportImport\Foundation\Contracts\Transformations;
 use ILIAS\Refinery\Transformation;
+use ILIAS\TestQuestionPool\ExportImport\Envelopes\QuestionImage;
 
 /**
  * Class for answers with a binary state indicator
@@ -79,9 +80,11 @@ class ASS_AnswerBinaryStateImage extends ASS_AnswerBinaryState
     */
     public function toNormalized(Transformations $tt): Transformation
     {
-        return $tt->custom()->transformation(fn(): array => [
+        return $tt->custom()->transformation(fn(array $context): array => [
             ...$tt->normalize(parent::toNormalized($tt)),
-            'image' => $this->image,
+            'image' => $this->image ? $tt->normalize(
+                new QuestionImage($this->image, $context['question_id'] ?? null)
+            ) : null,
         ]);
     }
 
@@ -92,7 +95,7 @@ class ASS_AnswerBinaryStateImage extends ASS_AnswerBinaryState
     {
         return $tt->custom()->transformation(function (array $normalized) use ($tt): self {
             $clone = parent::fromNormalized($tt)->transform($normalized);
-            $clone->setImage($tt->nullableString($normalized['image']));
+            $clone->setImage($tt->denormalize($normalized['image'], QuestionImage::class)?->getFilename());
             return $clone;
         });
     }

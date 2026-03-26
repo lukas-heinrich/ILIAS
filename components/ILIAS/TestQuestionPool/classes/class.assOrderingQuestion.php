@@ -1376,7 +1376,7 @@ class assOrderingQuestion extends assQuestion implements ilObjQuestionScoringAdj
         return $tt->custom()->transformation(fn(): array => [
             ...$tt->normalize(parent::toNormalized($tt)),
             'ordering_type' => $this->ordering_type,
-            'ordering_elements' => $tt->normalize($this->getOrderingElementList()->getElements()),
+            'ordering_elements' => $tt->normalize($this->getOrderingElementList()->getElements(), ['question_id' => $this->getId()]),
         ]);
     }
 

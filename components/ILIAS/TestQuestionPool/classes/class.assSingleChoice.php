@@ -952,12 +952,13 @@ class assSingleChoice extends assQuestion implements ilObjQuestionScoringAdjusta
      */
     public function toNormalized(Transformations $tt): Transformation
     {
-        return $tt->custom()->transformation(fn(): array => [
-            ...$tt->normalize(parent::toNormalized($tt)),
-            'is_singleline' => $this->is_singleline,
-            'feedback_setting' => $this->feedback_setting,
-            'answers' => $tt->normalize($this->answers),
-        ]);
+        return $tt->custom()->transformation(function (array $normalized) use ($tt): array {
+            $normalized = $tt->normalize(parent::toNormalized($tt));
+            $normalized['is_singleline'] = $this->is_singleline;
+            $normalized['feedback_setting'] = $this->feedback_setting;
+            $normalized['answers'] = $tt->normalize($this->answers, ['question_id' => $this->getId()]);
+            return $normalized;
+        });
     }
 
     /**

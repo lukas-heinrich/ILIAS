@@ -21,6 +21,7 @@ use ILIAS\Questions\ExportImport\Foundation\Contracts\Normalizable;
 use ILIAS\Questions\ExportImport\Foundation\Contracts\Transformations;
 use ILIAS\Questions\ExportImport\Foundation\Normalizing\Envelopes\Id;
 use ILIAS\Refinery\Transformation;
+use ILIAS\TestQuestionPool\ExportImport\Envelopes\QuestionImage;
 
 /**
 * Class represents an ordering element for assOrderingQuestion
@@ -450,13 +451,15 @@ class ilAssOrderingElement implements Normalizable
      */
     public function toNormalized(Transformations $tt): Transformation
     {
-        return $tt->custom()->transformation(fn($options): array => [
+        return $tt->custom()->transformation(fn(array $options): array => [
             'id' => $tt->normalize(new Id($this->id, 'ordering')),
             'random_identifier' => $this->random_identifier,
             'solution_identifier' => $this->solution_identifier,
             'position' => $this->position,
             'indentation' => $this->indentation,
-            'content' => $this->content,
+            'content' => $this->content ? $tt->normalize(
+                new QuestionImage($this->content, $options['question_id'] ?? null)
+            ) : null,
         ]);
     }
 
@@ -469,8 +472,9 @@ class ilAssOrderingElement implements Normalizable
             $clone = $this->withRandomIdentifier($tt->int($normalized['random_identifier']))
                         ->withSolutionIdentifier($tt->int($normalized['solution_identifier']))
                         ->withPosition($tt->int($normalized['position']))
-                        ->withIndentation($tt->int($normalized['indentation']))
-                        ->withContent($tt->string($normalized['content']));
+                        ->withIndentation($tt->int($normalized['indentation']));
+
+            $clone->setContent($tt->denormalize($normalized['content'], QuestionImage::class)?->getFilename());
             $clone->setId($tt->denormalize($normalized['id'], Id::class)->getId());
 
             return $clone;

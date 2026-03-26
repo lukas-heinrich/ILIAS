@@ -18,7 +18,6 @@
 
 declare(strict_types=1);
 
-use ILIAS\Questions\ExportImport\Foundation\Contracts\Normalizable;
 use ILIAS\Questions\ExportImport\Foundation\Contracts\Transformations;
 use ILIAS\Refinery\Transformation;
 use ILIAS\TestQuestionPool\Questions\QuestionLMExportable;
@@ -32,7 +31,7 @@ use ILIAS\Test\Logging\AdditionalInformationGenerator;
  *
  * @package components\ILIAS/TestQuestionPool
  */
-class assKprimChoice extends assQuestion implements Normalizable, ilObjQuestionScoringAdjustable, ilObjAnswerScoringAdjustable, ilAssSpecificFeedbackOptionLabelProvider, QuestionLMExportable, QuestionAutosaveable
+class assKprimChoice extends assQuestion implements ilObjQuestionScoringAdjustable, ilObjAnswerScoringAdjustable, ilAssSpecificFeedbackOptionLabelProvider, QuestionLMExportable, QuestionAutosaveable
 {
     use ManipulateImagesInChoiceQuestionsTrait;
 
@@ -933,13 +932,12 @@ class assKprimChoice extends assQuestion implements Normalizable, ilObjQuestionS
             ...$tt->normalize(parent::toNormalized($tt)),
             'shuffle_answers' => $this->shuffle_answers_enabled,
             'answer_type' => $this->answerType,
-            'thumb_size' => $this->thumbSize,
             'option_label' => $this->option_label,
             'custom_true_option_label' => $this->customTrueOptionLabel,
             'custom_false_option_label' => $this->customFalseOptionLabel,
             'score_partial_solution' => $this->scorePartialSolutionEnabled,
             'specific_feedback_setting' => $this->specific_feedback_setting,
-            'answers' => array_map($tt->normalize(...), $this->answers),
+            'answers' => $tt->normalize($this->answers, ['question_id' => $this->getId()]),
         ]);
     }
 
@@ -952,7 +950,6 @@ class assKprimChoice extends assQuestion implements Normalizable, ilObjQuestionS
             $clone = parent::fromNormalized($tt)->transform($normalized);
             $clone->shuffle_answers_enabled = $tt->bool($normalized['shuffle_answers']);
             $clone->answerType = $tt->string($normalized['answer_type']);
-            $clone->thumbSize = $tt->int($normalized['thumb_size']);
             $clone->option_label = $tt->string($normalized['option_label']);
             $clone->customTrueOptionLabel = $tt->string($normalized['custom_true_option_label']);
             $clone->customFalseOptionLabel = $tt->string($normalized['custom_false_option_label']);

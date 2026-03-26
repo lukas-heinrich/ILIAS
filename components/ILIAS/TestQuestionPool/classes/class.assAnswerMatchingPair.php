@@ -82,10 +82,10 @@ class assAnswerMatchingPair implements Normalizable
      */
     public function toNormalized(Transformations $tt): Transformation
     {
-        return $tt->custom()->transformation(fn(): array => [
+        return $tt->custom()->transformation(fn(array $context): array => [
             'points' => $this->points,
-            'term' => $tt->normalize($this->term),
-            'definition' => $tt->normalize($this->definition),
+            'term' => $tt->normalize($this->term, $context),
+            'definition' => $tt->normalize($this->definition, $context),
         ]);
     }
 

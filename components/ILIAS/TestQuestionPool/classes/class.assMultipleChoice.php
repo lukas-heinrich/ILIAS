@@ -968,7 +968,7 @@ class assMultipleChoice extends assQuestion implements ilObjAnswerScoringAdjusta
             ...$tt->normalize(parent::toNormalized($tt)),
             'selection_limit' => $this->selection_limit,
             'single_line' => $this->is_singleline,
-            'answers' => $tt->normalize($this->answers),
+            'answers' => $tt->normalize($this->answers, ['question_id' => $this->getId()]),
         ]);
     }
 

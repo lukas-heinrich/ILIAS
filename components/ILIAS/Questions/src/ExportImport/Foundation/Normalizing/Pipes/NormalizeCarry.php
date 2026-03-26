@@ -17,6 +17,7 @@ class NormalizeCarry
     public function __construct(
         public readonly Transformations $transformations,
         public readonly mixed $value,
+        public readonly array $context,
     ) {
     }
 
