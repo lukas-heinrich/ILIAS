@@ -20,6 +20,7 @@ declare(strict_types=1);
 
 namespace ILIAS\TestQuestionPool\ExportImport\Pipes;
 
+use ILIAS\Data\ObjectId;
 use ILIAS\Data\UUID\Factory;
 use ILIAS\Questions\ExportImport\Foundation\Contracts\Pipe;
 use ILIAS\Questions\ExportImport\Foundation\Normalizing\Pipes\NormalizeCarry;
@@ -30,18 +31,20 @@ use ILIAS\TestQuestionPool\Questions\Files\QuestionFiles;
  * Pipe that enriches QuestionImage envelopes with UUID-based IDs and records source-to-target file mappings during
  * normalization.
  */
-class RegisterQuestionImages implements Pipe
+class CollectQuestionImages implements Pipe
 {
+    private readonly QuestionFiles $question_files;
+
     /**
      * @var list<array{from: string, to: string}> $files
      */
     private array $files = [];
 
     public function __construct(
-        private readonly QuestionFiles $question_files,
         private readonly Factory $uuid_factory,
-        private readonly int $pool_obj_id,
+        private readonly ObjectId $pool_id,
     ) {
+        $this->question_files = new QuestionFiles();
     }
 
     /**
@@ -49,41 +52,35 @@ class RegisterQuestionImages implements Pipe
      */
     public function handle(mixed $passable, \Closure $next): mixed
     {
-        if ($passable instanceof NormalizeCarry) {
-            return $this->handleNormalization($passable, $next);
+        if ($passable instanceof NormalizeCarry && $passable->value instanceof QuestionImage) {
+            $this->handleNormalization($passable->value);
         }
 
         return $next($passable);
     }
 
-    private function handleNormalization(mixed $passable, \Closure $next): mixed
+    private function handleNormalization(QuestionImage $envelope): void
     {
-        if (!$passable->value instanceof QuestionImage) {
-            return $next($passable);
-        }
-
         // Build the absolute source path
         $base_dir = $this->question_files->buildImagePath(
-            $passable->value->getQuestionId(),
-            $this->pool_obj_id
+            $envelope->getQuestionId(),
+            $this->pool_id->toInt()
         );
 
-        if ($passable->value->getType() === QuestionImage::TYPE_SOLUTION) {
+        if ($envelope->getType() === QuestionImage::TYPE_SOLUTION) {
             $base_dir = str_replace('images/', 'solution/', $base_dir);
         }
 
-        $source_path = $base_dir . $passable->value->getFilename();
+        $source_path = $base_dir . $envelope->getFilename();
 
         // Generate a unique ID for the image and set it on the envelope and the relative target path
         $id = $this->uuid_factory->uuid4();
-        $passable->value->setId($id->toString());
+        $envelope->setId($id->toString());
 
-        $extension = pathinfo($passable->value->getFilename(), PATHINFO_EXTENSION);
+        $extension = pathinfo($envelope->getFilename(), PATHINFO_EXTENSION);
         $target_path = $id->toString() . '.' . $extension;
 
         $this->files[] = ['from' => $source_path, 'to' => $target_path];
-
-        return $next($passable);
     }
 
     /**

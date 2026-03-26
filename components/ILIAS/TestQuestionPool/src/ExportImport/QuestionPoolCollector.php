@@ -25,6 +25,7 @@ use Generator;
 use ilAssClozeTestFeedback;
 use ilAssMultiOptionQuestionFeedback;
 use ilAssSpecificFeedbackIdentifierList;
+use ILIAS\Data\ObjectId;
 use ILIAS\Questions\ExportImport\Foundation\Contracts\DataCollector;
 use ILIAS\Questions\ExportImport\Foundation\Normalizing\Envelopes\Id;
 use ILIAS\Questions\Units\Category;
@@ -45,8 +46,18 @@ class QuestionPoolCollector implements DataCollector
     public function __construct(
         private readonly GeneralQuestionPropertiesRepository $question_repository,
         private readonly UnitsRepository $unit_repository,
-        private readonly int $pool_object_id
+        private readonly ObjectId $pool_id
     ) {
+    }
+
+    /**
+     * Get the ID of the question pool.
+     *
+     * @return ObjectId
+     */
+    public function getPoolId(): ObjectId
+    {
+        return $this->pool_id;
     }
 
     /**
@@ -57,7 +68,7 @@ class QuestionPoolCollector implements DataCollector
     public function getQuestionProperties(): array
     {
         if ($this->questions === null) {
-            $this->questions = $this->question_repository->getForParentObjectId($this->pool_object_id);
+            $this->questions = $this->question_repository->getForParentObjectId($this->pool_id->toInt());
         }
         return $this->questions;
     }

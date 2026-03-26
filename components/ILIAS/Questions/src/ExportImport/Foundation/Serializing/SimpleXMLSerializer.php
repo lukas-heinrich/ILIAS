@@ -29,6 +29,8 @@ class SimpleXMLSerializer implements Serializer
 {
     private readonly \XMLWriter $writer;
 
+    private bool $has_document = false;
+
     private string $current_group = '';
 
     public function __construct()
@@ -44,11 +46,26 @@ class SimpleXMLSerializer implements Serializer
         $clone = clone $this;
         $clone->writer->openMemory();
         $clone->writer->setIndent(true);
-        $clone->writer->startDocument('1.0', 'UTF-8');
-        $clone->writer->writeComment("Example Export");
-        $clone->writer->startElement('export');
         return $clone;
     }
+
+    /**
+     * Start a new xml document in the current writer. if a document has already been started, an exception will be
+     * thrown.
+     *
+     * @throws \LogicException if a document has already been started
+     */
+    private function createDocument(string $comment): void
+    {
+        if ($this->has_document) {
+            throw new \LogicException('XML document already started');
+        }
+
+        $this->writer->startDocument('1.0', 'UTF-8');
+        $this->writer->writeComment($comment);
+        $this->has_document = true;
+    }
+
 
     /**
      * @inheritDoc
@@ -99,8 +116,10 @@ class SimpleXMLSerializer implements Serializer
      */
     public function write(): string
     {
-        $this->writer->endElement();
-        $this->writer->endDocument();
+        if ($this->has_document) {
+            $this->writer->endDocument();
+        }
+
         return $this->writer->outputMemory(true);
     }
 
@@ -112,12 +131,15 @@ class SimpleXMLSerializer implements Serializer
         foreach ($data as $key => $value) {
             $type = gettype($value);
             $is_nested = is_array($value);
+            $formatted_key = $this->formatName($key);
 
-            if (is_numeric($key) || str_contains($key, '-') || $key === '') {
+            if ($this->shouldUseItemElement($key, $formatted_key)) {
                 $this->writer->startElement('item');
-                $this->writer->writeAttribute('key', (string) $key);
+                if (!array_is_list($data)) {
+                    $this->writer->writeAttribute('key', (string) $key);
+                }
             } else {
-                $this->writer->startElement($this->formatName($key));
+                $this->writer->startElement($formatted_key);
             }
 
             if (!$is_nested) {
@@ -138,6 +160,20 @@ class SimpleXMLSerializer implements Serializer
 
             $this->writer->endElement();
         }
+    }
+
+    private function shouldUseItemElement(int|string $key, string $formatted_key): bool
+    {
+        if (is_numeric($key) || str_contains((string) $key, '-') || $key === '') {
+            return true;
+        }
+
+        return !$this->isValidXmlElementName($formatted_key);
+    }
+
+    private function isValidXmlElementName(string $name): bool
+    {
+        return $name !== '' && preg_match('/^[A-Za-z_][A-Za-z0-9._-]*$/', $name) === 1;
     }
 
     private function formatName(int|string $name): string

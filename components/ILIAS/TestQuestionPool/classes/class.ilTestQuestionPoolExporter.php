@@ -1,5 +1,8 @@
 <?php
 
+use ILIAS\Questions\ExportImport\Foundation\Serializing\SimpleXMLSerializer;
+use ILIAS\TestQuestionPool\ExportImport\QuestionPoolExporter;
+
 /**
  * This file is part of ILIAS, a powerful learning management system
  * published by ILIAS open source e-Learning e.V.
@@ -22,11 +25,6 @@
  * @author Helmut Schottmüller <ilias@aurealis.de>
  * @version $Id$
  * @ingroup components\ILIASTest
- */
-class ilTestQuestionPoolExporter extends ilXmlExporter
-{
-    private $ds;
-
     /**
      * Initialisation
      */
@@ -34,28 +32,6 @@ class ilTestQuestionPoolExporter extends ilXmlExporter
     {
     }
 
-    /**
-     * Overwritten for qpl
-     * @param string $a_obj_type
-     * @param int    $a_obj_id
-     * @param string $a_export_type
-     */
-    public static function lookupExportDirectory(string $a_obj_type, int $a_obj_id, string $a_export_type = 'xml', string $a_entity = ""): string
-    {
-        if ($a_export_type == 'xml') {
-            return ilFileUtils::getDataDir() . "/qpl_data" . "/qpl_" . $a_obj_id . "/export_zip";
-        }
-        return ilFileUtils::getDataDir() . "/qpl_data" . "/qpl_" . $a_obj_id . "/export_" . $a_export_type;
-    }
-
-
-    /**
-     * Get xml representation
-     * @param	string		entity
-     * @param	string		schema version
-     * @param	string		id
-     * @return	string		xml string
-     */
     public function getXmlRepresentation(string $a_entity, string $a_schema_version, string $a_id): string
     {
         $qpl = new ilObjQuestionPool($a_id, false);
