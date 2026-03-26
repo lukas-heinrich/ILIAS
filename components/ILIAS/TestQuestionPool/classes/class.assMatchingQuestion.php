@@ -18,6 +18,7 @@
 
 declare(strict_types=1);
 
+use ILIAS\Questions\ExportImport\Foundation\Contracts\Normalizable;
 use ILIAS\Questions\ExportImport\Foundation\Contracts\Transformations;
 use ILIAS\Refinery\Transformation;
 use ILIAS\TestQuestionPool\Questions\QuestionLMExportable;
@@ -39,7 +40,7 @@ use ILIAS\Refinery\Random\Seed\RandomSeed;
  *
  * @ingroup		ModulesTestQuestionPool
  */
-class assMatchingQuestion extends assQuestion implements ilObjAnswerScoringAdjustable, iQuestionCondition, QuestionLMExportable, QuestionAutosaveable
+class assMatchingQuestion extends assQuestion implements ilObjAnswerScoringAdjustable, iQuestionCondition, QuestionLMExportable, QuestionAutosaveable, Normalizable
 {
     public const MT_TERMS_PICTURES = 0;
     public const MT_TERMS_DEFINITIONS = 1;

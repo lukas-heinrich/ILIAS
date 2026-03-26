@@ -18,7 +18,6 @@
 
 declare(strict_types=1);
 
-use ILIAS\Questions\ExportImport\Foundation\Contracts\Normalizable;
 use ILIAS\Questions\ExportImport\Foundation\Contracts\Transformations;
 use ILIAS\Questions\ExportImport\Foundation\Normalizing\Envelopes\Id;
 use ILIAS\Test\Results\Data\Repository as TestResultRepository;
@@ -52,7 +51,7 @@ use ILIAS\HTTP\Services as HTTPServices;
  * @author		Helmut Schottmüller <helmut.schottmueller@mac.com>
  * @author		Björn Heyser <bheyser@databay.de>
  */
-abstract class assQuestion implements Question, Normalizable
+abstract class assQuestion implements Question
 {
     protected const HAS_SPECIFIC_FEEDBACK = true;
 
