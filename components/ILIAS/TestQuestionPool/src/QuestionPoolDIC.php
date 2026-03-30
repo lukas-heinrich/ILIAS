@@ -20,6 +20,8 @@ declare(strict_types=1);
 
 namespace ILIAS\TestQuestionPool;
 
+use ILIAS\Questions\ExportImport\Foundation\Builder;
+use ILIAS\TestQuestionPool\ExportImport\QuestionPoolExporter;
 use Pimple\Container as PimpleContainer;
 use ILIAS\DI\Container as ILIASContainer;
 use ILIAS\TestQuestionPool\Questions\SuggestedSolution\SuggestedSolutionsDatabaseRepository;
@@ -74,6 +76,20 @@ class QuestionPoolDIC extends PimpleContainer
             new UnitsRepository(
                 $DIC['lng'],
                 $DIC['ilDB']
+            );
+
+        $dic['exportimport.builder'] = static fn($c): Builder =>
+            new Builder(
+                $DIC,
+                $c
+            );
+
+        $dic['exportimport.exporter'] = static fn($c): QuestionPoolExporter =>
+            new QuestionPoolExporter(
+                $c['exportimport.builder'],
+                $c['question.general_properties.repository'],
+                $c['units.repository'],
+                $DIC->taxonomy()->domain()
             );
 
         return $dic;

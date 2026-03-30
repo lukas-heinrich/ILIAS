@@ -22,6 +22,7 @@ namespace ILIAS\TestQuestionPool\ExportImport;
 
 use assQuestion;
 use Generator;
+use ilObjQuestionPool;
 use ilAssClozeTestFeedback;
 use ilAssMultiOptionQuestionFeedback;
 use ilAssSpecificFeedbackIdentifierList;
@@ -42,6 +43,7 @@ class QuestionPoolCollector implements DataCollector
 {
     /** @var array<int, GeneralQuestionProperties> $questions */
     private ?array $questions = null;
+    private ?ilObjQuestionPool $pool_object = null;
 
     public function __construct(
         private readonly GeneralQuestionPropertiesRepository $question_repository,
@@ -58,6 +60,19 @@ class QuestionPoolCollector implements DataCollector
     public function getPoolId(): ObjectId
     {
         return $this->pool_id;
+    }
+
+    /**
+     * Get the object of the question pool. It will be loaded from the database if not already loaded.
+     */
+    public function getObject(): ilObjQuestionPool
+    {
+        if ($this->pool_object === null) {
+            $this->pool_object = new ilObjQuestionPool($this->pool_id->toInt(), false);
+            $this->pool_object->read();
+        }
+
+        return $this->pool_object;
     }
 
     /**
@@ -182,5 +197,18 @@ class QuestionPoolCollector implements DataCollector
             ];
         }
         return $feedback;
+    }
+
+    /*
+        CO Page & Media Objects
+    */
+
+    public function getQuestionPageIds(): array
+    {
+        $question_page_ids = [];
+        foreach ($this->getQuestionObjects() as $question) {
+            $question_page_ids[] = "qpl:{$question->getId()}";
+        }
+        return $question_page_ids;
     }
 }

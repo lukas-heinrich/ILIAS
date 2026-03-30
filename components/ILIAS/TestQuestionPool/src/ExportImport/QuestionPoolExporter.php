@@ -20,14 +20,18 @@ declare(strict_types=1);
 
 namespace ILIAS\TestQuestionPool\ExportImport;
 
-use ilObjQuestionPool;
+use ILIAS\Data\ObjectId;
 use ILIAS\Data\UUID\Factory as UUIDFactory;
 use ILIAS\Export\ExportHandler\I\Consumer\ExportWriter\HandlerInterface as ExportWriter;
 use ILIAS\Export\ExportHandler\I\Consumer\ExportConfig\CollectionInterface as ExportConfig;
 use ILIAS\Questions\ExportImport\Foundation\Builder;
 use ILIAS\Questions\ExportImport\Foundation\Contracts\Serializer;
 use ILIAS\Questions\ExportImport\Foundation\Contracts\Transformations;
+use ILIAS\Questions\ExportImport\Foundation\ExportContext;
+use ILIAS\Questions\Units\Repository as UnitsRepository;
+use ILIAS\Taxonomy\DomainService as Taxonomy;
 use ILIAS\TestQuestionPool\ExportImport\Pipes\CollectQuestionImages;
+use ILIAS\TestQuestionPool\Questions\GeneralQuestionPropertiesRepository;
 
 /**
  * Orchestrates the export of a question pool. It uses the Builder to create a pipeline of transformations that are used
@@ -38,67 +42,134 @@ class QuestionPoolExporter
 {
     public function __construct(
         private readonly Builder $builder,
-        private readonly ExportWriter $writer,
-        private readonly ExportConfig $config,
-        private readonly string $export_dir
+        private readonly GeneralQuestionPropertiesRepository $question_repository,
+        private readonly UnitsRepository $unit_repository,
+        private readonly Taxonomy $taxonomy
     ) {
     }
 
     /**
-     * Starts the export process. It will return the serialized data as a string.
+     * Performs the export for a given question pool. It returns the export context which contains the serialized data
+     * and the dependencies of the export.
      */
-    public function export(QuestionPoolCollector $collector, Serializer $serializer): string
+    public function export(
+        ObjectId $pool_id,
+        ExportConfig $config,
+        Serializer $serializer,
+        ExportWriter $writer,
+        string $export_dir
+    ): ExportContext {
+        $context = $this->prepare($pool_id, $config);
+        $context = $this->process($context, $serializer);
+        return $this->write($context, $writer, $export_dir);
+    }
+
+    /**
+     * Prepares the export context by creating the transformations and the question image pipe. It returns the export
+     * context which is used to share the context between the prepare, process and write steps.
+     */
+    public function prepare(ObjectId $pool_id, ExportConfig $config): ExportContext
     {
         $question_image_pipe = new CollectQuestionImages(
             new UUIDFactory(),
-            $collector->getPoolId()
+            $pool_id
         );
-        $transformations = $this->builder->withAdditionalPipes([$question_image_pipe])->create();
 
-        // Export the pool object and its dependencies by writing them to the serializer
-        $this->exportPool($collector, $serializer, $transformations);
+        $transformations = $this->builder->withAdditionalPipes([$question_image_pipe])
+            ->create();
+
+        return new ExportContext($pool_id, $config, $transformations);
+    }
+
+    /**
+     * Normalizes the question pool object and its questions and writes them to the serializer. It also collects the
+     * dependencies of the export.
+     */
+    public function process(ExportContext $context, Serializer $serializer): ExportContext
+    {
+        $context->setSerializer($serializer);
+        $tt = $context->getTransformations();
+
+        $collector = new QuestionPoolCollector(
+            $this->question_repository,
+            $this->unit_repository,
+            $context->getPoolId()
+        );
+
+        $this->exportObject($collector, $tt, $serializer, $context);
         $serializer->group(
             'units',
-            fn() => $this->exportUnits($collector, $serializer, $transformations)
+            fn() => $this->exportUnits($collector, $tt, $serializer)
         );
         $serializer->group(
             'questions',
-            fn() => $this->exportQuestions($collector, $serializer, $transformations)
+            fn() => $this->exportQuestions($collector, $tt, $serializer, $context)
         );
 
+        return $context;
+    }
+
+    /**
+     * Finalizes the export by copying the question images to the export directory and returning the export context.
+     */
+    public function write(ExportContext $export, ExportWriter $writer, string $export_dir): ExportContext
+    {
         // Copy the question images to the export directory
+        $question_image_pipe = $export->getTransformations()->context(CollectQuestionImages::class);
         foreach ($question_image_pipe->getFiles() as $file) {
-            $this->writer->writeFileByFilePath($file['from'], "{$this->export_dir}/" . $file['to']);
+            $writer->writeFileByFilePath($file['from'], "{$export_dir}/" . $file['to']);
         }
 
-        return $serializer->write();
+        return $export;
     }
 
-    protected function exportPool(QuestionPoolCollector $collector, Serializer $serializer, Transformations $tt): void
-    {
-        $pool_obj = new ilObjQuestionPool($collector->getPoolId()->toInt(), false);
-        $pool_obj->loadFromDb();
 
-        $serializer->append('object', $tt->normalize($pool_obj));
+    protected function exportObject(
+        QuestionPoolCollector $collector,
+        Transformations $transformations,
+        Serializer $serializer,
+        ExportContext $export
+    ): void {
+        $serializer->append('object', $transformations->normalize($collector->getObject()));
+
+        $obj_id = $collector->getPoolId()->toInt();
+
+        $export->addDependency('components/ILIAS/ILIASObject', 'common', [$obj_id]);
+        $export->addDependency('components/ILIAS/MetaData', 'qpl', ["{$obj_id}:0:qpl"]);
+        $export->addDependency(
+            'components/ILIAS/Taxonomy',
+            'tax',
+            $this->taxonomy->getUsageOfObject($obj_id)
+        );
     }
 
-    protected function exportUnits(QuestionPoolCollector $collector, Serializer $serializer, Transformations $tt): void
-    {
+    protected function exportUnits(
+        QuestionPoolCollector $collector,
+        Transformations $transformations,
+        Serializer $serializer
+    ): void {
         foreach ($collector->getUnitCategories() as $category) {
-            $aggregated = [
-                ... $tt->normalize($category),
-                'units' => $tt->normalize($collector->getUnits($category->getId())),
-            ];
-
-            $serializer->append('category', $aggregated);
+            $serializer->append('category', [
+                ... $transformations->normalize($category),
+                'units' => $transformations->normalize($collector->getUnits($category->getId())),
+            ]);
         }
     }
 
-    protected function exportQuestions(QuestionPoolCollector $collector, Serializer $serializer, Transformations $tt): void
-    {
+    protected function exportQuestions(
+        QuestionPoolCollector $collector,
+        Transformations $transformations,
+        Serializer $serializer,
+        ExportContext $export
+    ): void {
         foreach ($collector->getQuestionObjects() as $question) {
-            $serializer->append('question', $tt->normalize($question));
-            $serializer->append('feedback', $tt->normalize($collector->getFeedback($question)));
+            $serializer->append('question', $transformations->normalize($question));
+            $serializer->append(
+                'feedback',
+                $transformations->normalize($collector->getFeedback($question)),
+            );
+
+            $export->addDependency('components/ILIAS/COPage', 'pg', ["qpl:{$question->getId()}"]);
         }
     }
 }
