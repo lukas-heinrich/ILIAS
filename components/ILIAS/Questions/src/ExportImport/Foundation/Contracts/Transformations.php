@@ -60,6 +60,17 @@ interface Transformations
     */
 
     /**
+     * Returns the pipe of the given class from the pipeline.
+     *
+     * @template T of Pipe
+     * @param class-string<T> $pipe_class
+     * @return T
+     *
+     * @throws \InvalidArgumentException if the pipe is not found
+     */
+    public function context(string $pipe_class): Pipe;
+
+    /**
      * Returns a group of transformations that can be used to create custom transformations.
      */
     public function custom(): Group;

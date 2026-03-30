@@ -3,6 +3,7 @@
 namespace ILIAS\Questions\ExportImport\Foundation\Normalizing;
 
 use Generator;
+use ILIAS\Questions\ExportImport\Foundation\Contracts\Pipe;
 use ILIAS\Questions\ExportImport\Foundation\Contracts\Pipeline;
 use ILIAS\Questions\ExportImport\Foundation\Normalizing\Pipes\DenormalizeCarry;
 use ILIAS\Questions\ExportImport\Foundation\Normalizing\Pipes\NormalizeCarry;
@@ -65,6 +66,19 @@ class Transformations implements TransformationsContract
     /*
         Transformations
     */
+
+    /**
+     * @inheritDoc
+     */
+    public function context(string $pipe_class): Pipe
+    {
+        foreach ($this->pipeline->pipes() as $pipe) {
+            if ($pipe instanceof $pipe_class) {
+                return $pipe;
+            }
+        }
+        throw new InvalidArgumentException("Pipe {$pipe_class} not found");
+    }
 
     public function custom(): Group
     {
