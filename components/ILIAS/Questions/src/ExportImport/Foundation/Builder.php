@@ -146,8 +146,10 @@ class Builder
                 continue;
             }
 
-            $normalizer = $this->createInstance($normalizer_classes[$version], $object);
-            $registry->registerNormalizer($type, $normalizer);
+            $registry->registerNormalizer(
+                $type,
+                fn() => $this->createInstance($normalizer_classes[$version], $object)
+            );
         }
 
         return $registry;

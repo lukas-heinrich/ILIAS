@@ -29,24 +29,23 @@ use ILIAS\Questions\ExportImport\Foundation\Normalizing\NormalizingException;
 class Registry
 {
     /**
-     * Type (class/interface) -> normalizer instance. Each type is registered at most once.
-     *
-     * @var array<class-string, Normalizer>
+     * @var array<class-string, Normalizer|callable():Normalizer>
      */
     private array $type_map = [];
 
     /**
-    * Register a normalizer for a type.
+    * Register a normalizer resolving callable for a type. The callable allows to defer the instantiation of the
+    * normalizer until it is actually needed.
     *
     * @param class-string $type
+    * @param callable():Normalizer $normalizer
     *
     * @throws NormalizingException if the type is already registered
     */
-    public function registerNormalizer(string $type, Normalizer $normalizer): void
+    public function registerNormalizer(string $type, callable $normalizer): void
     {
         if (isset($this->type_map[$type])) {
-            $existing = get_class($this->type_map[$type]);
-            throw new NormalizingException("Type {$type} is already registered to {$existing}");
+            throw new NormalizingException("Type {$type} is already registered");
         }
         $this->type_map[$type] = $normalizer;
     }
@@ -74,9 +73,14 @@ class Registry
         if ($candidates === []) {
             return null;
         }
-        $mostSpecificType = $this->selectMostSpecificType($type, $candidates);
+        $key = $this->selectMostSpecificType($type, $candidates);
 
-        return $this->type_map[$mostSpecificType];
+        // Instantiate the normalizer on demand
+        if (is_callable($this->type_map[$key])) {
+            $this->type_map[$key] = $this->type_map[$key]();
+        }
+
+        return $this->type_map[$key];
     }
 
     /**
