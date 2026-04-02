@@ -129,12 +129,12 @@ class SimpleXMLSerializer implements Serializer
     private function appendRecursive(array $data): void
     {
         foreach ($data as $key => $value) {
-            $type = gettype($value);
             $is_nested = is_array($value);
             $formatted_key = $this->formatName($key);
 
             if ($this->shouldUseItemElement($key, $formatted_key)) {
                 $this->writer->startElement('item');
+
                 if (!array_is_list($data)) {
                     $this->writer->writeAttribute('key', (string) $key);
                 }
@@ -143,13 +143,11 @@ class SimpleXMLSerializer implements Serializer
             }
 
             if (!$is_nested) {
-                if ($type !== 'string') {
-                    $this->writer->writeAttribute('type', $type);
-                }
-
-                $value = match ($type) {
+                $value = match (gettype($value)) {
                     'NULL' => 'NULL',
-                    'boolean' => $value ? 'true' : 'false',
+                    'integer' => (string) $value,
+                    'float' => (string) $value,
+                    'boolean' => $value ? '1' : '0',
                     default => htmlspecialchars((string) $value),
                 };
 
