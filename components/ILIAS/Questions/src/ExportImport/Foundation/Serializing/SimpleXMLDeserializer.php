@@ -115,8 +115,13 @@ class SimpleXMLDeserializer implements Deserializer
 
     private function readElementValue(\XMLReader $reader): mixed
     {
+        $is_marked_empty_array = $this->isMarkedEmptyArray($reader);
+
         // Keep empty elements as empty strings to preserve the legacy XML shape
         if ($reader->isEmptyElement) {
+            if ($is_marked_empty_array) {
+                return [];
+            }
             return '';
         }
 
@@ -175,7 +180,16 @@ class SimpleXMLDeserializer implements Deserializer
             return $children;
         }
 
+        if ($is_marked_empty_array && trim($text_content) === '') {
+            return [];
+        }
+
         return $this->decodeScalarValue($text_content);
+    }
+
+    private function isMarkedEmptyArray(\XMLReader $reader): bool
+    {
+        return $reader->getAttribute('type') === 'empty-array';
     }
 
     private function resolveElementKey(\XMLReader $reader): ?string

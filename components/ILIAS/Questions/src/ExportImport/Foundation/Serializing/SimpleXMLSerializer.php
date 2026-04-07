@@ -153,6 +153,9 @@ class SimpleXMLSerializer implements Serializer
 
                 $this->writer->writeRaw($value);
             } else {
+                if (count($value) === 0) {
+                    $this->writer->writeAttribute('type', 'empty-array');
+                }
                 $this->appendRecursive($value);
             }
 

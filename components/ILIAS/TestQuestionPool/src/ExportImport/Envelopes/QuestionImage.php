@@ -83,6 +83,6 @@ class QuestionImage implements Envelope
      */
     public static function fromArray(array $value, Transformations $tt): static
     {
-        return new self($value['filename'], null, $value['type'], $value['id']);
+        return new self($value['filename'], null, $tt->int($value['type']), $value['id']);
     }
 }

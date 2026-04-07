@@ -103,7 +103,7 @@ class assAnswerMatchingTerm implements Normalizable
     {
         return $tt->custom()->transformation(function (array $normalized) use ($tt): self {
             return $this->withText($tt->string($normalized['text']))
-                ->withPicture($tt->denormalize($normalized['picture'], QuestionImage::class)->getFilename())
+                ->withPicture($tt->denormalize($normalized['picture'], QuestionImage::class)?->getFilename() ?? '')
                 ->withIdentifier($tt->int($normalized['identifier']));
         });
     }

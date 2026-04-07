@@ -186,7 +186,7 @@ class QuestionPoolCollector implements DataCollector
 
         // Other question types with multiple answer options share the same approach
         foreach (array_keys($question->feedbackOBJ->getAnswerOptionsByAnswerIndex()) as $answer_index) {
-            $feedback = [
+            $feedback[$answer_index] = [
                 'answer_index' => $answer_index,
                 'question_index' => 0,
                 'feedback' => $question->feedbackOBJ->getSpecificAnswerFeedbackExportPresentation(

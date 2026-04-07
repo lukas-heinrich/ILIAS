@@ -38,6 +38,24 @@ class Feedback implements Envelope
     ) {
     }
 
+    public function getGenericUncompleted(): string
+    {
+        return $this->generic_uncompleted;
+    }
+
+    public function getGenericCompleted(): string
+    {
+        return $this->generic_completed;
+    }
+
+    /**
+     * @return list<array{answer_index: int, question_index: int, feedback: string}>
+     */
+    public function getSpecificFeedback(): array
+    {
+        return $this->specific_feedback;
+    }
+
     /**
      * @inheritDoc
      */

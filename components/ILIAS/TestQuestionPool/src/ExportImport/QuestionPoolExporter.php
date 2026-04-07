@@ -96,7 +96,10 @@ class QuestionPoolExporter
             $context->getPoolId()
         );
 
-        $this->exportObject($collector, $tt, $serializer, $context);
+        $serializer->group(
+            'general',
+            fn() => $this->exportObject($collector, $tt, $serializer, $context)
+        );
         $serializer->group(
             'units',
             fn() => $this->exportUnits($collector, $tt, $serializer)
@@ -163,11 +166,10 @@ class QuestionPoolExporter
         ExportContext $export
     ): void {
         foreach ($collector->getQuestionObjects() as $question) {
-            $serializer->append('question', $transformations->normalize($question));
-            $serializer->append(
-                'feedback',
-                $transformations->normalize($collector->getFeedback($question)),
-            );
+            $serializer->append('question', [
+                ... $transformations->normalize($question),
+                'feedback' => $transformations->normalize($collector->getFeedback($question)),
+            ]);
 
             $export->addDependency('components/ILIAS/COPage', 'pg', ["qpl:{$question->getId()}"]);
         }
