@@ -109,6 +109,7 @@ class ilAssQuestionSkillAssignmentNormalizer implements Normalizer
         $assignment->setSkillTitle($this->tt->string($value['original_title']));
         $assignment->setSkillPath($this->tt->string($value['original_path']));
         $assignment->setEvalMode($this->tt->string($value['eval_mode']));
+        $assignment->initSolutionComparisonExpressionList();
 
         switch ($assignment->getEvalMode()) {
             case ilAssQuestionSkillAssignment::EVAL_MODE_BY_QUESTION_RESULT:
