@@ -20,6 +20,7 @@ declare(strict_types=1);
 
 namespace ILIAS\TestQuestionPool\ExportImport;
 
+use ilDBInterface;
 use ILIAS\Data\ObjectId;
 use ILIAS\Data\UUID\Factory as UUIDFactory;
 use ILIAS\Export\ExportHandler\I\Consumer\ExportWriter\HandlerInterface as ExportWriter;
@@ -44,6 +45,7 @@ class QuestionPoolExporter
         private readonly Builder $builder,
         private readonly GeneralQuestionPropertiesRepository $question_repository,
         private readonly UnitsRepository $unit_repository,
+        private readonly ilDBInterface $db,
         private readonly Taxonomy $taxonomy
     ) {
     }
@@ -93,6 +95,7 @@ class QuestionPoolExporter
         $collector = new QuestionPoolCollector(
             $this->question_repository,
             $this->unit_repository,
+            $this->db,
             $context->getPoolId()
         );
 
@@ -107,6 +110,10 @@ class QuestionPoolExporter
         $serializer->group(
             'questions',
             fn() => $this->exportQuestions($collector, $tt, $serializer, $context)
+        );
+        $serializer->group(
+            'skill_assignments',
+            fn() => $this->exportSkillAssignments($collector, $tt, $serializer)
         );
 
         return $context;
@@ -168,10 +175,22 @@ class QuestionPoolExporter
         foreach ($collector->getQuestionObjects() as $question) {
             $serializer->append('question', [
                 ... $transformations->normalize($question),
-                'feedback' => $transformations->normalize($collector->getFeedback($question)),
+                'feedback' => $transformations->normalize(
+                    $collector->getFeedback($question)
+                )
             ]);
 
             $export->addDependency('components/ILIAS/COPage', 'pg', ["qpl:{$question->getId()}"]);
+        }
+    }
+
+    protected function exportSkillAssignments(
+        QuestionPoolCollector $collector,
+        Transformations $transformations,
+        Serializer $serializer,
+    ): void {
+        foreach ($collector->getSkillAssignments() as $assignment) {
+            $serializer->append('skill_assignment', $transformations->normalize($assignment));
         }
     }
 }

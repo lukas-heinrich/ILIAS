@@ -304,24 +304,6 @@ class ilObjQuestionPool extends ilObject
     }
 
     /**
-     * @param ilXmlWriter $a_xml_writer
-     * @param             $questions
-     */
-    protected function populateQuestionSkillAssignmentsXml(ilXmlWriter &$a_xml_writer, $questions): void
-    {
-        $assignmentList = new ilAssQuestionSkillAssignmentList($this->db);
-        $assignmentList->setParentObjId($this->getId());
-        $assignmentList->loadFromDb();
-        $assignmentList->loadAdditionalSkillData();
-
-        $skillQuestionAssignmentExporter = new ilAssQuestionSkillAssignmentExporter();
-        $skillQuestionAssignmentExporter->setXmlWriter($a_xml_writer);
-        $skillQuestionAssignmentExporter->setQuestionIds($questions);
-        $skillQuestionAssignmentExporter->setAssignmentList($assignmentList);
-        $skillQuestionAssignmentExporter->export();
-    }
-
-    /**
      * Retrieve an array containing all question ids of the questionpool
      *
      * @return array An array containing all question ids of the questionpool

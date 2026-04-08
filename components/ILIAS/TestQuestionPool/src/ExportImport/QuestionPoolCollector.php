@@ -22,6 +22,8 @@ namespace ILIAS\TestQuestionPool\ExportImport;
 
 use assQuestion;
 use Generator;
+use ilAssQuestionSkillAssignmentList;
+use ilDBInterface;
 use ilObjQuestionPool;
 use ilAssClozeTestFeedback;
 use ilAssMultiOptionQuestionFeedback;
@@ -44,10 +46,12 @@ class QuestionPoolCollector implements DataCollector
     /** @var array<int, GeneralQuestionProperties> $questions */
     private ?array $questions = null;
     private ?ilObjQuestionPool $pool_object = null;
+    private ?ilAssQuestionSkillAssignmentList $skill_assignments = null;
 
     public function __construct(
         private readonly GeneralQuestionPropertiesRepository $question_repository,
         private readonly UnitsRepository $unit_repository,
+        private readonly ilDBInterface $db,
         private readonly ObjectId $pool_id
     ) {
     }
@@ -197,6 +201,33 @@ class QuestionPoolCollector implements DataCollector
             ];
         }
         return $feedback;
+    }
+
+    /*
+        Skill Assignments
+    */
+
+    /**
+     * @return array<\ilAssQuestionSkillAssignment>
+     */
+    public function getSkillAssignments(): array
+    {
+        if ($this->skill_assignments === null) {
+            $this->skill_assignments = new ilAssQuestionSkillAssignmentList($this->db);
+            $this->skill_assignments->setParentObjId($this->pool_id->toInt());
+            $this->skill_assignments->loadFromDb();
+            $this->skill_assignments->loadAdditionalSkillData();
+        }
+
+        $assignments = [];
+        foreach ($this->getQuestionProperties() as $question) {
+            $assignments = array_merge(
+                $assignments,
+                $this->skill_assignments->getAssignmentsByQuestionId($question->getQuestionId())
+            );
+        }
+        
+        return $assignments;
     }
 
     /*

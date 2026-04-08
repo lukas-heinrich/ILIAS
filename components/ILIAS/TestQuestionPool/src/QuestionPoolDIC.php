@@ -89,6 +89,7 @@ class QuestionPoolDIC extends PimpleContainer
                 $c['exportimport.builder'],
                 $c['question.general_properties.repository'],
                 $c['units.repository'],
+                $DIC->database(),
                 $DIC->taxonomy()->domain()
             );
 
