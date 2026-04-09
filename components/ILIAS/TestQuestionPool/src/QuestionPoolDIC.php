@@ -21,7 +21,10 @@ declare(strict_types=1);
 namespace ILIAS\TestQuestionPool;
 
 use ILIAS\Questions\ExportImport\Foundation\Builder;
+use ILIAS\Questions\ExportImport\Foundation\Importing\ImportSessionRepository;
 use ILIAS\TestQuestionPool\ExportImport\QuestionPoolExporter;
+use ILIAS\TestQuestionPool\ExportImport\QuestionPoolImporter;
+use ILIAS\TestQuestionPool\ExportImport\SkillAssignmentsImporter;
 use Pimple\Container as PimpleContainer;
 use ILIAS\DI\Container as ILIASContainer;
 use ILIAS\TestQuestionPool\Questions\SuggestedSolution\SuggestedSolutionsDatabaseRepository;
@@ -83,7 +86,6 @@ class QuestionPoolDIC extends PimpleContainer
                 $DIC,
                 $c
             );
-
         $dic['exportimport.exporter'] = static fn($c): QuestionPoolExporter =>
             new QuestionPoolExporter(
                 $c['exportimport.builder'],
@@ -91,6 +93,22 @@ class QuestionPoolDIC extends PimpleContainer
                 $c['units.repository'],
                 $DIC->database(),
                 $DIC->taxonomy()->domain()
+            );
+        $dic['exportimport.session'] = static fn($c): ImportSessionRepository =>
+            new ImportSessionRepository('qpl');
+        $dic['exportimport.skill_assignments_importer'] = static fn($c): SkillAssignmentsImporter =>
+            new SkillAssignmentsImporter(
+                $DIC->skills()->internal()->repo()->getTreeRepo(),
+                $DIC->skills()->usage(),
+                (int) $DIC->settings()->get('inst_id', '0')
+            );
+        $dic['exportimport.importer'] = static fn($c): QuestionPoolImporter =>
+            new QuestionPoolImporter(
+                $c['exportimport.builder'],
+                $DIC->ctrl(),
+                $DIC->database(),
+                $DIC->language(),
+                $c['exportimport.skill_assignments_importer']
             );
 
         return $dic;

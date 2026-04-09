@@ -28,6 +28,8 @@ use ilSkillTreeRepository;
 /**
  * Imports skill assignments from normalized data. It will map imported skill using the source installation id. If a
  * skill is not found in the local installation, the assignment will be added to the failed list.
+ *
+ * @phpstan-type ImportResultData array{skill_id: int, tref_id: int, title: string, path: string}
  */
 class SkillAssignmentsImporter
 {
@@ -43,7 +45,7 @@ class SkillAssignmentsImporter
      * assignments to the database. If the skill ids cannot be mapped, the assignment will be added to the failed list.
      *
      * @param array<array<string, mixed>> $normalized_assignments
-     * @return array{failed: list<ilAssQuestionSkillAssignment>, success: list<ilAssQuestionSkillAssignment>}
+     * @return array{failed: list<ImportResultData>, success: list<ImportResultData>}
      */
     public function import(
         array $normalized_assignments,
@@ -61,7 +63,7 @@ class SkillAssignmentsImporter
                 $import_install_id
             );
             if ($skill_data === null) {
-                $result['failed'][] = $assignment;
+                $result['failed'][] = $this->buildResultData($assignment);
                 continue;
             }
 
@@ -85,7 +87,7 @@ class SkillAssignmentsImporter
                 $assignment->getSkillTrefId()
             );
 
-            $result['success'][] = $assignment;
+            $result['success'][] = $this->buildResultData($assignment);
         }
 
         return $result;
@@ -112,5 +114,18 @@ class SkillAssignmentsImporter
         }
 
         return $skill_data;
+    }
+
+    /**
+     * @return ImportResultData
+     */
+    protected function buildResultData(ilAssQuestionSkillAssignment $assignment): array
+    {
+        return [
+            'skill_id' => $assignment->getSkillBaseId(),
+            'tref_id' => $assignment->getSkillTrefId(),
+            'title' => $assignment->getSkillTitle(),
+            'path' => $assignment->getSkillPath(),
+        ];
     }
 }

@@ -23,6 +23,7 @@ namespace ILIAS\TestQuestionPool\ExportImport\Import;
 use ILIAS\Language\Language;
 use ILIAS\Questions\ExportImport\Foundation\Contracts\ImportStage;
 use ILIAS\Questions\ExportImport\Foundation\Importing\ImportContext;
+use ILIAS\Questions\ExportImport\Foundation\Importing\ImportSessionRepository;
 use ILIAS\Questions\ExportImport\Foundation\Importing\StageResult;
 use ILIAS\TestQuestionPool\RequestDataCollector;
 use ilImport;
@@ -36,7 +37,8 @@ class PersistStage implements ImportStage
 {
     public function __construct(
         private readonly Language $lng,
-        private readonly RequestDataCollector $request_data_collector
+        private readonly RequestDataCollector $request_data_collector,
+        private readonly ImportSessionRepository $session
     ) {
     }
 
@@ -67,9 +69,7 @@ class PersistStage implements ImportStage
             true,
         );
 
-        $mappings = $importer->getMapping()->getMappingsOfEntity('components/ILIAS/TestQuestionPool', 'qpl');
-        $new_pool_id = array_pop($mappings);
-
-        return StageResult::complete($context->with('pool_obj_id', $new_pool_id));
+        // Context is updated by the QuestionPoolImporter so we need to reload it
+        return StageResult::complete($this->session->getContext());
     }
 }

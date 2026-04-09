@@ -358,15 +358,6 @@ class ilObjQuestionPool extends ilObject
     }
 
     /**
-     * get array of (two) new created questions for
-     * import id
-     */
-    public function getImportMapping(): array
-    {
-        return [];
-    }
-
-    /**
      * Returns a QTI xml representation of a list of questions
      *
      * @param array $questions An array containing the question ids of the questions
@@ -999,11 +990,5 @@ class ilObjQuestionPool extends ilObject
         }
 
         return self::$isSkillManagementGloballyActivated;
-    }
-
-    public function fromXML(?string $xml_file): void
-    {
-        $parser = new ilObjQuestionPoolXMLParser($this, $xml_file);
-        $parser->startParsing();
     }
 }

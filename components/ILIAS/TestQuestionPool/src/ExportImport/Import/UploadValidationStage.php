@@ -93,4 +93,9 @@ class UploadValidationStage implements ImportStage
             ->with('install_id', $manifest->getInstallId())
         );
     }
+
+    public static function getInstallId(ImportContext $context): int
+    {
+        return intval($context->get('install_id'));
+    }
 }
