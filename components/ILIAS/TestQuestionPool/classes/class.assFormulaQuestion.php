@@ -18,6 +18,9 @@
 
 declare(strict_types=1);
 
+use ILIAS\TestQuestionPool\ExportImport\Foundation\Contracts\Normalizable;
+use ILIAS\TestQuestionPool\ExportImport\Foundation\Contracts\Transformations;
+use ILIAS\Refinery\Transformation;
 use ILIAS\TestQuestionPool\Questions\QuestionAutosaveable;
 use ILIAS\Test\Logging\AdditionalInformationGenerator;
 
@@ -28,7 +31,7 @@ use ILIAS\Test\Logging\AdditionalInformationGenerator;
  * @version       $Id: class.assFormulaQuestion.php 1236 2010-02-15 15:44:16Z hschottm $
  * @ingroup components\ILIASTestQuestionPool
  */
-class assFormulaQuestion extends assQuestion implements iQuestionCondition, QuestionAutosaveable
+class assFormulaQuestion extends assQuestion implements iQuestionCondition, QuestionAutosaveable, Normalizable
 {
     private array $variables;
     private array $results;
@@ -265,25 +268,38 @@ class assFormulaQuestion extends assQuestion implements iQuestionCondition, Ques
         return true;
     }
 
-    public function getVariableSolutionValuesForPass(
+    public function resolveVariableSolutionValuesForPass(
         int $active_id,
-        int $pass
+        int $pass,
+        array $user_solution = []
     ): array {
         $question_id = $this->getId();
-        $values = $this->pass_presented_variables_repo->getFor(
+        $values_from_db = $this->pass_presented_variables_repo->getFor(
             $question_id,
             $active_id,
             $pass
         );
-        if (is_null($values)) {
-            $values = $this->getInitialVariableSolutionValues();
-            $this->pass_presented_variables_repo->store(
-                $question_id,
-                $active_id,
-                $pass,
-                $values
-            );
+        if ($values_from_db !== null) {
+            return $values_from_db;
         }
+
+        $values = array_filter(
+            $user_solution,
+            fn(string $v): bool => str_starts_with($v, '$v'),
+            ARRAY_FILTER_USE_KEY
+        );
+
+        if ($values === []) {
+            $values = $this->getInitialVariableSolutionValues();
+        }
+
+        $this->pass_presented_variables_repo->store(
+            $question_id,
+            $active_id,
+            $pass,
+            $values
+        );
+
         return $values;
     }
 
@@ -304,7 +320,7 @@ class assFormulaQuestion extends assQuestion implements iQuestionCondition, Ques
 
     public function saveCurrentSolution(int $active_id, int $pass, $value1, $value2, bool $authorized = true, $tstamp = 0): int
     {
-        $init_solution_vars = $this->getVariableSolutionValuesForPass($active_id, $pass);
+        $init_solution_vars = $this->resolveVariableSolutionValuesForPass($active_id, $pass);
         foreach ($init_solution_vars as $val1 => $val2) {
             $this->db->manipulateF(
                 "DELETE FROM tst_solutions WHERE active_fi = %s AND question_fi = %s AND pass = %s AND value1 = %s",
@@ -834,8 +850,7 @@ class assFormulaQuestion extends assQuestion implements iQuestionCondition, Ques
                 $this->getVariables(),
                 $this->getResults(),
                 $user_solution[$result->getResult()]['value'] ?? '',
-                $user_solution[$result->getResult()]['unit'] ?? null,
-                $this->unitrepository->getUnits()
+                $user_solution[$result->getResult()]['unit'] ?? null
             );
         }
 
@@ -849,7 +864,7 @@ class assFormulaQuestion extends assQuestion implements iQuestionCondition, Ques
         $points = 0;
         foreach ($this->getResults() as $result) {
             $result_unit = "{$result->getResult()}_unit";
-            $unit_id = isset($user_solution[$result_unit]) && is_numeric($user_solution[$result_unit])
+            $answer_unit_id = isset($user_solution[$result_unit]) && is_numeric($user_solution[$result_unit])
                 ? (int) $user_solution[$result_unit]
                 : null;
 
@@ -857,8 +872,7 @@ class assFormulaQuestion extends assQuestion implements iQuestionCondition, Ques
                 $this->getVariables(),
                 $this->getResults(),
                 $user_solution[$result->getResult()] ?? '',
-                $unit_id !== null ? $this->unitrepository->getUnit($unit_id) : null,
-                $this->unitrepository->getUnits()
+                $answer_unit_id !== null ? $this->unitrepository->getUnit($answer_unit_id) : null
             );
         }
         return $this->ensureNonNegativePoints($points);
@@ -1397,28 +1411,33 @@ class assFormulaQuestion extends assQuestion implements iQuestionCondition, Ques
 
     public function getCorrectSolutionForTextOutput(int $active_id, int $pass): array
     {
-        $output = [];
-
-        $best_solutions = $this->getBestSolution($this->getSolutionValues($active_id, $pass));
-        foreach ($best_solutions as $key => $best_solution) {
-            $solution = "{$key} = " . ($best_solution['value'] ?? $best_solution);
-
-            if (isset($best_solution['unit'])) {
-                $unit = $this->unitrepository->getUnit($best_solution['unit']);
-                if ($unit instanceof assFormulaQuestionUnit) {
-                    $solution .= $unit->getUnit();
+        $best_solution = $this->getBestSolution($this->getSolutionValues($active_id, $pass));
+        return array_map(
+            function (string $v) use ($best_solution): string {
+                $placeholder_definition = $best_solution[$v];
+                $solution = "{$v} = " . ($placeholder_definition['value'] ?? $placeholder_definition);
+                if (!isset($placeholder_definition['unit'])) {
+                    return $solution;
                 }
-            }
 
-            $output[$key] = $solution;
-        }
+                $unit = $this->unitrepository->getUnit($placeholder_definition['unit']);
+                if ($unit === null) {
+                    return $unit;
+                }
 
-        return $output;
+                return "{$solution}{$unit->getUnit()}";
+            },
+            array_keys($best_solution)
+        );
     }
 
     public function getVariablesAsTextArray(int $active_id, int $pass): array
     {
-        $variables = $this->getVariableSolutionValuesForPass($active_id, $pass);
+        $variables = $this->resolveVariableSolutionValuesForPass(
+            $active_id,
+            $pass,
+            $this->buildBasicUserSolutionsArray($active_id, $pass)
+        );
         return array_map(
             function (string $v) use ($variables): string {
                 $variable = "{$v} = {$variables[$v]}";
@@ -1429,5 +1448,76 @@ class assFormulaQuestion extends assQuestion implements iQuestionCondition, Ques
             },
             array_keys($variables)
         );
+    }
+
+    public function buildBasicUserSolutionsArray(
+        int $active_id,
+        ?int $pass
+    ): array {
+        return array_reduce(
+            $this->getSolutionValues($active_id, $pass),
+            function (array $c, array $v): array {
+                if (preg_match('/^(\$v\d+)$/', $v['value1'], $matches)) {
+                    $c[$matches[1]] = $v['value2'];
+                    return $c;
+                }
+
+                if (preg_match('/^(\$r\d+)$/', $v['value1'], $matches)) {
+                    if (!array_key_exists($matches[1], $c)) {
+                        $c[$matches[1]] = [];
+                    }
+                    $c[$matches[1]]['value'] = $v['value2'];
+                    return $c;
+                }
+
+                if (preg_match('/^(\$r\d+)_unit$/', $v['value1'], $matches)) {
+                    if (!array_key_exists($matches[1], $c)) {
+                        $c[$matches[1]] = [];
+                    }
+                    $c[$matches[1]]['unit'] = $v['value2'];
+                    return $c;
+                }
+
+                return $c;
+            },
+            [
+                'active_id' => $active_id,
+                'pass' => $pass
+            ]
+        );
+    }
+
+    /**
+    * @inheritDoc
+    */
+    public function toNormalized(Transformations $tt): Transformation
+    {
+        return $tt->custom()->transformation(fn(): array => [
+            ...$tt->normalize(parent::toNormalized($tt)),
+            'variables' => $tt->normalize($this->variables),
+            'results' => $tt->normalize($this->results)
+        ]);
+    }
+
+    /**
+     * @inheritDoc
+     */
+    public function fromNormalized(Transformations $tt): Transformation
+    {
+        return $tt->custom()->transformation(function (array $normalized) use ($tt): self {
+            $clone = parent::fromNormalized($tt)->transform($normalized);
+
+            foreach ($normalized['variables'] as $key => $data) {
+                $dummy = new assFormulaQuestionVariable('', '', '');
+                $clone->variables[$key] = $tt->denormalize($data, $dummy);
+            }
+
+            foreach ($normalized['results'] as $key => $data) {
+                $dummy = new assFormulaQuestionResult('', '', '', 0, null, '', 0, 0);
+                $clone->results[$key] = $tt->denormalize($data, $dummy);
+            }
+
+            return $clone;
+        });
     }
 }

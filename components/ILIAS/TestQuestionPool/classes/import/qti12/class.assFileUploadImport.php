@@ -22,6 +22,8 @@
 * @author		Helmut Schottmüller <helmut.schottmueller@mac.com>
 * @version	$Id$
 * @ingroup components\ILIASTestQuestionPool
+ *
+ * @deprecated Use normalized question import instead
 */
 class assFileUploadImport extends assQuestionImport
 {
@@ -64,7 +66,7 @@ class assFileUploadImport extends assQuestionImport
                 $importfile = $importdirectory . DIRECTORY_SEPARATOR . $mob["uri"];
 
                 global $DIC; /* @var ILIAS\DI\Container $DIC */
-                $DIC['ilLog']->write(__METHOD__ . ': import mob from dir: ' . $importfile);
+                $DIC['ilLog']->info('import mob from dir: ' . $importfile);
 
                 $media_object = ilObjMediaObject::_saveTempFileAsMediaObject(basename($importfile), $importfile, false);
                 ilObjMediaObject::_saveUsage($media_object->getId(), "qpl:html", $this->object->getId());

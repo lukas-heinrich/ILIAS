@@ -18,9 +18,12 @@
 
 declare(strict_types=1);
 
+use ILIAS\TestQuestionPool\ExportImport\Foundation\Contracts\Normalizable;
+use ILIAS\TestQuestionPool\ExportImport\Foundation\Contracts\Transformations;
 use ILIAS\TestQuestionPool\Questions\QuestionLMExportable;
 use ILIAS\TestQuestionPool\Questions\QuestionAutosaveable;
 use ILIAS\Test\Logging\AdditionalInformationGenerator;
+use ILIAS\Refinery\Transformation;
 
 /**
  * Class for horizontal ordering questions
@@ -33,7 +36,7 @@ use ILIAS\Test\Logging\AdditionalInformationGenerator;
  *
  * @ingroup	ModulesTestQuestionPool
  */
-class assOrderingHorizontal extends assQuestion implements ilObjQuestionScoringAdjustable, iQuestionCondition, QuestionLMExportable, QuestionAutosaveable
+class assOrderingHorizontal extends assQuestion implements ilObjQuestionScoringAdjustable, iQuestionCondition, QuestionLMExportable, QuestionAutosaveable, Normalizable
 {
     protected const HAS_SPECIFIC_FEEDBACK = false;
     protected const DEFAULT_TEXT_SIZE = 100;
@@ -505,19 +508,29 @@ class assOrderingHorizontal extends assQuestion implements ilObjQuestionScoringA
         }
     }
 
-    /**
-     * @param $value
-     * @return float
-     */
-    protected function calculateReachedPointsForSolution(?string $value): float
+    protected function calculateReachedPointsForSolution(?string $user_response): float
     {
-        $value = $this->splitAndTrimOrderElementText($value ?? "", $this->answer_separator);
-        $value = join($this->answer_separator, $value);
-        if (strcmp($value, join($this->answer_separator, $this->getOrderingElements())) == 0) {
-            $points = $this->getPoints();
-            return $points;
+        if ($user_response === null) {
+            return 0.0;
         }
-        return 0;
+
+        $cleaned_user_response = implode(
+            $this->answer_separator,
+            $this->splitAndTrimOrderElementText(
+                $user_response,
+                $this->answer_separator
+            )
+        );
+
+        $correct_solution = implode(
+            $this->answer_separator,
+            $this->getOrderingElements()
+        );
+
+        if ($cleaned_user_response === $correct_solution) {
+            return $this->getPoints();
+        }
+        return 0.0;
     }
 
     public function buildTestPresentationConfig(): ilTestQuestionConfig
@@ -571,5 +584,35 @@ class assOrderingHorizontal extends assQuestion implements ilObjQuestionScoringA
     public function getCorrectSolutionForTextOutput(int $active_id, int $pass): string
     {
         return $this->getOrderText();
+    }
+
+    /**
+    * @inheritDoc
+    */
+    public function toNormalized(Transformations $tt): Transformation
+    {
+        return $tt->custom()->transformation(fn(): array => [
+            ...$tt->normalize(parent::toNormalized($tt)),
+            'ordertext' => $this->ordertext,
+            'textsize' => $this->textsize,
+            'separator' => $this->separator,
+            'answer_separator' => $this->answer_separator,
+        ]);
+    }
+
+    /**
+     * @inheritDoc
+     */
+    public function fromNormalized(Transformations $tt): Transformation
+    {
+        return $tt->custom()->transformation(function (array $normalized) use ($tt): self {
+            $clone = parent::fromNormalized($tt)->transform($normalized);
+            $clone->ordertext = $tt->string($normalized['ordertext']);
+            $clone->textsize = $tt->float($normalized['textsize']);
+            $clone->separator = $tt->string($normalized['separator']);
+            $clone->answer_separator = $tt->string($normalized['answer_separator']);
+
+            return $clone;
+        });
     }
 }

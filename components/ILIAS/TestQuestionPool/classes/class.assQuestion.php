@@ -18,32 +18,34 @@
 
 declare(strict_types=1);
 
+use ILIAS\DI\Container;
+use ILIAS\DI\LoggingServices;
+use ILIAS\HTTP\Services as HTTPServices;
+use ILIAS\Notes\InternalDataService as NotesInternalDataService;
+use ILIAS\Notes\Note;
+use ILIAS\Notes\NoteDBRepository as NotesRepo;
+use ILIAS\Notes\NotesManager;
+use ILIAS\Notes\Service as NotesService;
+use ILIAS\Refinery\Factory as Refinery;
+use ILIAS\Refinery\Transformation;
+use ILIAS\Skill\Service\SkillUsageService;
+use ILIAS\Test\Logging\AdditionalInformationGenerator;
+use ILIAS\Test\Logging\TestParticipantInteraction;
+use ILIAS\Test\Logging\TestParticipantInteractionTypes;
+use ILIAS\Test\Logging\TestQuestionAdministrationInteraction;
+use ILIAS\Test\Logging\TestQuestionAdministrationInteractionTypes;
 use ILIAS\Test\Results\Data\Repository as TestResultRepository;
 use ILIAS\Test\TestDIC;
-use ILIAS\TestQuestionPool\Questions\QuestionPartiallySaveable;
-use ILIAS\TestQuestionPool\Questions\Question;
-use ILIAS\TestQuestionPool\Questions\SuggestedSolution\SuggestedSolution;
-use ILIAS\TestQuestionPool\Questions\SuggestedSolution\SuggestedSolutionsDatabaseRepository;
+use ILIAS\TestQuestionPool\ExportImport\Foundation\Contracts\Transformations;
+use ILIAS\TestQuestionPool\ExportImport\Foundation\Normalizing\Envelopes\Id;
 use ILIAS\TestQuestionPool\QuestionPoolDIC;
 use ILIAS\TestQuestionPool\Questions\Files\QuestionFiles;
 use ILIAS\TestQuestionPool\Questions\GeneralQuestionPropertiesRepository;
+use ILIAS\TestQuestionPool\Questions\Question;
+use ILIAS\TestQuestionPool\Questions\QuestionPartiallySaveable;
+use ILIAS\TestQuestionPool\Questions\SuggestedSolution\SuggestedSolution;
+use ILIAS\TestQuestionPool\Questions\SuggestedSolution\SuggestedSolutionsDatabaseRepository;
 use ILIAS\TestQuestionPool\RequestDataCollector;
-use ILIAS\Test\Logging\TestParticipantInteraction;
-use ILIAS\Test\Logging\TestQuestionAdministrationInteraction;
-use ILIAS\Test\Logging\TestParticipantInteractionTypes;
-use ILIAS\Test\Logging\TestQuestionAdministrationInteractionTypes;
-use ILIAS\Test\Logging\AdditionalInformationGenerator;
-use ILIAS\Refinery\Transformation;
-use ILIAS\DI\Container;
-use ILIAS\Skill\Service\SkillUsageService;
-use ILIAS\Notes\Service as NotesService;
-use ILIAS\Notes\InternalDataService as NotesInternalDataService;
-use ILIAS\Notes\NoteDBRepository as NotesRepo;
-use ILIAS\Notes\NotesManager;
-use ILIAS\Notes\Note;
-use ILIAS\DI\LoggingServices;
-use ILIAS\Refinery\Factory as Refinery;
-use ILIAS\HTTP\Services as HTTPServices;
 
 /**
  * @author		Helmut Schottmüller <helmut.schottmueller@mac.com>
@@ -259,6 +261,9 @@ abstract class assQuestion implements Question
         return $this->processLocker;
     }
 
+    /**
+     * @deprecated 12: Use ILIAS\TestQuestionPool\ExportImport\Import\QuestionsImporter instead
+     */
     final public function fromXML(
         string $importdirectory,
         int $user_id,
@@ -285,10 +290,8 @@ abstract class assQuestion implements Question
     }
 
     /**
-    * Returns a QTI xml representation of the question
-    *
-    * @return string The QTI xml representation of the question
-    */
+     * @deprecated 12: use question normalizing and serialization instead
+     */
     final public function toXML(
         bool $a_include_header = true,
         bool $a_include_binary = true,
@@ -816,20 +819,14 @@ abstract class assQuestion implements Question
 
     public function deleteAdditionalTableData(int $question_id): void
     {
-        $additional_table_name = $this->getAdditionalTableName();
+        $table_name = $this->getAdditionalTableName();
 
-        if (!is_array($additional_table_name)) {
-            $additional_table_name = [$additional_table_name];
-        }
-
-        foreach ($additional_table_name as $table) {
-            if (strlen($table)) {
-                $this->db->manipulateF(
-                    "DELETE FROM $table WHERE question_fi = %s",
-                    ['integer'],
-                    [$question_id]
-                );
-            }
+        if (strlen($table_name)) {
+            $this->db->manipulateF(
+                "DELETE FROM $table_name WHERE question_fi = %s",
+                [ilDBConstants::T_INTEGER],
+                [$question_id]
+            );
         }
     }
 
@@ -862,7 +859,7 @@ abstract class assQuestion implements Question
         try {
             $this->deletePageOfQuestion($question_id);
         } catch (Exception $e) {
-            $this->log->root()->error("EXCEPTION: Could not delete page of question $question_id: $e");
+            $this->log->forComponent('qpl')->error("EXCEPTION: Could not delete page of question $question_id: $e");
             return;
         }
 
@@ -881,7 +878,7 @@ abstract class assQuestion implements Question
             $this->feedbackOBJ->deleteGenericFeedbacks($question_id, $this->isAdditionalContentEditingModePageObject());
             $this->feedbackOBJ->deleteSpecificAnswerFeedbacks($question_id, $this->isAdditionalContentEditingModePageObject());
         } catch (Exception $e) {
-            $this->log->root()->error("EXCEPTION: Could not delete additional table data of question {$question_id}: {$e}");
+            $this->log->forComponent('qpl')->error("EXCEPTION: Could not delete additional table data of question {$question_id}: {$e}");
         }
 
         try {
@@ -892,13 +889,13 @@ abstract class assQuestion implements Question
                 [$question_id]
             );
         } catch (Exception $e) {
-            $this->log->root()->error("EXCEPTION: Could not delete delete question {$question_id} from a test: {$e}");
+            $this->log->forComponent('qpl')->error("EXCEPTION: Could not delete delete question {$question_id} from a test: {$e}");
         }
 
         try {
             $this->getSuggestedSolutionsRepo()->deleteForQuestion($question_id);
         } catch (Exception $e) {
-            $this->log->root()->error("EXCEPTION: Could not delete suggested solutions of question {$question_id}: {$e}");
+            $this->log->forComponent('qpl')->error("EXCEPTION: Could not delete suggested solutions of question {$question_id}: {$e}");
         }
 
         $directory = CLIENT_WEB_DIR . "/assessment/" . $obj_id . "/$question_id";
@@ -907,7 +904,7 @@ abstract class assQuestion implements Question
                 ilFileUtils::delDir($directory);
             }
         } catch (Exception $e) {
-            $this->log->root()->error("EXCEPTION: Could not delete question file directory {$directory} of question {$question_id}: {$e}");
+            $this->log->forComponent('qpl')->error("EXCEPTION: Could not delete question file directory {$directory} of question {$question_id}: {$e}");
         }
 
         try {
@@ -924,7 +921,7 @@ abstract class assQuestion implements Question
                 }
             }
         } catch (Exception $e) {
-            $this->log->root()->error("EXCEPTION: Error deleting the media objects of question {$question_id}: {$e}");
+            $this->log->forComponent('qpl')->error("EXCEPTION: Error deleting the media objects of question {$question_id}: {$e}");
         }
         $assignmentList = new ilAssQuestionSkillAssignmentList($this->db);
         $assignmentList->setParentObjId($obj_id);
@@ -950,7 +947,7 @@ abstract class assQuestion implements Question
         try {
             ilObjQuestionPool::_updateQuestionCount($this->getObjId());
         } catch (Exception $e) {
-            $this->log->root()->error(
+            $this->log->forComponent('qpl')->error(
                 "EXCEPTION: Error updating the question pool question count of"
                 . " question pool {$this->getObjId()} when deleting question {$question_id}: {$e}"
             );
@@ -1228,8 +1225,27 @@ abstract class assQuestion implements Question
         ]);
     }
 
+    /**
+     *
+     * @deprecated This is a momentary helper function to update the original id,
+     * when cloning a test. Do not use anywhere else. 2026-06-25, sk
+     */
+    public function updateOriginalId(?int $original_id = null): void
+    {
+        $this->original_id = $original_id;
+        $this->db->update(
+            'qpl_questions',
+            [
+                'original_id' => [ilDBConstants::T_INTEGER, $original_id],
+            ],
+            [
+                'question_id' => [ilDBConstants::T_INTEGER, $this->getId()]
+            ]
+        );
+    }
+
     public function duplicate(
-        bool $for_test = true,
+        bool $set_original_id = true,
         string $title = '',
         string $author = '',
         int $owner = -1,
@@ -1256,7 +1272,7 @@ abstract class assQuestion implements Question
         if ($owner) {
             $clone->setOwner($owner);
         }
-        if ($for_test) {
+        if ($set_original_id) {
             $clone->saveToDb($this->id);
         } else {
             $clone->saveToDb();
@@ -1547,8 +1563,8 @@ abstract class assQuestion implements Question
             }
             if (!is_file($filepath_original . $solution->getFilename())
                 || !copy($filepath_original . $solution->getFilename(), $filepath . $solution->getFilename())) {
-                $this->log->root()->error('File for suggested solutions could not be duplicated:');
-                $this->log->root()->error("Question-Id: {$this->id}; Question-Title: {$this->title}; File: {$filepath_original}{$solution->getFilename()}");
+                $this->log->forComponent('qpl')->error('File for suggested solutions could not be duplicated:');
+                $this->log->forComponent('qpl')->error("Question-Id: {$this->id}; Question-Title: {$this->title}; File: {$filepath_original}{$solution->getFilename()}");
             }
         }
     }
@@ -1572,8 +1588,8 @@ abstract class assQuestion implements Question
 
             if (!is_file($filepath_original . $solution->getFilename())
                 || copy($filepath_target . $solution->getFilename(), $filepath_target . $solution->getFilename())) {
-                $this->log->root()->error('File for suggested solutions could not be cloned:');
-                $this->log->root()->error("Question-Id: {$this->id}; Question-Title: {$this->title}; File: {$filepath_original}{$solution->getFilename()}");
+                $this->log->forComponent('qpl')->error('File for suggested solutions could not be cloned:');
+                $this->log->forComponent('qpl')->error("Question-Id: {$this->id}; Question-Title: {$this->title}; File: {$filepath_original}{$solution->getFilename()}");
             }
         }
     }
@@ -2946,5 +2962,68 @@ abstract class assQuestion implements Question
         int $pass
     ): array {
         return [];
+    }
+
+    /**
+     * @inheritDoc
+     */
+    public function toNormalized(Transformations $tt): Transformation
+    {
+        return $tt->custom()->transformation(fn(): array => [
+            'id' => $tt->normalize(new Id($this->id, 'question')),
+            'parent_id' => $tt->normalize(new Id($this->obj_id, 'object')),
+            'original_id' => $this->original_id,
+            'external_id' => $this->external_id,
+            'type' => $this->getQuestionType(),
+            'owner' => $this->owner,
+            'title' => $this->title,
+            'description' => $this->comment,
+            'question_text' => $this->question,
+            'available_points' => $this->points,
+            'nr_of_tries' => $this->nr_of_tries,
+            'lifecycle' => $tt->normalize($this->lifecycle),
+            'author' => $this->author,
+            'updated_timestamp' => $this->lastChange,
+            'additional_content_editing_mode' => $this->additionalContentEditingMode,
+            'thumb_size' => $this->thumb_size,
+            'shuffle' => $this->shuffle,
+            'suggested_solutions' => $tt->normalize($this->suggested_solutions),
+        ]);
+    }
+
+    /**
+     * @inheritDoc
+     */
+    public function fromNormalized(Transformations $tt): Transformation
+    {
+        return $tt->custom()->transformation(function (array $normalized) use ($tt): self {
+            $clone = clone $this;
+            $clone->id = $tt->denormalize($normalized['id'], Id::class)->getId();
+            $clone->obj_id = $tt->denormalize($normalized['parent_id'], Id::class)->getId();
+            $clone->original_id = $tt->nullableInt($normalized['original_id']);
+            $clone->external_id = $tt->nullableString($normalized['external_id']);
+            $clone->owner = $tt->int($normalized['owner']);
+            $clone->title = $tt->string($normalized['title']);
+            $clone->comment = $tt->string($normalized['description']);
+            $clone->question = $tt->string($normalized['question_text']);
+            $clone->points = $tt->float($normalized['available_points']);
+            $clone->nr_of_tries = $tt->int($normalized['nr_of_tries']);
+            $clone->lifecycle = $tt->denormalize($normalized['lifecycle'], $clone->lifecycle);
+            $clone->author = $tt->string($normalized['author']);
+            $clone->lastChange = $tt->nullableInt($normalized['updated_timestamp']);
+            $clone->additionalContentEditingMode = $tt->string($normalized['additional_content_editing_mode']);
+            $clone->thumb_size = $tt->int($normalized['thumb_size']);
+            $clone->shuffle = $tt->bool($normalized['shuffle']);
+
+            $clone->suggested_solutions = array_map(
+                static fn(array $suggested_solution): SuggestedSolution => $tt->denormalize(
+                    $suggested_solution,
+                    SuggestedSolution::class
+                ),
+                $normalized['suggested_solutions']
+            );
+
+            return $clone;
+        });
     }
 }

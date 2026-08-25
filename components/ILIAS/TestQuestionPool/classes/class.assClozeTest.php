@@ -18,6 +18,9 @@
 
 declare(strict_types=1);
 
+use ILIAS\TestQuestionPool\ExportImport\Foundation\Contracts\Normalizable;
+use ILIAS\TestQuestionPool\ExportImport\Foundation\Contracts\Transformations;
+use ILIAS\Refinery\Transformation;
 use ILIAS\TestQuestionPool\Questions\QuestionLMExportable;
 use ILIAS\TestQuestionPool\Questions\QuestionAutosaveable;
 use ILIAS\TestQuestionPool\Questions\QuestionPartiallySaveable;
@@ -35,7 +38,7 @@ use ILIAS\Refinery\Random\Group as RandomGroup;
  *
  * @ingroup 	ModulesTestQuestionPool
  */
-class assClozeTest extends assQuestion implements ilObjQuestionScoringAdjustable, ilObjAnswerScoringAdjustable, iQuestionCondition, QuestionPartiallySaveable, QuestionLMExportable, QuestionAutosaveable
+class assClozeTest extends assQuestion implements ilObjQuestionScoringAdjustable, ilObjAnswerScoringAdjustable, iQuestionCondition, QuestionPartiallySaveable, QuestionLMExportable, QuestionAutosaveable, Normalizable
 {
     /**
     * The gaps of the cloze question
@@ -889,12 +892,8 @@ class assClozeTest extends assQuestion implements ilObjQuestionScoringAdjustable
     */
     public function getTextgapPoints($a_original, $a_entered, $max_points): float
     {
-        global $DIC;
-        $refinery = $DIC->refinery();
-        $result = 0;
-        $gaprating = $this->getTextgapRating();
-
-        switch ($gaprating) {
+        $result = 0.0;
+        switch ($this->textgap_rating) {
             case assClozeGap::TEXTGAP_RATING_CASEINSENSITIVE:
                 if (strcmp(ilStr::strToLower($a_original), ilStr::strToLower($a_entered)) == 0) {
                     $result = $max_points;
@@ -906,19 +905,19 @@ class assClozeTest extends assQuestion implements ilObjQuestionScoringAdjustable
                 }
                 break;
             case assClozeGap::TEXTGAP_RATING_LEVENSHTEIN1:
-                $transformation = $refinery->string()->levenshtein()->standard($a_original, 1);
+                $transformation = $this->refinery->string()->levenshtein()->standard($a_original, 1);
                 break;
             case assClozeGap::TEXTGAP_RATING_LEVENSHTEIN2:
-                $transformation = $refinery->string()->levenshtein()->standard($a_original, 2);
+                $transformation = $this->refinery->string()->levenshtein()->standard($a_original, 2);
                 break;
             case assClozeGap::TEXTGAP_RATING_LEVENSHTEIN3:
-                $transformation = $refinery->string()->levenshtein()->standard($a_original, 3);
+                $transformation = $this->refinery->string()->levenshtein()->standard($a_original, 3);
                 break;
             case assClozeGap::TEXTGAP_RATING_LEVENSHTEIN4:
-                $transformation = $refinery->string()->levenshtein()->standard($a_original, 4);
+                $transformation = $this->refinery->string()->levenshtein()->standard($a_original, 4);
                 break;
             case assClozeGap::TEXTGAP_RATING_LEVENSHTEIN5:
-                $transformation = $refinery->string()->levenshtein()->standard($a_original, 5);
+                $transformation = $this->refinery->string()->levenshtein()->standard($a_original, 5);
                 break;
         }
 
@@ -927,6 +926,50 @@ class assClozeTest extends assQuestion implements ilObjQuestionScoringAdjustable
             $result = $max_points;
         }
         return $result;
+    }
+
+    /**
+     *
+     * @param array<int, assAnswerCloze> $answer_options
+     */
+    public function getAnswerOptionIndexForTextGapAnswer(
+        array $answer_options,
+        string $response
+    ): ?int {
+        $levenshtein_distance = match ($this->textgap_rating) {
+            assClozeGap::TEXTGAP_RATING_LEVENSHTEIN1 => 1,
+            assClozeGap::TEXTGAP_RATING_LEVENSHTEIN2 => 2,
+            assClozeGap::TEXTGAP_RATING_LEVENSHTEIN3 => 3,
+            assClozeGap::TEXTGAP_RATING_LEVENSHTEIN4 => 4,
+            assClozeGap::TEXTGAP_RATING_LEVENSHTEIN5 => 5,
+            default => null
+        };
+
+        if ($levenshtein_distance !== null) {
+            foreach ($answer_options as $answer_index => $answer_option) {
+                if ($this->refinery->string()->levenshtein()->standard(
+                    $answer_option->getAnswertext(),
+                    $levenshtein_distance
+                )->transform($response) >= 0) {
+                    return $answer_index;
+                }
+            }
+        } elseif ($this->textgap_rating === assClozeGap::TEXTGAP_RATING_CASEINSENSITIVE) {
+            $response_to_lower = strtolower($response);
+            foreach ($answer_options as $answer_index => $answer_option) {
+                if (strtolower($answer_option->getAnswertext()) === $response_to_lower) {
+                    return $answer_index;
+                }
+            }
+        } elseif ($this->textgap_rating === assClozeGap::TEXTGAP_RATING_CASESENSITIVE) {
+            foreach ($answer_options as $answer_index => $answer_option) {
+                if ($answer_option->getAnswertext() === $response) {
+                    return $answer_index;
+                }
+            }
+        }
+
+        return null;
     }
 
 
@@ -1726,5 +1769,47 @@ class assClozeTest extends assQuestion implements ilObjQuestionScoringAdjustable
                 . implode(',', $correct_answers);
         }
         return $answers;
+    }
+
+    /**
+    * @inheritDoc
+    */
+    public function toNormalized(Transformations $tt): Transformation
+    {
+        return $tt->custom()->transformation(fn(): array => [
+            ...$tt->normalize(parent::toNormalized($tt)),
+            'feedback_mode' => $this->feedbackMode,
+            'cloze_text' => $this->cloze_text,
+            'textgap_rating' => $this->textgap_rating,
+            'identical_scoring' => $this->identical_scoring,
+            'fixed_text_length' => $this->fixed_text_length,
+            'gaps' => $tt->normalize($this->gaps),
+            'gap_combinations' => $this->gap_combinations,
+            'gap_combinations_exist' => $this->gap_combinations_exist,
+        ]);
+    }
+
+    /**
+     * @inheritDoc
+     */
+    public function fromNormalized(Transformations $tt): Transformation
+    {
+        return $tt->custom()->transformation(function (array $normalized) use ($tt): self {
+            $clone = parent::fromNormalized($tt)->transform($normalized);
+            $clone->feedbackMode = $tt->string($normalized['feedback_mode']);
+            $clone->cloze_text = $tt->string($normalized['cloze_text']);
+            $clone->textgap_rating = $tt->string($normalized['textgap_rating']);
+            $clone->identical_scoring = $tt->bool($normalized['identical_scoring']);
+            $clone->fixed_text_length = $tt->nullableInt($normalized['fixed_text_length']);
+            $clone->gap_combinations_exist = $tt->bool($normalized['gap_combinations_exist']);
+            $clone->gap_combinations = $normalized['gap_combinations'];
+
+            foreach ($normalized['gaps'] as $gap) {
+                $type = $tt->int($gap['type']);
+                $clone->gaps[] = $tt->denormalize($gap, new assClozeGap($type));
+            }
+
+            return $clone;
+        });
     }
 }
