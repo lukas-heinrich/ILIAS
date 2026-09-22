@@ -18,6 +18,9 @@
 
 declare(strict_types=1);
 
+use ILIAS\TestQuestionPool\ExportImport\Foundation\Normalize\FromNormalized;
+use ILIAS\TestQuestionPool\ExportImport\Foundation\Normalize\ToNormalized;
+use ILIAS\TestQuestionPool\ExportImport\Foundation\Normalize\Transformations;
 use ILIAS\TestQuestionPool\Questions\QuestionLMExportable;
 use ILIAS\TestQuestionPool\Questions\QuestionAutosaveable;
 use ILIAS\Test\Logging\AdditionalInformationGenerator;
@@ -37,7 +40,7 @@ use ILIAS\Refinery\Random\Seed\RandomSeed;
  *
  * @ingroup		ModulesTestQuestionPool
  */
-class assMatchingQuestion extends assQuestion implements ilObjQuestionScoringAdjustable, ilObjAnswerScoringAdjustable, iQuestionCondition, QuestionLMExportable, QuestionAutosaveable
+class assMatchingQuestion extends assQuestion implements ilObjAnswerScoringAdjustable, iQuestionCondition, QuestionLMExportable, QuestionAutosaveable, ToNormalized, FromNormalized
 {
     public const MT_TERMS_PICTURES = 0;
     public const MT_TERMS_DEFINITIONS = 1;
@@ -259,9 +262,9 @@ class assMatchingQuestion extends assQuestion implements ilObjQuestionScoringAdj
             $this->setMatchingMode($data['matching_mode'] === null ? self::MATCHING_MODE_1_ON_1 : $data['matching_mode']);
 
             try {
-                $this->setLifecycle(ilAssQuestionLifecycle::getInstance($data['lifecycle']));
+                $this->setLifecycle(new ilAssQuestionLifecycle($data['lifecycle']));
             } catch (ilTestQuestionPoolInvalidArgumentException $e) {
-                $this->setLifecycle(ilAssQuestionLifecycle::getDraftInstance());
+                $this->setLifecycle(new ilAssQuestionLifecycle());
             }
 
             try {
@@ -350,7 +353,7 @@ class assMatchingQuestion extends assQuestion implements ilObjQuestionScoringAdj
             $filename = $term->getPicture();
             if (!file_exists($image_source_path . $filename)
                 || !copy($image_source_path . $filename, $image_target_path . $filename)) {
-                $this->log->root()->warning('matching question image could not be copied: '
+                $this->log->forComponent('qpl')->warning('matching question image could not be copied: '
                     . $image_source_path . $filename);
             }
             if (!file_exists($image_source_path . $this->getThumbPrefix() . $filename)
@@ -358,7 +361,7 @@ class assMatchingQuestion extends assQuestion implements ilObjQuestionScoringAdj
                     $image_source_path . $this->getThumbPrefix() . $filename,
                     $image_target_path . $this->getThumbPrefix() . $filename
                 )) {
-                $this->log->root()->warning('matching question image thumbnail could not be copied: '
+                $this->log->forComponent('qpl')->warning('matching question image thumbnail could not be copied: '
                     . $image_source_path . $this->getThumbPrefix() . $filename);
             }
         }
@@ -370,7 +373,7 @@ class assMatchingQuestion extends assQuestion implements ilObjQuestionScoringAdj
 
             if (!file_exists($image_source_path . $filename)
                 || !copy($image_source_path . $filename, $image_target_path . $filename)) {
-                $this->log->root()->warning('matching question image could not be copied: '
+                $this->log->forComponent('qpl')->warning('matching question image could not be copied: '
                     . $image_source_path . $filename);
             }
 
@@ -379,7 +382,7 @@ class assMatchingQuestion extends assQuestion implements ilObjQuestionScoringAdj
                     $image_source_path . $this->getThumbPrefix() . $filename,
                     $image_target_path . $this->getThumbPrefix() . $filename
                 )) {
-                $this->log->root()->warning('matching question image thumbnail could not be copied: '
+                $this->log->forComponent('qpl')->warning('matching question image thumbnail could not be copied: '
                     . $image_source_path . $this->getThumbPrefix() . $filename);
             }
         }
@@ -1391,8 +1394,8 @@ class assMatchingQuestion extends assQuestion implements ilObjQuestionScoringAdj
     {
         $reducer = static function (array $c, assAnswerMatchingTerm|assAnswerMatchingDefinition $v): array {
             $c[$v->getIdentifier()] = $v->getText() !== ''
-                ? $v->getPicture()
-                : $v->getText();
+                ? $v->getText()
+                : $v->getPicture();
             return $c;
         };
 
@@ -1422,5 +1425,45 @@ class assMatchingQuestion extends assQuestion implements ilObjQuestionScoringAdj
                 . $v->getTerm()->getText(),
             $this->getMatchingPairs()
         );
+    }
+
+    #[\Override]
+    public function toNormalized(
+        Transformations $transformations,
+        array $context = []
+    ): array|float|bool|int|string|null
+    {
+        return [
+            ...$transformations->normalize(parent::toNormalized($transformations, $context)),
+            'shuffle_mode' => $this->shufflemode,
+            'matching_mode' => $this->matching_mode,
+            'matching_type' => $this->matching_type,
+            'thumb_geometry' => $this->thumb_geometry,
+            'matching_pairs' => $transformations->normalize($this->matchingpairs, ['question_id' => $this->getId()]),
+        ];
+    }
+
+    #[\Override]
+    public function fromNormalized(
+        array $normalized,
+        Transformations $transformations
+    ): static
+    {
+        $clone = parent::fromNormalized($normalized, $transformations);
+        $clone->shufflemode = $transformations->int($normalized['shuffle_mode']);
+        $clone->matching_mode = $transformations->string($normalized['matching_mode']);
+        $clone->matching_type = $transformations->int($normalized['matching_type']);
+        $clone->thumb_geometry = $transformations->int($normalized['thumb_geometry']);
+
+        foreach ($normalized['matching_pairs'] as $matching_pair) {
+            $term = $transformations->denormalize($matching_pair['term'], new assAnswerMatchingTerm());
+            $definition = $transformations->denormalize($matching_pair['definition'], new assAnswerMatchingDefinition());
+
+            $clone->matchingpairs[] = new assAnswerMatchingPair($term, $definition, $transformations->float($matching_pair['points']));
+            $clone->terms[] = $term;
+            $clone->definitions[] = $definition;
+        }
+
+        return $clone;
     }
 }

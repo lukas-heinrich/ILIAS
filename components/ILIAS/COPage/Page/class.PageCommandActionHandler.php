@@ -137,6 +137,7 @@ class PageCommandActionHandler implements Server\CommandActionHandler
         $par = $body["data"]["paragraph_format"];
         $sec = $body["data"]["section_format"];
         $med = $body["data"]["media_format"];
+        $tab = $body["data"]["table_format"] ?? "";
         $page = $this->page_gui->getPageObject();
 
         $hids = array_map(
@@ -146,7 +147,7 @@ class PageCommandActionHandler implements Server\CommandActionHandler
             $pcids
         );
 
-        $updated = $page->assignCharacteristic($hids, $par, $sec, $med);
+        $updated = $page->assignCharacteristic($hids, $par, $sec, $med, $tab);
         return $this->sendPage($updated);
     }
 
@@ -184,7 +185,7 @@ class PageCommandActionHandler implements Server\CommandActionHandler
         $source = explode(":", $source);
         $target = explode(":", $target);
 
-        $updated = $page->moveContentAfter($source[0], $target[0], $source[1], $target[1]);
+        $updated = $page->moveContentAfter($source[0], $target[0], $source[1] ?? '', $target[1] ?? '');
 
         return $this->sendPage($updated);
     }

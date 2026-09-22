@@ -167,13 +167,16 @@ class ilContainerRenderer
     public function addTypeBlock(
         string $a_type,
         ?string $a_prefix = null,
-        ?string $a_postfix = null
+        ?string $a_postfix = null,
+        ?string $a_block_id = null
     ): bool {
+        $block_id = $a_block_id ?? $a_type;
         if ($a_type !== "itgr" &&
-            !$this->hasTypeBlock($a_type)) {
-            $this->type_blocks[$a_type] = [
+            !$this->hasTypeBlock($block_id)) {
+            $this->type_blocks[$block_id] = [
                 "prefix" => $a_prefix
                 ,"postfix" => $a_postfix
+                ,"type" => $a_type
             ];
             return true;
         }
@@ -507,7 +510,7 @@ class ilContainerRenderer
     ): bool {
         if ($this->hasTypeBlock($a_type)) {
             $block = $this->type_blocks[$a_type];
-            $block["type"] = $a_type;
+            $block["type"] = $block["type"] ?? $a_type;
             return $this->renderHelperGeneric($a_block_tpl, $a_type, $block, $a_is_single, $is_exhausted);
         }
         return false;
@@ -876,9 +879,14 @@ class ilContainerRenderer
         $preloader->preload();
 
         $embedded_block_ids = $this->item_presentation->getPageEmbeddedBlockIds();
+        $page_block_instance = 0;
         foreach ($sequence->getBlocks() as $block) {
             $block_id = "";
+            $render_block_id = $block->getRenderId();
             $force_item_even_if_already_rendered = false;
+            if ($block->getPageEmbedded()) {
+                $page_block_instance++;
+            }
             if ($block->getBlock() instanceof \ILIAS\Container\Content\ItemGroupBlock) {
                 $block_id = (string) $block->getBlock()->getRefId();
                 $force_item_even_if_already_rendered = true;
@@ -918,7 +926,8 @@ class ilContainerRenderer
                 $this->addTypeBlock(
                     $block_id,
                     $this->getBlockPrefix($block_id),
-                    $this->getBlockPostfix($block_id)
+                    $this->getBlockPostfix($block_id),
+                    $render_block_id
                 );
             }
 
@@ -934,6 +943,13 @@ class ilContainerRenderer
                 $item_data = $this->item_presentation->getRawDataByRefId($ref_id);
                 if ($item_data === null) {
                     continue;
+                }
+                // use block_id as parent for unique IDs when item appears in multiple blocks
+                if ($block->getBlock() instanceof \ILIAS\Container\Content\ItemGroupBlock) {
+                    $item_data["block_parent"] = (int) $block_id;
+                }
+                if ($block->getPageEmbedded()) {
+                    $item_data["parent"] = -$page_block_instance;
                 }
                 $checkbox = \ILIAS\Containter\Content\ItemRenderer::CHECKBOX_NONE;
                 if ($this->container_gui->isActiveAdministrationPanel()) {
@@ -966,7 +982,7 @@ class ilContainerRenderer
                 );
                 if ($html != "") {
                     $this->addItemToBlock(
-                        $block_id,
+                        $render_block_id,
                         $item_data["type"],
                         $item_data["child"],
                         $html,
@@ -981,8 +997,9 @@ class ilContainerRenderer
                     $block->getBlock() instanceof \ILIAS\Container\Content\SessionBlock) {
                     $page_html = preg_replace(
                         '~\[list-' . $block->getId() . '\]~i',
-                        $this->renderSingleTypeBlock($block->getId(), $block->getLimitExhausted()),
-                        $page_html
+                        $this->renderSingleTypeBlock($render_block_id, $block->getLimitExhausted()),
+                        $page_html,
+                        1
                     );
                     $valid = true;
                 } elseif ($block->getBlock() instanceof \ILIAS\Container\Content\ItemGroupBlock) {
@@ -1180,33 +1197,24 @@ class ilContainerRenderer
             $item_data["title"],
             $item_data["description"]
         );
-        $commands_html = $item_list_gui->getCommandsHTML();
 
         // determine behaviour
-        $item_group = new ilObjItemGroup($item_data["ref_id"]);
-        $beh = $item_group->getBehaviour();
-        $stored_val = $this->block_repo->getProperty(
-            "itgr_" . $item_data["ref_id"],
-            $this->user->getId(),
-            "opened"
-        );
-        if ($stored_val !== "" && $beh !== ilItemGroupBehaviour::ALWAYS_OPEN) {
-            $beh = ($stored_val === "1")
-                ? ilItemGroupBehaviour::EXPANDABLE_OPEN
-                : ilItemGroupBehaviour::EXPANDABLE_CLOSED;
-        }
+        $item_group = new ilObjItemGroup($item_data['ref_id']);
+        $opened = $this->block_repo->getProperty("itgr_{$item_data['ref_id']}", $this->user->getId(), 'opened');
 
-        $data = [
-            "behaviour" => $beh,
-            "store-url" => "./ilias.php?baseClass=ilcontainerblockpropertiesstoragegui&cmd=store" .
-                "&cont_block_id=itgr_" . $item_data['ref_id']
-        ];
-        if (ilObjItemGroup::lookupHideTitle($item_data["obj_id"]) &&
-            !$this->container_gui->isActiveAdministrationPanel()) {
-            $this->addCustomBlock($block_id, "", $commands_html, $data);
-        } else {
-            $this->addCustomBlock($block_id, $item_data["title"], $commands_html, $data);
-        }
+        $this->ctrl->setParameterByClass(ilContainerBlockPropertiesStorageGUI::class, 'cont_block_id', "itgr_{$item_data['ref_id']}");
+        $store_url = $this->ctrl->getLinkTargetByClass(ilContainerBlockPropertiesStorageGUI::class, 'store');
+        $this->ctrl->clearParameterByClass(ilContainerBlockPropertiesStorageGUI::class, 'cont_block_id');
+
+        $this->addCustomBlock(
+            $block_id,
+            $item_group->getShowTitle() || $this->container_gui->isActiveAdministrationPanel() ? $item_data['title'] : '',
+            $item_list_gui->getCommandsHTML(),
+            [
+                'behaviour' => $item_group->getBehaviour(in_array($opened, ['0', '1'], true) ? (bool) $opened : null),
+                'store-url' => "./{$store_url}"
+            ]
+        );
     }
 
     protected function getBlockPrefix($block_id): string

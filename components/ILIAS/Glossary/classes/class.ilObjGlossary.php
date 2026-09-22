@@ -517,21 +517,6 @@ class ilObjGlossary extends ilObject implements ilAdvancedMetaDataSubItems
         return true;
     }
 
-    public static function getDeletionDependencies(int $obj_id): array
-    {
-        global $DIC;
-
-        $lng = $DIC->language();
-
-        $dep = array();
-        $sms = ilObjSAHSLearningModule::getScormModulesForGlossary($obj_id);
-        foreach ($sms as $sm) {
-            $lng->loadLanguageModule("content");
-            $dep[$sm] = $lng->txt("glo_used_in_scorm");
-        }
-        return $dep;
-    }
-
     public function getTaxonomyId(): int
     {
         $tax_ids = ilObjTaxonomy::getUsageOfObject($this->getId());
@@ -590,6 +575,9 @@ class ilObjGlossary extends ilObject implements ilAdvancedMetaDataSubItems
         $term_mappings = array();
         foreach (ilGlossaryTerm::getTermList([$this->getRefId()]) as $term) {
             $new_term_id = ilGlossaryTerm::_copyTerm($term["id"], $new_obj->getId());
+            if ($new_term_id === 0) {
+                continue;
+            }
             $term_mappings[$term["id"]] = $new_term_id;
 
             // copy tax node assignments

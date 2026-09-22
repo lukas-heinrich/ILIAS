@@ -18,6 +18,9 @@
 
 namespace ILIAS\ItemGroup\Setup;
 
+use ilDBConstants;
+use ilItemGroupAR;
+
 /**
  * @author Alexander Killing <killing@leifos.de>
  */
@@ -49,6 +52,42 @@ class ilItemGroupDBUpdateSteps implements \ilDatabaseUpdateSteps
                 "default" => 0,
                 "length" => 1
             ));
+        }
+    }
+
+    public function step_3(): void
+    {
+        if (!$this->db->tableColumnExists('itgr_data', 'display')) {
+            $this->db->addTableColumn('itgr_data', 'display', [
+                'type' => ilDBConstants::T_TEXT,
+                'notnull' => true,
+                'default' => ilItemGroupAR::DISPLAY_WITH_TITLE,
+                'length' => 255
+            ]);
+        }
+
+        if (!$this->db->tableColumnExists('itgr_data', 'toggleable_initially')) {
+            $this->db->addTableColumn('itgr_data', 'toggleable_initially', [
+                'type' => ilDBConstants::T_TEXT,
+                'notnull' => true,
+                'default' => ilItemGroupAR::DISPLAY_WITH_TITLE_AND_TOGGLEABLE_INITIALLY_OPEN,
+                'length' => 255
+            ]);
+        }
+    }
+
+    public function step_4(): void
+    {
+        if ($this->db->tableColumnExists('itgr_data', 'hide_title')) {
+            $this->db->modifyTableColumn('itgr_data', 'hide_title', [
+                'default' => ilItemGroupDisplayMigration::MIGRATED_MARKER,
+            ]);
+        }
+
+        if ($this->db->tableColumnExists('itgr_data', 'behaviour')) {
+            $this->db->modifyTableColumn('itgr_data', 'behaviour', [
+                'default' => ilItemGroupDisplayMigration::MIGRATED_MARKER,
+            ]);
         }
     }
 }

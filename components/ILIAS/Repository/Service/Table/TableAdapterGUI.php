@@ -122,6 +122,14 @@ class TableAdapterGUI
         return $this;
     }
 
+    public function column(
+        string $key,
+        Column $column
+    ): self {
+        $this->addColumn($key, $column);
+        return $this;
+    }
+
     public function linkColumn(
         string $key,
         string $title,
@@ -137,7 +145,7 @@ class TableAdapterGUI
         string $title,
         bool $sortable = false
     ): self {
-        $column = $this->ui->factory()->table()->column()->linkListing($title)->withIsSortable($sortable);
+        $column = $this->ui->factory()->table()->column()->listing($title)->withIsSortable($sortable);
         $this->addColumn($key, $column);
         return $this;
     }
@@ -172,17 +180,19 @@ class TableAdapterGUI
 
     public function standardAction(
         string $action,
-        string $title
+        string $title,
+        bool $async = false
     ): self {
-        $this->addAction(self::STANDARD, $action, $title);
+        $this->addAction(self::STANDARD, $action, $title, $async);
         return $this;
     }
 
     public function multiAction(
         string $action,
-        string $title
+        string $title,
+        bool $async = false
     ): self {
-        $this->addAction(self::MULTI, $action, $title);
+        $this->addAction(self::MULTI, $action, $title, $async);
         return $this;
     }
 
@@ -238,7 +248,7 @@ class TableAdapterGUI
         }
     }
 
-    protected function getItemIds(): array
+    public function getItemIds(): array
     {
         if ($this->numeric_ids) {
             $ids = $this->intArray($this->row_id_token->getName());

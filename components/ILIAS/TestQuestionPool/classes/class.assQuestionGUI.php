@@ -109,6 +109,7 @@ abstract class assQuestionGUI
     private ilDBInterface $db;
     protected ilLogger $logger;
     private ilComponentRepository $component_repository;
+    private ilComponentFactory $component_factory;
     protected GeneralQuestionPropertiesRepository $questionrepository;
     protected GUIService $notes_gui;
     protected ilCtrl $ctrl;
@@ -177,6 +178,7 @@ abstract class assQuestionGUI
         $this->db = $DIC->database();
         $this->logger = $DIC['ilLog'];
         $this->component_repository = $DIC['component.repository'];
+        $this->component_factory = $DIC['component.factory'];
         $this->refinery = $DIC['refinery'];
 
         $local_dic = QuestionPoolDIC::dic();
@@ -1068,6 +1070,17 @@ abstract class assQuestionGUI
             }
         }
 
+        return $this->getQuestionTypeTranslation();
+    }
+
+    private function getQuestionTypeTranslation(): string
+    {
+        foreach ($this->component_factory->getActivePluginsInSlot('qst') as $plugin) {
+            if ($plugin->getQuestionType() === $this->object->getQuestionType()) {
+                return $plugin->getQuestionTypeTranslation();
+            }
+        }
+
         return $this->lng->txt($this->object->getQuestionType());
     }
 
@@ -1656,7 +1669,7 @@ abstract class assQuestionGUI
         }
 
         try {
-            $lifecycle = ilAssQuestionLifecycle::getInstance(
+            $lifecycle = new ilAssQuestionLifecycle(
                 $this->request_data_collector->string('lifecycle')
             );
             $this->object->setLifecycle($lifecycle);
@@ -2052,6 +2065,14 @@ abstract class assQuestionGUI
             return $this->ctrl->getLinkTargetByClass(ilObjQuestionPoolGUI::class, 'downloadFile');
         }
         return $this->ctrl->getLinkTargetByClass(ilObjTestGUI::class, 'downloadFile');
+    }
+
+    public function supportsAdjustment(): bool
+    {
+        return ($this instanceof ilGuiQuestionScoringAdjustable
+                || $this instanceof ilGuiAnswerScoringAdjustable)
+            && ($this->getObject() instanceof ilObjQuestionScoringAdjustable
+                || $this->getObject() instanceof ilObjAnswerScoringAdjustable);
     }
 
     protected function resetSavedPreviewSession(): void
