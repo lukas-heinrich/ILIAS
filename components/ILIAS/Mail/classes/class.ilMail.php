@@ -26,6 +26,7 @@ use ILIAS\Mail\Service\MailSignatureService;
 use ILIAS\Mail\Transformation\Utf8Mb4Sanitizer;
 use ILIAS\ResourceStorage\Identification\ResourceCollectionIdentification;
 use ILIAS\Mail\Folder\MailScheduleData;
+use ILIAS\Mail\Message\MailRecordMapper;
 
 class ilMail
 {
@@ -74,7 +75,6 @@ class ilMail
         private ?int $mail_obj_ref_id = null,
         private ?ilObjUser $actor = null,
         private ?ilMailTemplatePlaceholderResolver $placeholder_resolver = null,
-        private ?ilMailTemplatePlaceholderToEmptyResolver $placeholder_to_empty_resolver = null,
         ?Conductor $legal_documents = null,
         ?MailSignatureService $signature_service = null,
     ) {
@@ -102,7 +102,6 @@ class ilMail
         $this->table_mail_saved = 'mail_saved';
         $this->setSaveInSentbox(false);
         $this->placeholder_resolver = $placeholder_resolver ?? $DIC->mail()->placeholderResolver();
-        $this->placeholder_to_empty_resolver = $placeholder_to_empty_resolver ?? $DIC->mail()->placeholderToEmptyResolver();
         $this->legal_documents = $legal_documents ?? $DIC['legalDocuments'];
         $this->signature_service = $signature_service ?? $DIC->mail()->signature();
         $this->refinery = $DIC->refinery();
@@ -395,54 +394,7 @@ class ilMail
 
     public function fetchMailData(?array $row): ?array
     {
-        if (!is_array($row) || empty($row)) {
-            return null;
-        }
-
-        if (isset($row['attachments']) && is_string($row['attachments']) && str_contains($row['attachments'], '{')) {
-            $unserialized_attachments = unserialize($row['attachments'], ['allowed_classes' => false]);
-            $row['attachments'] = is_array($unserialized_attachments) ? $unserialized_attachments : null;
-        } elseif (isset($row['attachments']) && is_string($row['attachments']) && $row['attachments'] !== '') {
-            $row['attachments'] = new ResourceCollectionIdentification($row['attachments']);
-        } else {
-            $row['attachments'] = null;
-        }
-
-        if (isset($row['tpl_ctx_params']) && is_string($row['tpl_ctx_params'])) {
-            $decoded = json_decode($row['tpl_ctx_params'], true, 512, JSON_THROW_ON_ERROR);
-            $row['tpl_ctx_params'] = (array) ($decoded ?? []);
-        } else {
-            $row['tpl_ctx_params'] = [];
-        }
-
-        if (isset($row['mail_id'])) {
-            $row['mail_id'] = (int) $row['mail_id'];
-        }
-
-        if (isset($row['user_id'])) {
-            $row['user_id'] = (int) $row['user_id'];
-        }
-
-        if (isset($row['folder_id'])) {
-            $row['folder_id'] = (int) $row['folder_id'];
-        }
-
-        if (isset($row['sender_id'])) {
-            $row['sender_id'] = (int) $row['sender_id'];
-        }
-
-        if (isset($row['use_placeholders'])) {
-            $row['use_placeholders'] = (bool) $row['use_placeholders'];
-        }
-
-        $null_to_string_properties = ['m_subject', 'm_message', 'rcp_to', 'rcp_cc', 'rcp_bcc'];
-        foreach ($null_to_string_properties as $null_to_string_property) {
-            if (!isset($row[$null_to_string_property])) {
-                $row[$null_to_string_property] = '';
-            }
-        }
-
-        return $row;
+        return (new MailRecordMapper())->normalizeRow($row);
     }
 
     public function getNewDraftId(int $folder_id): int
@@ -616,7 +568,7 @@ class ilMail
 
     private function replacePlaceholders(
         string $message,
-        int $usr_id = 0
+        ?int $usr_id = null
     ): string {
         try {
             if ($this->context_id) {
@@ -625,7 +577,7 @@ class ilMail
                 $context = new ilMailTemplateGenericContext();
             }
 
-            $user = $usr_id > 0 ? $this->getUserInstanceById($usr_id) : null;
+            $user = ($usr_id !== null && $usr_id > 0) ? $this->getUserInstanceById($usr_id) : null;
             $message = $this->placeholder_resolver->resolve(
                 $context,
                 $message,
@@ -644,10 +596,6 @@ class ilMail
         return $message;
     }
 
-    private function replacePlaceholdersEmpty(string $message): string
-    {
-        return $this->placeholder_to_empty_resolver->resolve($message);
-    }
 
     private function distributeMail(MailDeliveryData $mail_data): bool
     {
@@ -709,7 +657,7 @@ class ilMail
         $this->sendChanneledMails(
             $mail_data,
             $recipients,
-            $this->replacePlaceholdersEmpty($mail_data->getMessage()),
+            $this->replacePlaceholders($mail_data->getMessage()),
         );
     }
 
@@ -1193,7 +1141,7 @@ class ilMail
                 $external_eail_recipients_bcc,
                 $mail_data->getSubject(),
                 $mail_data->isUsePlaceholder() ?
-                    $this->replacePlaceholders($mail_data->getMessage(), 0) :
+                    $this->replacePlaceholders($mail_data->getMessage()) :
                     $mail_data->getMessage(),
                 $mail_data->getAttachments()
             );

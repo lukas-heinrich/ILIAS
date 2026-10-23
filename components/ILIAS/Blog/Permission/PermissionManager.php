@@ -20,16 +20,23 @@ declare(strict_types=1);
 
 namespace ILIAS\Blog\Permission;
 
+use ILIAS\Blog\InternalDomainService;
+use ILIAS\COPage\Page\PageManagerInterface;
+
 class PermissionManager
 {
+    protected \ILIAS\Blog\Posting\PostingManager $posting_manager;
+    protected \ilWorkspaceTree $ws_tree;
     protected int $owner;
     protected int $id_type;
     protected \ilWorkspaceAccessHandler|\ilAccessHandler $access;
     protected ?int $node_id;
     protected int $user_id;
+    protected PageManagerInterface $page_manager;
 
     public function __construct(
-        $access_handler,
+        InternalDomainService $domain,
+        \ilWorkspaceAccessHandler|\ilAccessHandler $access_handler,
         ?int $node_id,
         int $id_type,
         int $user_id,
@@ -40,11 +47,19 @@ class PermissionManager
         $this->id_type = $id_type;
         $this->user_id = $user_id;
         $this->owner = $owner;
+        $this->ws_tree = new \ilWorkspaceTree($this->owner);
+        $this->posting_manager = $domain->posting();
+        $this->page_manager = $domain->pageManager();
     }
 
     public function canWrite(): bool
     {
         return $this->access->checkAccess('write', '', $this->node_id);
+    }
+
+    public function canRead(): bool
+    {
+        return $this->access->checkAccess('read', '', $this->node_id);
     }
 
     public function mayContribute(): bool
@@ -108,13 +123,41 @@ class PermissionManager
 
     public function canReadPosting(int $posting_id): bool
     {
-        return ($this->mayContribute() ||
-            \ilBlogPosting::_lookupActive($posting_id, "blp"));
+        return (
+            $this->postingIdMatches($posting_id) &&
+            $this->checkPermissionBool("read") &&
+            ($this->mayContribute() ||
+            $this->page_manager->lookupActive($posting_id, "blp")));
+    }
+
+    public function canApprove(int $posting_id): bool
+    {
+        if (!$this->postingIdMatches($posting_id)) {
+            return false;
+        }
+        return ($this->checkPermissionBool("redact") ||
+            $this->checkPermissionBool("write")
+        );
     }
 
     public function isActive(int $posting_id): bool
     {
-        return (\ilBlogPosting::_lookupActive($posting_id, "blp"));
+        return $this->page_manager->lookupActive($posting_id, "blp");
+    }
+
+    public function postingIdMatches(int $posting_id): bool
+    {
+        if ($this->id_type === \ilObject2GUI::WORKSPACE_NODE_ID) {
+            $obj_id = $this->ws_tree->lookupObjectId($this->node_id);
+        } else {
+            $obj_id = \ilObject::_lookupObjId($this->node_id);
+        }
+        return $this->posting_manager->lookupBlogId($posting_id) === $obj_id;
+    }
+
+    public function getAccessHandler(): \ilAccessHandler|\ilWorkspaceAccessHandler
+    {
+        return $this->access;
     }
 
 }

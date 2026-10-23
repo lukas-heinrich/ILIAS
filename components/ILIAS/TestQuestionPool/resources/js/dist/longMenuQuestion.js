@@ -225,8 +225,9 @@ var longMenuQuestion = (function () {
 
 	pro.selectChangeFunction = function (that)
 	{
-		var question_id = parseInt(that.attr('data-id'), 10);
-		pub.questionParts.list[question_id][2] = that.val();
+    var question_id = parseInt(that.attr('data-id'), 10);
+    pub.questionParts.list[question_id][2] = parseInt(that.val(), 10);
+    pro.syncWithHiddenTextField();
 	};
 
 	pro.answerOptionsClickFunction = function (that)
@@ -291,8 +292,9 @@ var longMenuQuestion = (function () {
 	pro.displayErrors = function(index)
 	{
 		var value_error = false;
-    let points = parseFloat(pub.questionParts.list[index][1]);
-		if( isNaN(points) || points <= 0)
+    const points_value = pub.questionParts.list[index][1].toString().replace(',', '.');
+    const points = parseFloat(points_value);
+		if (isNaN(points) || points <= 0 || points_value.match(/^0[1-9][0-9\.]*$/) !== null)
 		{
 			$('#' +'error_answer_' + index).find('.points_error').removeClass('prototype_long_menu');
 		}
@@ -601,7 +603,7 @@ var longMenuQuestion = (function () {
 
 	pro.sliceInNewQuestionPart = function (gap_id)
 	{
-		pub.questionParts.list.splice(gap_id, 0,  [[], '0', '1']);
+		pub.questionParts.list.splice(gap_id, 0,  [[], '0', 1]);
 		pub.answers.splice(gap_id,0,[]);
 		pro.redrawFormParts();
 		pro.syncWithHiddenTextField();
@@ -680,7 +682,7 @@ var longMenuQuestion = (function () {
 		{
 			pub.questionParts.list = [];
 		}
-		pub.questionParts.list[gap_id] = [[], '0', '1'];
+		pub.questionParts.list[gap_id] = [[], '0', 1];
 	};
 
 	//Public property

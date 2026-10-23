@@ -27,6 +27,8 @@ class ilContainerNewsSettingsGUI
     protected ilGlobalTemplateInterface $tpl;
     protected ilLanguage $lng;
     protected ilSetting $setting;
+    protected ilAccessHandler $access;
+    protected ilTree $tree;
     protected ilObjectGUI $parent_gui;
     protected ilObject $object;
     protected bool $has_timeline = false;
@@ -44,6 +46,8 @@ class ilContainerNewsSettingsGUI
         $this->lng->loadLanguageModule("news");
         $this->tpl = $DIC["tpl"];
         $this->setting = $DIC["ilSetting"];
+        $this->access = $DIC->access();
+        $this->tree = $DIC->repositoryTree();
         $this->parent_gui = $a_parent_gui;
         $this->object = $this->parent_gui->getObject();
 
@@ -58,9 +62,25 @@ class ilContainerNewsSettingsGUI
         switch ($next_class) {
             default:
                 if (in_array($cmd, ["show", "save"])) {
+                    $this->checkPermission('write');
                     $this->$cmd();
                 }
         }
+    }
+
+    protected function checkPermission(string $perm): void
+    {
+        if ($this->access->checkAccess($perm, '', $this->object->getRefId())) {
+            return;
+        }
+
+        $this->tpl->setOnScreenMessage(
+            ilGlobalTemplateInterface::MESSAGE_TYPE_FAILURE,
+            $this->lng->txt('msg_no_perm_read'),
+            true
+        );
+        $parent_ref_id = $this->tree->getParentId($this->object->getRefId());
+        $this->ctrl->redirectToURL($parent_ref_id > 0 ? ilLink::_getLink($parent_ref_id) : 'login.php?cmd=force_login');
     }
 
     public function show(): void
@@ -131,8 +151,7 @@ class ilContainerNewsSettingsGUI
             0,
             $block_id
         );
-
-        if ($hide_news_date != "") {
+        if (is_string($hide_news_date) && $hide_news_date !== "") {
             $hide_news_date = explode(" ", $hide_news_date);
         }
 
@@ -148,8 +167,8 @@ class ilContainerNewsSettingsGUI
 
             $dt_prop = new ilDateTimeInputGUI($this->lng->txt("news_hide_news_date"), "hide_news_date");
             $dt_prop->setRequired(true);
-            if (is_array($hide_news_date)) {
-                $dt_prop->setDate(new ilDateTime($hide_news_date[0] . ' ' . ($hide_news_date[1] ?? "12:00:00"), IL_CAL_DATETIME));
+            if (isset($hide_news_date[0], $hide_news_date[1])) {
+                $dt_prop->setDate(new ilDateTime($hide_news_date[0] . " " . $hide_news_date[1], IL_CAL_DATETIME));
             }
 
             $dt_prop->setShowTime(true);
@@ -196,7 +215,6 @@ class ilContainerNewsSettingsGUI
                 //save contextblock settings
                 $context_block_settings = [
                     "public_feed" => $form->getInput("notifications_public_feed") ?? "",
-                    "default_visibility" => $form->getInput("default_visibility"),
                     "hide_news_per_date" => $form->getInput("hide_news_per_date"),
                     "hide_news_date" => $form->getInput("hide_news_date")
                 ];

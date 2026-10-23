@@ -55,7 +55,7 @@ require_once __DIR__ . '/SVGDummyMachine.php';
 class FlavourMachineTest extends AbstractTestBase
 {
     /**
-     * @var \ILIAS\ResourceStorage\Flavour\Engine\Factory|MockObject
+     * @var \PHPUnit\Framework\MockObject\MockObject&\ILIAS\ResourceStorage\Flavour\Engine\Factory
      */
     private MockObject $engine_factory_mock;
 
@@ -105,7 +105,7 @@ class FlavourMachineTest extends AbstractTestBase
 
 
     #[DataProvider('definitionsToMachines')]
-    public function testDefaultMachines(FlavourDefinition $d, string $machine): void
+    public function testDefaultMachines(FlavourDefinition $d, string $machine, string $engine): void
     {
         $factory = new Factory($this->engine_factory_mock);
         $this->engine_factory_mock->expects($this->once())

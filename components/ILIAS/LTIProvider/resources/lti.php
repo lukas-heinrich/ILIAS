@@ -18,15 +18,17 @@
 
 declare(strict_types=1);
 
-require_once("../vendor/composer/vendor/autoload.php");
 
-ilContext::init(ilContext::CONTEXT_LTI_PROVIDER);
-
-// This is done to replace the deprecated method $DIC->ctrl()->setCmd
+// @phpstan-ignore ilias.superglobalWrite.v12 (pins the command for the LTI entry point before ilInitialisation runs, so no HTTP service exists yet)
 $_GET['cmd'] = 'post';
+// @phpstan-ignore ilias.superglobalWrite.v12 (pins the command for the LTI entry point before ilInitialisation runs, so no HTTP service exists yet)
 $_POST['cmd'] = 'doLTIAuthentication';
 
-ilInitialisation::initILIAS();
+require_once '../vendor/composer/vendor/autoload.php';
+require_once __DIR__ . '/../artifacts/bootstrap_default.php';
+entry_point('ILIAS Legacy Initialisation Adapter');
+
+ilContext::init(ilContext::CONTEXT_LTI_PROVIDER);
 
 global $DIC;
 

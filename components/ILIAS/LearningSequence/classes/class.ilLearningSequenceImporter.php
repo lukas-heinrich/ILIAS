@@ -18,20 +18,30 @@
 
 declare(strict_types=1);
 
+use ILIAS\COPage\Page\PageManagerInterface;
+
 class ilLearningSequenceImporter extends ilXmlImporter
 {
+    protected PageManagerInterface $page_manager;
     protected ilObjUser $user;
     protected ilRbacAdmin $rbac_admin;
     protected ilLogger $log;
     protected ilObject $obj;
     protected array $data;
 
+    public function __construct()
+    {
+        global $DIC;
+        parent::__construct();
+        $this->page_manager = $DIC->copage()->internal()->domain()->page();
+    }
+
     public function init(): void
     {
         global $DIC;
         $this->user = $DIC["ilUser"];
         $this->rbac_admin = $DIC["rbacadmin"];
-        $this->log = $DIC["ilLoggerFactory"]->getRootLogger();
+        $this->log = $DIC["ilLoggerFactory"]->getComponentLogger('lso');
     }
 
     public function importXmlRepresentation(string $a_entity, string $a_id, string $a_xml, ilImportMapping $a_mapping): void
@@ -59,6 +69,32 @@ class ilLearningSequenceImporter extends ilXmlImporter
             LSOPageType::EXTRO->value . ':' . $a_id,
             LSOPageType::EXTRO->value . ':' . (string) $this->obj->getId()
         );
+
+        $a_mapping->addMapping(
+            'components/ILIAS/MetaData',
+            'md',
+            $a_id . ':0:lso',
+            (string) $this->obj->getId() . ':0:lso'
+        );
+
+        $a_mapping->addMapping(
+            "components/ILIAS/Taxonomy",
+            "tax_item",
+            "lso:obj:" . $a_id,
+            (string) $this->obj->getId()
+        );
+        $a_mapping->addMapping(
+            "components/ILIAS/Taxonomy",
+            "tax_item_obj_id",
+            "lso:obj:" . $a_id,
+            (string) $this->obj->getId()
+        );
+        $a_mapping->addMapping(
+            "components/ILIAS/Tracking",
+            "obj",
+            (string) $a_id,
+            (string) $this->obj->getId()
+        );
     }
 
     public function finalProcessing(ilImportMapping $a_mapping): void
@@ -75,7 +111,7 @@ class ilLearningSequenceImporter extends ilXmlImporter
             $parts = explode(':', $new_pg_id);
             $new_pg_id = array_pop($parts);
             $new_obj_id = $this->obj->getId();
-            ilPageObject::_writeParentId($pg_type, (int) $new_pg_id, (int) $new_obj_id);
+            $this->page_manager->writeParentId($pg_type, (int) $new_pg_id, (int) $new_obj_id);
         }
     }
 

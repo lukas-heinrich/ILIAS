@@ -376,7 +376,7 @@ trait ilTestBaseTestCaseTrait
     protected function addGlobal_refinery(): void
     {
         $refineryMock = $this->getMockBuilder(RefineryFactory::class)->disableOriginalConstructor()->getMock();
-        $refineryMock->expects(self::any())->method('random')->willReturn($this->getMockBuilder(RandomGroup::class)->getMock());
+        $refineryMock->method('random')->willReturn($this->getMockBuilder(RandomGroup::class)->getMock());
         $this->setGlobalVariable('refinery', $refineryMock);
     }
 
@@ -432,6 +432,22 @@ trait ilTestBaseTestCaseTrait
         );
     }
 
+    protected function addGlobal_logging(): void
+    {
+        $this->setGlobalVariable(
+            'logging.factory',
+            $this->createStub(ILIAS\Logging\Logger\LoggerFactoryInterface::class)
+        );
+        $this->setGlobalVariable(
+            'logging.defaultConfigFactory',
+            $this->createStub(ILIAS\Logging\Logger\DefaultConfigLoggerFactoryInterface::class)
+        );
+        $this->setGlobalVariable(
+            'logging.config',
+            $this->createStub(ILIAS\Logging\Config\ConfigInterface::class)
+        );
+    }
+
     protected function getFileDelivery(): \ILIAS\FileDelivery\Services
     {
         $data_signer = new ILIAS\FileDelivery\Token\DataSigner(
@@ -441,20 +457,24 @@ trait ilTestBaseTestCaseTrait
         );
         $http_mock = $this->createMock(HTTPServices::class);
         $response_builder_mock = $this->createMock(\ILIAS\FileDelivery\Delivery\ResponseBuilder\ResponseBuilder::class);
+        $isolation = \ILIAS\FileDelivery\Isolation\IsolationConfig::disabled();
         return new \ILIAS\FileDelivery\Services(
             new ILIAS\FileDelivery\Delivery\StreamDelivery(
                 $data_signer,
                 $http_mock,
                 $response_builder_mock,
-                $response_builder_mock
+                $response_builder_mock,
+                $isolation
             ),
             new \ILIAS\FileDelivery\Delivery\LegacyDelivery(
                 $http_mock,
                 $response_builder_mock,
-                $response_builder_mock
+                $response_builder_mock,
+                $isolation
             ),
             $data_signer,
-            $http_mock
+            $http_mock,
+            $isolation
         );
     }
 
@@ -500,10 +520,6 @@ trait ilTestBaseTestCaseTrait
         $local_dic_mock['results.data.factory'] = fn(Pimple\Container $c)
             => $this->createMock(
                 ILIAS\Test\Results\Data\Factory::class
-            );
-        $local_dic_mock['results.toplist.repository'] = fn(Pimple\Container $c)
-            => $this->createMock(
-                ILIAS\Test\Results\Toplist\TestTopListRepository::class
             );
         $local_dic_mock['results.data.repository'] = fn(Pimple\Container $c)
             => $this->createMock(

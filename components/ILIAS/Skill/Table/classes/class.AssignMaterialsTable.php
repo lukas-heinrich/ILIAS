@@ -82,7 +82,7 @@ class AssignMaterialsTable
         $table = $this->ui_fac->table()
                               ->data($data_retrieval, $title, $columns)
                               ->withId(
-                                  self::class . "_" .
+                                  str_replace('\\', '', self::class) . "_" .
                                   $this->top_skill_id . "_" .
                                   $this->tref_id . "_" .
                                   $this->basic_skill_id
@@ -100,7 +100,7 @@ class AssignMaterialsTable
                                     ->withIsSortable(false),
             "description" => $this->ui_fac->table()->column()->text($this->lng->txt("description"))
                                           ->withIsSortable(false),
-            "resources" => $this->ui_fac->table()->column()->linkListing($this->lng->txt("skmg_materials"))
+            "resources" => $this->ui_fac->table()->column()->listing($this->lng->txt("skmg_materials"))
                                         ->withIsSortable(false)
         ];
 

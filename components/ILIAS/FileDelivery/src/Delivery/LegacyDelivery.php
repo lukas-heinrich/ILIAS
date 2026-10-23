@@ -64,6 +64,18 @@ final class LegacyDelivery extends BaseDelivery
         ?string $mime_type = null,
         ?bool $delete_file = false
     ): never {
+        // The content domain is reserved for signed token delivery via deliver.php.
+        // Legacy delivery must never serve files on the content host.
+        if ($this->isRequestOnContentHost()) {
+            $this->notFound($this->http->response());
+        }
+
+        // Header based delivery (X-Sendfile, X-Accel-Redirect) opens the file only after PHP has
+        // finished, when the shutdown function of saveAndClose() has already deleted it.
+        // See https://mantis.ilias.de/view.php?id=48312
+        if ($delete_file && !$this->response_builder->supportFileDeletion()) {
+            $this->response_builder = $this->fallback_response_builder;
+        }
         $r = $this->setGeneralHeaders(
             $this->http->response(),
             $path_to_file,

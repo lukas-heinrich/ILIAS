@@ -96,7 +96,7 @@ class Tag extends FormInput implements C\Input\Field\Tag
         $configuration->id = null;
         $configuration->options = $options;
         $configuration->selectedOptions = $this->getValue();
-        $configuration->maxItems = 20;
+        $configuration->maxItems = $this->getMaxTags();
         $configuration->dropdownMaxItems = 200;
         $configuration->dropdownCloseOnSelect = false;
         $configuration->readonly = $this->isDisabled();
@@ -176,7 +176,7 @@ class Tag extends FormInput implements C\Input\Field\Tag
             ->applyTo(new Ok($value))
             ->isOK();
 
-        return ($this->refinery->null()->accepts($value) || $valueCanBeAddedAsStringToList);
+        return $valueCanBeAddedAsStringToList;
     }
 
 

@@ -48,32 +48,33 @@ class ilTextAreaInputGUI extends ilSubEnabledFormPropertyGUI
 
     protected array $rte_tag_set = array(
         "mini" => array("strong", "em", "u", "ol", "li", "ul", "blockquote", "a", "p", "span", "br"), // #13286/#17981
-        "standard" => array("strong", "em", "u", "ol", "li", "ul", "p", "div",
-            "i", "b", "code", "sup", "sub", "pre", "strike", "gap"),
+        // #48391: TinyMCE 7 uses span[style=text-decoration] and <s> (not only u/strike)
+        "standard" => array("strong", "em", "u", "s", "ol", "li", "ul", "p", "div",
+            "i", "b", "code", "sup", "sub", "pre", "strike", "gap", "span"),
         "extended" => array(
             "a","blockquote","br","cite","code","div","em","h1","h2","h3",
             "h4","h5","h6","hr","li","ol","p",
-            "pre","span","strike","strong","sub","sup","u","ul",
+            "pre","span","s","strike","strong","sub","sup","u","ul",
             "i", "b", "gap"),
         "extended_img" => array(
             "a","blockquote","br","cite","code","div","em","h1","h2","h3",
             "h4","h5","h6","hr","img","li","ol","p",
-            "pre","span","strike","strong","sub","sup","u","ul",
+            "pre","span","s","strike","strong","sub","sup","u","ul",
             "i", "b", "gap"),
         "extended_table" => array(
             "a","blockquote","br","cite","code","div","em","h1","h2","h3",
             "h4","h5","h6","hr","li","ol","p",
-            "pre","span","strike","strong","sub","sup","table","td",
+            "pre","span","s","strike","strong","sub","sup","table","td",
             "tr","u","ul", "i", "b", "gap"),
         "extended_table_img" => array(
             "a","blockquote","br","cite","code","div","em","h1","h2","h3",
             "h4","h5","h6","hr","img","li","ol","p",
-            "pre","span","strike","strong","sub","sup","table","td",
+            "pre","span","s","strike","strong","sub","sup","table","td",
             "tr","u","ul", "i", "b", "gap"),
         "full" => array(
             "a","blockquote","br","cite","code","div","em","h1","h2","h3",
             "h4","h5","h6","hr","img","li","ol","p",
-            "pre","span","strike","strong","sub","sup","table","td",
+            "pre","span","s","strike","strong","sub","sup","table","td",
             "tr","u","ul","ruby","rbc","rtc","rb","rt","rp", "i", "b", "gap"));
 
     public function __construct(
@@ -272,15 +273,7 @@ class ilTextAreaInputGUI extends ilSubEnabledFormPropertyGUI
         }
 
         if ($this->isCharLimited()) {
-            //avoid whitespace surprises. #20630, #20674
-            $ascii_whitespaces = chr(194) . chr(160);
-            $ascii_breaklines = chr(13) . chr(10);
-
-            $to_replace = array($ascii_whitespaces, $ascii_breaklines, "&lt;", "&gt;", "&amp;");
-            $replace_to = array(' ', '', "_", "_", "_");
-
-            #20630 mbstring extension is mandatory for 5.4
-            $chars_entered = mb_strlen(strip_tags(str_replace($to_replace, $replace_to, $value)));
+            $chars_entered = mb_strlen($value);
 
             if ($this->getMaxNumOfChars() && ($chars_entered > $this->getMaxNumOfChars())) {
                 $this->setAlert($lng->txt("msg_input_char_limit_max"));
@@ -296,19 +289,25 @@ class ilTextAreaInputGUI extends ilSubEnabledFormPropertyGUI
 
     public function getInput(): string
     {
+        $raw_post_var = (string) ($this->raw($this->getPostVar()) ?? "");
+
         if ($this->usePurifier() && $this->getPurifier()) {
-            $value = $this->getPurifier()->purify($this->raw($this->getPostVar()));
+            $value = $this->getPurifier()->purify($raw_post_var);
         } else {
             $allowed = $this->getRteTagString();
             if (isset($this->plugins["latex"]) && $this->plugins["latex"] == "latex" && !is_int(strpos($allowed, "<span>"))) {
                 $allowed .= "<span>";
             }
             $value = ($this->getUseRte() || !$this->getUseTagsForRteOnly())
-                ? ilUtil::stripSlashes($this->raw($this->getPostVar()), true, $allowed)
+                ? ilUtil::stripSlashes($raw_post_var, true, $allowed)
                 : $this->str($this->getPostVar());
         }
 
         $value = self::removeProhibitedCharacters($value);
+
+        # Convert newline characters
+        $value = str_replace("\r\n", "\n", $value);
+
         return $value;
     }
 

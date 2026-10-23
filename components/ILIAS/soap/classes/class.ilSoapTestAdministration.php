@@ -31,7 +31,7 @@ class ilSoapTestAdministration extends ilSoapAdministration
     private GeneralQuestionPropertiesRepository $questionrepository;
     public function __construct(bool $use_nusoap = true)
     {
-        $this->questionrepository = TestDIC::dic()['general_question_properties_repository'];
+        $this->questionrepository = TestDIC::dic()['question.general_properties.repository'];
         parent::__construct($use_nusoap);
     }
     private function hasWritePermissionForTest(int $active_id): bool
@@ -76,6 +76,16 @@ class ilSoapTestAdministration extends ilSoapAdministration
         }
 
         if ($saveaction) {
+            $owner_result = $ilDB->queryF(
+                "SELECT user_fi FROM tst_active WHERE active_id = %s",
+                array('integer'),
+                array($active_id)
+            );
+            $owner_row = $ilDB->fetchAssoc($owner_result);
+            if (!is_array($owner_row) || (int) $owner_row['user_fi'] !== $ilUser->getId()) {
+                return false;
+            }
+
             $result = $ilDB->queryF(
                 "SELECT * FROM tst_times WHERE active_fi = %s ORDER BY started DESC",
                 array('integer'),
@@ -579,7 +589,8 @@ class ilSoapTestAdministration extends ilSoapAdministration
 
         $permission_ok = false;
         foreach ($ref_ids = ilObject::_getAllReferences($obj_id) as $ref_id) {
-            if ($rbacsystem->checkAccess('write', $ref_id)) {
+            // use explicit user as the rbacsystem singleton may hold a stale user
+            if ($rbacsystem->checkAccessOfUser($DIC->user()->getId(), 'write', $ref_id)) {
                 $permission_ok = true;
                 break;
             }

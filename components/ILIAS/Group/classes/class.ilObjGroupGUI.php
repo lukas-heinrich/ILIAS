@@ -453,6 +453,11 @@ class ilObjGroupGUI extends ilContainerGUI
      */
     public function viewObject(): void
     {
+        if (strtolower($this->std_request->getBaseClass()) === "iladministrationgui") {
+            parent::viewObject();
+            return;
+        }
+
         ilLearningProgress::_tracProgress(
             $this->user->getId(),
             $this->object->getId(),
@@ -558,6 +563,8 @@ class ilObjGroupGUI extends ilContainerGUI
 
     public function updateGroupTypeObject(): void
     {
+        $this->checkPermission("write");
+
         ilDidacticTemplateUtils::switchTemplate(
             $this->object->getRefId(),
             (int) $_REQUEST['grp_type']
@@ -827,6 +834,13 @@ class ilObjGroupGUI extends ilContainerGUI
      */
     public function saveMapSettingsObject(): void
     {
+        if (
+            !ilMapUtil::isActivated() ||
+            !$this->access->checkAccess("write", "", $this->object->getRefId())
+        ) {
+            return;
+        }
+
         $location = [];
         if ($this->http->wrapper()->post()->has('location')) {
             $custom_transformer = $this->refinery->custom()->transformation(
@@ -1393,18 +1407,11 @@ class ilObjGroupGUI extends ilContainerGUI
         $http = $DIC->http();
         $refinery = $DIC->refinery();
 
-        $target = '';
-        if ($http->wrapper()->query()->has('target')) {
-            $target = $http->wrapper()->query()->retrieve(
-                'target',
-                $refinery->kindlyTo()->string()
-            );
-        }
         if (substr($a_add, 0, 5) == 'rcode') {
             if ($ilUser->getId() == ANONYMOUS_USER_ID) {
                 // Redirect to login for anonymous
                 ilUtil::redirect(
-                    "login.php?target=" . $target . "&cmd=force_login&lang=" .
+                    "login.php?target=grp_" . $a_target . "_" . $a_add . "&cmd=force_login&lang=" .
                     $ilUser->getCurrentLanguage()
                 );
             }

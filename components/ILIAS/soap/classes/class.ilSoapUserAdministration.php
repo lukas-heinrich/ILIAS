@@ -16,6 +16,8 @@
  *
  *********************************************************************/
 
+use ILIAS\Scripts\PHPStan\Attributes\AllowSuperglobalWrite;
+
 /**
  * Soap user administration methods
  * @author  Stefan Meyer <meyer@leifos.com>
@@ -30,6 +32,7 @@ class ilSoapUserAdministration extends ilSoapAdministration
     /**
      * @return soap_fault|SoapFault|string|null
      */
+    #[AllowSuperglobalWrite('the SOAP entry point has no cookies of its own; the client id has to be visible to initIlias().', 12)]
     public function login(string $client, string $username, string $password)
     {
         unset($_COOKIE[session_name()]);
@@ -212,7 +215,8 @@ class ilSoapUserAdministration extends ilSoapAdministration
             }
 
             // check access to folder
-            if (!$rbacsystem->checkAccess('create_usr', $folder_id)) {
+            // use explicit user as the rbacsystem singleton may hold a stale user
+            if (!$rbacsystem->checkAccessOfUser($ilUser->getId(), 'create_usr', $folder_id)) {
                 return $this->raiseError(
                     'Missing permission for creating users within ' . $import_folder->getTitle(),
                     'Server'
@@ -298,7 +302,7 @@ class ilSoapUserAdministration extends ilSoapAdministration
                 } else {
                     $rolf = $rbacreview->getFoldersAssignedToRole($role_id, true);
                     if ($rbacreview->isDeleted($rolf[0])
-                        || !$rbacsystem->checkAccess('write', $rolf[0])) {
+                        || !$rbacsystem->checkAccessOfUser($DIC->user()->getId(), 'write', $rolf[0])) {
                         return $this->raiseError(
                             $lng->txt("usrimport_with_specified_role_not_permitted") . " $role_name ($role_id)",
                             "Server"
@@ -348,37 +352,37 @@ class ilSoapUserAdministration extends ilSoapAdministration
 
         // global role
         if ($location == ROLE_FOLDER_ID) {
-            $ilLog->write(__METHOD__ . ': Check global role');
+            $ilLog->info('Check global role');
             // check assignment permission if called from local admin
 
             if ($a_folder !== self::USER_FOLDER_ID && $a_folder !== 0) {
-                $ilLog->write(__METHOD__ . ': ' . $a_folder);
+                $ilLog->info($a_folder);
                 if (!ilObjRole::_getAssignUsersStatus($a_role)) {
-                    $ilLog->write(__METHOD__ . ': No assignment allowed');
+                    $ilLog->info('No assignment allowed');
                     $checked_roles[$a_role] = false;
                     return false;
                 }
             }
             // exclude anonymous role from list
             if ($a_role === ANONYMOUS_ROLE_ID) {
-                $ilLog->write(__METHOD__ . ': Anonymous role chosen.');
+                $ilLog->info('Anonymous role chosen.');
                 $checked_roles[$a_role] = false;
                 return false;
             }
             // do not allow to assign users to administrator role if current user does not has SYSTEM_ROLE_ID
             if ($a_role === SYSTEM_ROLE_ID &&
                 !in_array(SYSTEM_ROLE_ID, $rbacreview->assignedRoles($ilUser->getId()), true)) {
-                $ilLog->write(__METHOD__ . ': System role assignment forbidden.');
+                $ilLog->info('System role assignment forbidden.');
                 $checked_roles[$a_role] = false;
                 return false;
             }
 
             // Global role assignment ok
-            $ilLog->write(__METHOD__ . ': Assignment allowed.');
+            $ilLog->info('Assignment allowed.');
             $checked_roles[$a_role] = true;
             return true;
         } elseif ($location) {
-            $ilLog->write(__METHOD__ . ': Check local role.');
+            $ilLog->info('Check local role.');
 
             // It's a local role
             $rolfs = $rbacreview->getFoldersAssignedToRole($a_role, true);
@@ -389,8 +393,9 @@ class ilSoapUserAdministration extends ilSoapAdministration
             // We also don't show the roles which are in the ROLE_FOLDER_ID folder.
             // (The ROLE_FOLDER_ID folder contains the global roles).
             if ($rbacreview->isDeleted($rolf)
-                || !$rbacsystem->checkAccess('edit_permission', $rolf)) {
-                $ilLog->write(__METHOD__ . ': Role deleted or no permission.');
+                // use explicit user as the rbacsystem singleton may hold a stale user
+                || !$rbacsystem->checkAccessOfUser($DIC->user()->getId(), 'edit_permission', $rolf)) {
+                $ilLog->info('Role deleted or no permission.');
                 $checked_roles[$a_role] = false;
                 return false;
             }
@@ -403,11 +408,11 @@ class ilSoapUserAdministration extends ilSoapAdministration
             // with false, and only set to true if we find the object id of the
             // locally administrated category in the tree path to the local role.
             if ($a_folder !== self::USER_FOLDER_ID && $a_folder !== 0 && !$tree->isGrandChild($a_folder, $rolf)) {
-                $ilLog->write(__METHOD__ . ': Not in path of category.');
+                $ilLog->info('Not in path of category.');
                 $checked_roles[$a_role] = false;
                 return false;
             }
-            $ilLog->write(__METHOD__ . ': Assignment allowed.');
+            $ilLog->info('Assignment allowed.');
             $checked_roles[$a_role] = true;
             return true;
         }
@@ -518,14 +523,20 @@ class ilSoapUserAdministration extends ilSoapAdministration
         $tree = $DIC->repositoryTree();
         $ilUser = $DIC->user();
         $access = $DIC->access();
+        $rbacsystem = $DIC->rbac()->system();
 
         $global_roles = $rbacreview->getGlobalRoles();
 
         if (in_array($role_id, $global_roles, true)) {
-            // global roles
-            if ($role_id === SYSTEM_ROLE_ID &&
-                !in_array(SYSTEM_ROLE_ID, $rbacreview->assignedRoles($ilUser->getId()), true)) {
+            $actor_has_system_role = in_array(SYSTEM_ROLE_ID, $rbacreview->assignedRoles($ilUser->getId()), true);
+
+            if ($role_id === SYSTEM_ROLE_ID && !$actor_has_system_role) {
                 return $this->raiseError("Role access not permitted. ($role_id)", "Server");
+            }
+
+            if (!$actor_has_system_role &&
+                !$rbacsystem->checkAccessOfUser($ilUser->getId(), 'edit_userassignment', ROLE_FOLDER_ID)) {
+                return $this->raiseError('Role access not permitted. ' . '(' . $role_id . ')', 'Server');
             }
         } else {
             // local roles
@@ -678,8 +689,8 @@ class ilSoapUserAdministration extends ilSoapAdministration
             return $this->raiseError('At least one keyvalue is needed', 'Client');
         }
 
-        if (strcasecmp($query_operator, "and") !== 0 || strcasecmp($query_operator, "or") !== 0) {
-            $this->raiseError('Query operator must be either \'and\' or \'or\'', 'Client');
+        if (strcasecmp($query_operator, "and") !== 0 && strcasecmp($query_operator, "or") !== 0) {
+            return $this->raiseError('Query operator must be either \'and\' or \'or\'', 'Client');
         }
 
         $query = $this->buildSearchQuery($a_keyfields, $query_operator, $a_keyvalues);

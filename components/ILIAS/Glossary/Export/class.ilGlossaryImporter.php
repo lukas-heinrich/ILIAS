@@ -16,14 +16,24 @@
  *
  *********************************************************************/
 
+use ILIAS\COPage\Page\PageManagerInterface;
+
 /**
  * Importer class for files
  * @author Stefan Meyer <meyer@leifos.com>
  */
 class ilGlossaryImporter extends ilXmlImporter
 {
+    protected PageManagerInterface $page_manager;
     protected ilImportConfig $config;
     protected ilGlossaryDataSet $ds;
+
+    public function __construct()
+    {
+        parent::__construct();
+        global $DIC;
+        $this->page_manager = $DIC->copage()->internal()->domain()->page();
+    }
 
     public function init(): void
     {
@@ -47,7 +57,7 @@ class ilGlossaryImporter extends ilXmlImporter
             // in the new version (5.1)  we are also here, but the following file should not exist
             // if being exported with 5.1 or higher
             $xml_file = $this->getImportDirectory() . '/' . basename($this->getImportDirectory()) . '.xml';
-            $GLOBALS['ilLog']->write(__METHOD__ . ': Using XML file ' . $xml_file);
+            $GLOBALS['ilLog']->info('Using XML file ' . $xml_file);
 
             // old school import
             if (file_exists($xml_file)) {
@@ -108,7 +118,7 @@ class ilGlossaryImporter extends ilXmlImporter
         foreach ($maps as $old => $new) {
             $glo_id = ilGlossaryTerm::_lookGlossaryID($new);
             if ($glo_id > 0) {
-                ilGlossaryDefPage::_writeParentId("term", $new, $glo_id);
+                $this->page_manager->writeParentId("term", $new, $glo_id);
             }
         }
     }

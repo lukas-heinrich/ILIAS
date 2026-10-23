@@ -35,20 +35,22 @@ class ilFileStaticURLHandler extends BaseHandler implements Handler
     public const VERSIONS = 'versions';
     public const EDIT = 'edit';
     public const VIEW = 'view';
-    private readonly CapabilityBuilder $capabilities;
+    private ?CapabilityBuilder $capabilities = null;
 
-    public function __construct()
+    private function capabilities(): CapabilityBuilder
     {
-        global $DIC;
-        parent::__construct();
-        $this->capabilities = new CapabilityBuilder(
-            new ilObjFileInfoRepository(),
-            $DIC->access(),
-            $DIC->ctrl(),
-            new ActionDBRepository($DIC->database()),
-            $DIC->http(),
-            $DIC['static_url.uri_builder']
-        );
+        if ($this->capabilities === null) {
+            global $DIC;
+            $this->capabilities = new CapabilityBuilder(
+                new ilObjFileInfoRepository(),
+                $DIC->access(),
+                $DIC->ctrl(),
+                new ActionDBRepository($DIC->database()),
+                $DIC->http(),
+                $DIC['static_url.uri_builder']
+            );
+        }
+        return $this->capabilities;
     }
 
     public function getNamespace(): string
@@ -76,14 +78,22 @@ class ilFileStaticURLHandler extends BaseHandler implements Handler
             \ILIAS\File\Capabilities\Context::CONTEXT_REPO
         );
 
-        $capabilities = $this->capabilities->get($capability_context);
+        $capabilities = $this->capabilities()->get($capability_context);
 
+        // special case for cloned objects
+        $forced = null;
+        $referrer = $context->http()->request()->getServerParams()['HTTP_REFERER'] ?? '';
+        if (str_contains(strtolower($referrer), strtolower(ilObjectCopyGUI::class))) {
+            $forced = $capabilities->get(Capabilities::INFO_PAGE);
+        }
+
+        // Determine Capability to redirect
         $capability = match ($additional_params) {
             self::DOWNLOAD => $capabilities->get(Capabilities::DOWNLOAD),
             self::VERSIONS => $capabilities->get(Capabilities::MANAGE_VERSIONS),
             self::EDIT => $capabilities->get(Capabilities::EDIT_EXTERNAL),
             self::VIEW => $capabilities->get(Capabilities::VIEW_EXTERNAL),
-            default => $capabilities->getBest(),
+            default => $forced ?? $capabilities->getBest(),
         };
 
         if (!$capability->isUnlocked() || $capability->getUri() === null) {

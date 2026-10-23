@@ -20,15 +20,15 @@ declare(strict_types=1);
 
 namespace ILIAS\FileDelivery\Delivery;
 
-use ILIAS\HTTP\Services;
-use Psr\Http\Message\ResponseInterface;
-use ILIAS\FileDelivery\Token\DataSigner;
 use ILIAS\FileDelivery\Delivery\ResponseBuilder\ResponseBuilder;
 use ILIAS\Filesystem\Stream\FileStream;
 use ILIAS\FileDelivery\Token\Signer\Payload\FilePayload;
 use ILIAS\Filesystem\Stream\Streams;
 use ILIAS\FileDelivery\Token\Signer\Payload\ShortFilePayload;
 use ILIAS\Filesystem\Stream\ZIPStream;
+use ILIAS\FileDelivery\Isolation\IsolationConfig;
+use ILIAS\HTTP\GlobalHttpState;
+use ILIAS\FileDelivery\Token\DataSigning;
 
 /**
  * @author Fabian Schmid <fabian@sr.solutions>
@@ -41,22 +41,13 @@ final class StreamDelivery extends BaseDelivery
     public const SUBREQUEST_SEPARATOR = '/-/';
 
     public function __construct(
-        private DataSigner $data_signer,
-        Services $http,
+        private DataSigning $data_signer,
+        GlobalHttpState $http,
         ResponseBuilder $response_builder,
         ResponseBuilder $fallback_response_builder,
+        IsolationConfig $isolation = new IsolationConfig(false, null, null),
     ) {
-        parent::__construct($http, $response_builder, $fallback_response_builder);
-    }
-
-    /**
-     * @throws \ILIAS\HTTP\Response\Sender\ResponseSendingException
-     */
-    private function notFound(ResponseInterface $r): void
-    {
-        $this->http->saveResponse($r->withStatus(404));
-        $this->http->sendResponse();
-        $this->http->close();
+        parent::__construct($http, $response_builder, $fallback_response_builder, $isolation);
     }
 
     public function attached(
@@ -94,7 +85,15 @@ final class StreamDelivery extends BaseDelivery
         $r = $this->http->response();
         $uri = $stream->getMetadata()['uri'];
 
-        if ($stream instanceof ZIPStream || $stream->getMetadata()['uri'] === 'php://memory') {
+        // Temporary files (e.g. ZIPs built by ILIAS\Filesystem\Util\Archive\Zip) are removed by a
+        // shutdown function as soon as this request exits. Header based delivery (X-Sendfile,
+        // X-Accel-Redirect) opens the file only after PHP has finished, so it would no longer exist.
+        // Such files must be streamed by PHP itself, see https://mantis.ilias.de/view.php?id=48367
+        if (
+            $stream instanceof ZIPStream
+            || $uri === 'php://memory'
+            || $this->isTemporaryFile((string) $uri)
+        ) {
             $this->response_builder = $this->fallback_response_builder;
         }
 
@@ -114,8 +113,32 @@ final class StreamDelivery extends BaseDelivery
         $this->saveAndClose($r);
     }
 
+    private function isTemporaryFile(string $uri): bool
+    {
+        $real_path = realpath($uri);
+        if ($real_path === false) {
+            return false;
+        }
+        $temp_dirs = array_filter([
+            defined('CLIENT_DATA_DIR') ? realpath(\CLIENT_DATA_DIR . '/temp') : false,
+            realpath(sys_get_temp_dir()),
+        ]);
+        foreach ($temp_dirs as $temp_dir) {
+            if (str_starts_with($real_path, rtrim($temp_dir, '/') . '/')) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public function deliverFromToken(string $token): never
     {
+        $r = $this->http->response();
+
+        if (!$this->isRequestHostAllowed()) {
+            $this->notFound($r);
+        }
+
         // check if $token has a sub-request, such as .../index.html
         $parts = explode(self::SUBREQUEST_SEPARATOR, $token);
         $sub_request = null;
@@ -124,7 +147,6 @@ final class StreamDelivery extends BaseDelivery
             $sub_request = implode('/', array_slice($parts, 1));
         }
 
-        $r = $this->http->response();
         $payload = $this->data_signer->verifyStreamToken($token);
 
         switch (true) {

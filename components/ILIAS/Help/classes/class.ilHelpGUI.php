@@ -103,6 +103,9 @@ class ilHelpGUI implements ilCtrlBaseClassInterface
 
     public function setScreenIdComponent(string $a_comp): void
     {
+        if ($a_comp === "") {
+            return;
+        }
         $this->screen_id_component = $a_comp;
     }
 
@@ -308,7 +311,7 @@ class ilHelpGUI implements ilCtrlBaseClassInterface
     public function getTabTooltipText(string $a_tab_id): string
     {
         if ($this->screen_id_component != "") {
-            return $this->internal()->domain()->tooltips()->getTooltipPresentationText($this->screen_id_component . "_" . $a_tab_id);
+            return $this->screen_id_component . "_" . $a_tab_id;
         }
         return "";
     }

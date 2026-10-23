@@ -58,7 +58,7 @@ class AdminConfirmedObjectiveTest extends TestCase
 
     public function testGetPreconditions(): void
     {
-        $env = $this->createMock(Setup\Environment::class);
+        $env = $this->createStub(Setup\Environment::class);
 
         $pre = $this->o->getPreconditions($env);
         $this->assertEquals([], $pre);
@@ -71,9 +71,9 @@ class AdminConfirmedObjectiveTest extends TestCase
 
         $env
             ->method("getResource")
-            ->will($this->returnValueMap([
+            ->willReturnMap([
                 [Setup\Environment::RESOURCE_ADMIN_INTERACTION, $admin_interaction]
-            ]));
+            ]);
 
         $admin_interaction
             ->expects($this->once())
@@ -94,9 +94,9 @@ class AdminConfirmedObjectiveTest extends TestCase
 
         $env
             ->method("getResource")
-            ->will($this->returnValueMap([
+            ->willReturnMap([
                 [Setup\Environment::RESOURCE_ADMIN_INTERACTION, $admin_interaction]
-            ]));
+            ]);
 
         $admin_interaction
             ->expects($this->once())

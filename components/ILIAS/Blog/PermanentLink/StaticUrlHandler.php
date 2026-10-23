@@ -36,12 +36,14 @@ class StaticURLHandler extends BaseHandler implements Handler
 
     public function handle(Request $request, Context $context, Factory $response_factory): Response
     {
+        // For bootstrapping, DIC can't be in the constructor
         global $DIC;
 
-        $ctrl = $DIC->ctrl();
-        $access = $DIC->access();
+        $blog_service = $DIC->blog()->internal();
+        $ctrl = $blog_service->gui()->ctrl();
+        $access = $blog_service->domain()->access();
         $uri = null;
-        $blog_domain = $DIC->blog()->internal()->domain();
+        $blog_domain = $blog_service->domain();
 
         $id = $request->getReferenceId()?->toInt() ?? 0;
         $additional_params = $request->getAdditionalParameters() ?? [];

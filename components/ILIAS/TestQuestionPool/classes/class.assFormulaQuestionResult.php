@@ -17,6 +17,9 @@
  *********************************************************************/
 
 use ILIAS\Refinery\Factory as Refinery;
+use ILIAS\TestQuestionPool\ExportImport\Foundation\Normalize\FromNormalized;
+use ILIAS\TestQuestionPool\ExportImport\Foundation\Normalize\ToNormalized;
+use ILIAS\TestQuestionPool\ExportImport\Foundation\Normalize\Transformations;
 
 /**
  * Formula Question Result
@@ -24,7 +27,7 @@ use ILIAS\Refinery\Factory as Refinery;
  * @version       $Id: class.assFormulaQuestionResult.php 944 2009-11-09 16:11:30Z hschottm $
  * @ingroup components\ILIASTestQuestionPool
  * */
-class assFormulaQuestionResult
+class assFormulaQuestionResult implements ToNormalized, FromNormalized
 {
     public const RESULT_NO_SELECTION = 0;
     public const RESULT_DEC = 1;
@@ -411,15 +414,11 @@ class assFormulaQuestionResult
         return ($v1 >= 0.0 && $v2 >= 0.0) || ($v1 <= 0.0 && $v2 <= 0.0);
     }
 
-    /**
-     * @param assFormulaQuestionUnit[] $units
-     */
     public function getReachedPoints(
         array $variables,
         array $results,
         string $answer_value,
-        ?assFormulaQuestionUnit $answer_unit,
-        array $units
+        ?assFormulaQuestionUnit $answer_unit
     ): float {
         if ($this->getRatingSimple()) {
             return $this->isCorrect($variables, $results, $answer_value, $answer_unit)
@@ -431,16 +430,12 @@ class assFormulaQuestionResult
         $float_value = $this->transformAnswerValueAccordingToType($answer_value, $answer_unit);
 
         $points = 0.0;
-        if ($answer_unit instanceof assFormulaQuestionUnit && $answer_unit instanceof assFormulaQuestionUnit) {
-            $base1 = $units[$answer_unit->getBaseUnit()] ?? null;
-            $base2 = $units[$answer_unit->getBaseUnit()] ?? null;
-            if (
-                $base1 instanceof assFormulaQuestionUnit
-                && $base2 instanceof assFormulaQuestionUnit
-                && $base1->getId() === $base2->getId()
-            ) {
-                $points += ilMath::_mul($this->getPoints(), ilMath::_div($this->getRatingUnit(), 100));
-            }
+        if (
+            $this->unit instanceof assFormulaQuestionUnit
+            && $answer_unit instanceof assFormulaQuestionUnit
+            && $this->unit->getBaseUnit() === $answer_unit->getBaseUnit()
+        ) {
+            $points += ilMath::_mul($this->getPoints(), ilMath::_div($this->getRatingUnit(), 100));
         }
 
         if ($float_value === null) {
@@ -504,59 +499,83 @@ class assFormulaQuestionResult
         ])->transform(round($value, $this->precision));
     }
 
+    /**
+     * @return array{sign: int|float, value: int|float, unit: int|float, points: int|float}
+     */
     public function getResultInfo($variables, $results, $value, $unit, $units): array
     {
         if ($this->getRatingSimple()) {
-            if ($this->isCorrect($variables, $results, $value, $units[$unit] ?? null)) {
-                return ["points" => $this->getPoints()];
-            } else {
-                return ["points" => 0];
-            }
-        } else {
-            $totalpoints = 0;
-            $formula = $this->substituteFormula($variables, $results);
-            if (preg_match_all("/(\\\$v\\d+)/ims", $formula, $matches)) {
-                foreach ($matches[1] as $variable) {
-                    $varObj = $variables[$variable];
-                    $formula = preg_replace("/\\\$" . substr($variable, 1) . "(?![0-9]+)/", "(" . $varObj->getBaseValue() . ")" . "\\1", $formula);
-                }
-            }
-            $math = new EvalMath();
-            $math->suppress_errors = true;
-            $result = $math->evaluate($formula);
-            if ($this->getUnit() !== null) {
-                $result = ilMath::_mul($result, $this->getUnit()->getFactor(), 100);
-            }
-            if (is_object($unit)) {
-                $value = ilMath::_mul($value, $unit->getFactor(), 100);
-            } else {
-            }
-            $details = [];
-            if ($this->checkSign($result, $value)) {
-                $points = ilMath::_mul($this->getPoints(), $this->getRatingSign() / 100);
-                $totalpoints += $points;
-                $details['sign'] = $points;
-            }
-            if ($this->isInTolerance(abs($value), abs($result), $this->getTolerance())) {
-                $points = ilMath::_mul($this->getPoints(), $this->getRatingValue() / 100);
-                $totalpoints += $points;
-                $details['value'] = $points;
-            }
-            if ($this->getUnit() !== null) {
-                $base1 = $units[$unit];
-                if (is_object($base1)) {
-                    $base1 = $units[$base1->getBaseUnit()];
-                }
-                $base2 = $units[$this->getUnit()->getBaseUnit()];
-                if (is_object($base1) && is_object($base2) && $base1->getId() == $base2->getId()) {
-                    $points = ilMath::_mul($this->getPoints(), $this->getRatingUnit() / 100);
-                    $totalpoints += $points;
-                    $details['unit'] = $points;
-                }
-            }
-            $details['points'] = $totalpoints;
-            return $details;
+            return [
+                'sign' => 0,
+                'value' => 0,
+                'unit' => 0,
+                'points' => $this->isCorrect($variables, $results, $value, $units[$unit] ?? null)
+                    ? $this->getPoints()
+                    : 0,
+            ];
         }
+
+        $totalpoints = 0;
+        $formula = $this->substituteFormula($variables, $results);
+        if (preg_match_all("/(\\\$v\\d+)/ims", $formula, $matches)) {
+            foreach ($matches[1] as $variable) {
+                $varObj = $variables[$variable];
+                $formula = preg_replace("/\\\$" . substr($variable, 1) . "(?![0-9]+)/", "(" . $varObj->getBaseValue() . ")" . "\\1", $formula);
+            }
+        }
+
+        $math = new EvalMath();
+        $math->suppress_errors = true;
+        $result = $math->evaluate($formula);
+
+        if ($this->getUnit() instanceof assFormulaQuestionUnit) {
+            $result = ilMath::_mul($result, $this->getUnit()->getFactor(), 100);
+        }
+
+        if ($unit instanceof assFormulaQuestionUnit) {
+            $value = ilMath::_mul($value, $unit->getFactor(), 100);
+        }
+
+        $details = [
+            'sign' => 0,
+            'value' => 0,
+            'unit' => 0,
+            'points' => 0,
+        ];
+
+        if ($this->checkSign($result, $value)) {
+            $points = ilMath::_mul($this->getPoints(), $this->getRatingSign() / 100);
+            $totalpoints += $points;
+            $details['sign'] = $points;
+        }
+
+        if ($this->isInTolerance(abs($value), abs($result), $this->getTolerance())) {
+            $points = ilMath::_mul($this->getPoints(), $this->getRatingValue() / 100);
+            $totalpoints += $points;
+            $details['value'] = $points;
+        }
+
+        if ($this->getUnit() instanceof assFormulaQuestionUnit) {
+            $base1 = $units[$unit] ?? null;
+            if ($base1 instanceof assFormulaQuestionUnit) {
+                $base1 = $units[$base1->getBaseUnit()];
+            }
+
+            $base2 = $units[$this->getUnit()->getBaseUnit()];
+            if (
+                $base1 instanceof assFormulaQuestionUnit
+                && $base2 instanceof assFormulaQuestionUnit
+                && $base1->getId() === $base2->getId()
+            ) {
+                $points = ilMath::_mul($this->getPoints(), $this->getRatingUnit() / 100);
+                $totalpoints += $points;
+                $details['unit'] = $points;
+            }
+        }
+
+        $details['points'] = $totalpoints;
+
+        return $details;
     }
 
     /************************************
@@ -845,5 +864,61 @@ class assFormulaQuestionResult
         }
 
         return $this->available_units;
+    }
+
+    #[\Override]
+    public function toNormalized(
+        Transformations $transformations,
+        array $context = []
+    ): array|float|bool|int|string|null
+    {
+        return [
+            'available_units' => $transformations->normalize($this->available_units),
+            'range_min' => $this->range_min,
+            'range_max' => $this->range_max,
+            'range_min_txt' => $this->range_min_txt,
+            'range_max_txt' => $this->range_max_txt,
+            'result' => $this->result,
+            'tolerance' => $this->tolerance,
+            'unit' => $transformations->normalize($this->unit),
+            'formula' => $this->formula,
+            'points' => $this->points,
+            'precision' => $this->precision,
+            'rating_simple' => $this->rating_simple,
+            'rating_sign' => $this->rating_sign,
+            'rating_value' => $this->rating_value,
+            'rating_unit' => $this->rating_unit,
+            'result_type' => $this->result_type,
+        ];
+    }
+
+    #[\Override]
+    public function fromNormalized(
+        array $normalized,
+        Transformations $transformations
+    ): static
+    {
+        $clone = clone $this;
+        $clone->available_units = array_map(
+            static fn(array $unit): assFormulaQuestionUnit => $transformations->denormalize($unit, new assFormulaQuestionUnit()),
+            $normalized['available_units']
+        );
+        $clone->range_min = $transformations->float($normalized['range_min']);
+        $clone->range_max = $transformations->float($normalized['range_max']);
+        $clone->range_min_txt = $transformations->string($normalized['range_min_txt']);
+        $clone->range_max_txt = $transformations->string($normalized['range_max_txt']);
+        $clone->result = $transformations->string($normalized['result']);
+        $clone->tolerance = $transformations->float($normalized['tolerance']);
+        $clone->unit = $transformations->denormalize($normalized['unit'], new assFormulaQuestionUnit());
+        $clone->formula = $transformations->string($normalized['formula']);
+        $clone->points = $transformations->float($normalized['points']);
+        $clone->precision = $transformations->int($normalized['precision']);
+        $clone->rating_simple = $transformations->bool($normalized['rating_simple']);
+        $clone->rating_sign = $transformations->float($normalized['rating_sign']);
+        $clone->rating_value = $transformations->float($normalized['rating_value']);
+        $clone->rating_unit = $transformations->float($normalized['rating_unit']);
+        $clone->result_type = $transformations->int($normalized['result_type']);
+
+        return $clone;
     }
 }
