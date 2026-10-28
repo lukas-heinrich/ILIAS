@@ -21,6 +21,7 @@ use ILIAS\News\Data\NewsItem;
 use ILIAS\News\StandardGUIRequest;
 use ILIAS\Filesystem\Stream\Streams;
 use ILIAS\HTTP\Response\Sender\ResponseSendingException;
+use ILIAS\UI\Component\Modal\RoundTrip;
 
 /**
  * Timeline for news
@@ -45,6 +46,7 @@ class ilNewsTimelineGUI
     protected ilToolbarGUI $toolbar;
     protected ilObjUser $user;
     protected ilAccessHandler $access;
+    protected ilObjectDataCache $object_data_cache;
     protected static int $items_per_load = 20;
     protected bool $user_edit_all = false;
     protected StandardGUIRequest $std_request;
@@ -67,6 +69,7 @@ class ilNewsTimelineGUI
         $this->access = $DIC->access();
         $this->http = $DIC->http();
         $this->notes = $DIC->notes();
+        $this->object_data_cache = $DIC['ilObjDataCache'];
 
         $this->std_request = $DIC->news()
             ->internal()
@@ -182,15 +185,17 @@ class ilNewsTimelineGUI
 
     protected function readNewsData($excluded = []): void
     {
+        $context_obj_id = $this->object_data_cache->lookupObjId($this->ref_id);
+
         $this->news_collection = $this->manager->getNewsData(
             $this->ref_id,
-            $this->ctrl->getContextObjId(),
-            $this->ctrl->getContextObjType(),
+            $context_obj_id,
+            $this->object_data_cache->lookupType($context_obj_id),
             $this->period,
             $this->include_auto_entries,
             self::$items_per_load,
             $excluded
-        );
+        )->orderByDate();
     }
 
     public function getHTML(?ilPropertyFormGUI $form = null): string
@@ -242,14 +247,12 @@ class ilNewsTimelineGUI
             $this->renderDeleteModal($ttpl);
             $this->renderEditModal($form, $ttpl);
             $ttpl->setVariable("LOADER", ilUtil::getImagePath("media/loader.svg"));
-            $this->tpl->setContent($ttpl->get());
             $html = $ttpl->get();
         } else {
             if ($this->getEnableAddNews()) {
                 $ttpl = new ilTemplate("tpl.news_timeline.html", true, true, "components/ILIAS/News");
                 $this->tpl->setOnScreenMessage('info', $this->lng->txt("news_timline_add_entries_info"));
                 $this->renderEditModal($form, $ttpl);
-                $this->tpl->setContent($ttpl->get());
                 $html = $ttpl->get();
             } else {
                 $mess = $this->ui->factory()->messageBox()->info(
@@ -476,9 +479,11 @@ class ilNewsTimelineGUI
         $modal = $this->gui->modal($this->lng->txt("delete"))
             ->content([$title, $mbox])
             ->button($this->lng->txt("delete"), "#", false, "il.News.remove(); return false;");
-        $c = $modal->getTriggerButtonComponents("");
-        $tpl->setVariable("DELETE_MODAL", $this->gui->ui()->renderer()->render($c["modal"]));
-        $tpl->setVariable("SIGNAL_ID", $c["signal"]);
+        ["modal" => $modal, "signal" => $signal_id] = $modal->getTriggerButtonComponents("");
+        /** @var Roundtrip $modal */
+        $modal = $modal->withOnLoadCode(static fn(string $id): string => ""); // needed to preserve delete button
+        $tpl->setVariable("DELETE_MODAL", $this->gui->ui()->renderer()->render($modal));
+        $tpl->setVariable("SIGNAL_ID", $signal_id);
     }
 
     protected function renderEditModal(?ilPropertyFormGUI $form, ilTemplate $tpl): void

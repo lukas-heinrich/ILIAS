@@ -24,6 +24,7 @@ use ILIAS\News\Aggregation\NewsAggregator;
 use ILIAS\News\Data\NewsCollection;
 use ILIAS\News\Data\NewsContext;
 use ILIAS\News\Data\NewsCriteria;
+use ILIAS\News\Data\NewsItem;
 use ILIAS\News\Persistence\NewsCache;
 use ILIAS\News\Persistence\NewsRepository;
 
@@ -91,39 +92,19 @@ class NewsCollectionService
         return $this->applyFinalProcessing($this->getNewsForContexts([$context], $criteria, $user_id, $lazy), $criteria);
     }
 
-    public function getNewsForContainer(
-        int $ref_id,
-        int $context_obj_id,
-        string $context_type,
-        NewsCriteria $criteria,
-        int $user_id,
-        bool $lazy = false
-    ): NewsCollection {
-        if (in_array($context_type, ['grp', 'crs'])) {
-            // see #31471, #30687, and ilMembershipNotification
-            if (!\ilContainer::_lookupContainerSetting($context_obj_id, 'cont_use_news', '1')
-                || (
-                    !\ilContainer::_lookupContainerSetting($context_obj_id, 'cont_use_news', '1')
-                       && !\ilContainer::_lookupContainerSetting($context_obj_id, 'news_timeline')
-                )) {
-                return new NewsCollection();
-            }
-
-            if (\ilBlockSetting::_lookup('news', 'hide_news_per_date', 0, $context_obj_id)) {
-                $hide_date = \ilBlockSetting::_lookup('news', 'hide_news_date', 0, $context_obj_id);
-                if (!empty($hide_date)) {
-                    $criteria = $criteria->withStartDate(new \DateTimeImmutable($hide_date));
-                }
-            }
-        }
-
-        $context = new NewsContext($ref_id, $context_obj_id, $context_type);
-        return $this->applyFinalProcessing($this->getNewsForContexts([$context], $criteria, $user_id, $lazy), $criteria);
+    /**
+     * @return list<array{0: NewsContext, 1: int}>
+     */
+    public function countNewsByContext(\ilObjUser $user_id, NewsCriteria $criteria): array
+    {
+        $contexts = $this->user_context_resolver->getAccessibleContexts($user_id, $criteria);
+        $contexts = $this->fetchContextData($contexts);
+        return $this->repository->countByContextsBatch($contexts);
     }
 
     public function invalidateCache(int $user_id): void
     {
-        $this->cache->invalidateNewsForUser($user_id, new NewsCriteria());
+        $this->cache->invalidateNewsForUser($user_id);
     }
 
     /**
@@ -149,10 +130,13 @@ class NewsCollectionService
             }
         }
 
-        // 4. Perform access checks [DPL 3]
+        // 4. Add start dates to criteria
+        $criteria = $this->appendStartDateFilter($hits, $criteria);
+
+        // 5. Perform access checks [DPL 3]
         $aggregated = $this->filterByAccess($hits, $criteria, $user_id);
 
-        // 5. Batch load news from the database [DPL 4]
+        // 6. Batch load news from the database [DPL 4]
         return $lazy
             ? $this->repository->findByContextsBatchLazy($aggregated, $criteria)
             : $this->repository->findByContextsBatch($aggregated, $criteria);
@@ -223,6 +207,76 @@ class NewsCollectionService
             }
         }
         return $filtered;
+    }
+
+    /**
+     * @param NewsContext[] $contexts
+     */
+    private function appendStartDateFilter(array $contexts, NewsCriteria $criteria): NewsCriteria
+    {
+        $date_filter = [];
+
+        foreach ($contexts as $context) {
+            $start_date = $this->getContainerStartDateForContext(
+                $context->getObjId(),
+                $context->getObjType() ?? ''
+            );
+            if ($start_date instanceof \DateTimeImmutable) {
+                $date_filter[$context->getObjId()] = $start_date;
+            }
+        }
+
+        return $criteria->withStartDates($date_filter);
+    }
+
+    /**
+     * Return the start date for container (crs/grp) news filtering, or null if no filter applies.
+     */
+    private function getContainerStartDateForContext(int $context_obj_id, string $context_type, bool $dashboard = false): ?\DateTimeImmutable
+    {
+        if (!in_array($context_type, ['grp', 'crs', 'cat'], true)) {
+            return null;
+        }
+
+        $hide_news_date_setting = \ilBlockSetting::_lookup('news', 'hide_news_date', 0, $context_obj_id);
+        $hide_news_mode = \ilBlockSetting::_lookup('news', 'hide_news_mode', 0, $context_obj_id)
+            ?? ($hide_news_date_setting != "" ? "per_date" : "global");
+
+        if ($dashboard) {
+            $pd_period = \ilNewsItem::_lookupDefaultPDPeriod();
+
+            switch ($hide_news_mode) {
+                case 'none':
+                case 'global':
+                    return new \DateTimeImmutable("-{$pd_period} days");
+                case 'per_date':
+                    $hide_date = new \DateTimeImmutable(\ilBlockSetting::_lookup('news', 'hide_news_date', 0, $context_obj_id));
+                    $pd_period_datetime = new \DateTimeImmutable("-{$pd_period} days");
+                    return $pd_period_datetime > $hide_date ? $pd_period_datetime : $hide_date;
+                case 'by_period':
+                    $hide_period = \ilBlockSetting::_lookup('news', 'news_co_period', 0, $context_obj_id);
+                    $hide_period = $hide_period <= 0 ? $pd_period : $hide_period;
+                    $hide_period = min($hide_period, $pd_period);
+                    return new \DateTimeImmutable("-{$hide_period} days");
+                default:
+                    return null;
+            }
+        }
+
+        switch ($hide_news_mode) {
+            case 'global':
+                $co_period = \ilNewsItem::_lookupDefaultCOPeriod();
+                return $co_period > 0 ? new \DateTimeImmutable("-{$co_period} days") : null;
+            case 'per_date':
+                $hide_date = \ilBlockSetting::_lookup('news', 'hide_news_date', 0, $context_obj_id);
+                return !empty($hide_date) ? new \DateTimeImmutable($hide_date) : null;
+            case 'by_period':
+                $hide_period = \ilBlockSetting::_lookup('news', 'news_co_period', 0, $context_obj_id);
+                return !empty($hide_period) ? new \DateTimeImmutable("-{$hide_period} days") : null;
+            case 'none':
+            default:
+                return null;
+        }
     }
 
     /**

@@ -39,20 +39,56 @@ class Unzip
     protected \ZipArchive $zip;
     protected bool $error_reading_zip = false;
     protected string $path_to_zip;
+    private bool $is_open = false;
     private int $amount_of_entries = 0;
+    private ?bool $within_limits = null;
 
+    /**
+     * Only the path of the passed stream is used, the stream itself is not kept. This way a stream
+     * which is created just for the Unzip (e.g. Streams::ofResource(fopen(...))) is closed right away
+     * and does not keep the ZIP-file open.
+     */
     public function __construct(
         protected UnzipOptions $options,
-        protected FileStream $stream
+        FileStream $stream
     ) {
-        $this->path_to_zip = $this->stream->getMetadata(self::URI);
+        $this->path_to_zip = (string) $stream->getMetadata(self::URI);
         $this->zip = new \ZipArchive();
-        try {
-            $this->zip->open($this->path_to_zip, \ZipArchive::RDONLY);
+        if ($this->open()) {
             $this->amount_of_entries = $this->zip->count();
-        } catch (\Throwable) {
-            $this->error_reading_zip = true;
         }
+    }
+
+    private function open(): bool
+    {
+        if ($this->is_open) {
+            return true;
+        }
+        if ($this->error_reading_zip) {
+            return false;
+        }
+        try {
+            $this->is_open = $this->zip->open($this->path_to_zip, \ZipArchive::RDONLY) === true;
+        } catch (\Throwable) {
+            $this->is_open = false;
+        }
+        $this->error_reading_zip = !$this->is_open;
+
+        return $this->is_open;
+    }
+
+    /**
+     * Releases the file handle of the ZIP-file. extract() does this on its own, consumers which only
+     * read paths or streams can call this as soon as they are done, e.g. before deleting the ZIP-file.
+     * The archive is opened again if it is accessed after it has been closed.
+     */
+    public function close(): void
+    {
+        if (!$this->is_open) {
+            return;
+        }
+        $this->zip->close();
+        $this->is_open = false;
     }
 
     /**
@@ -62,6 +98,9 @@ class Unzip
     {
         return function (\Generator $paths): \Generator {
             foreach ($paths as $path) {
+                if (!$this->open()) {
+                    return;
+                }
                 $resource = $this->zip->getStream($path);
 
                 yield Streams::ofResource($resource);
@@ -74,7 +113,7 @@ class Unzip
      */
     public function getPaths(): \Generator
     {
-        if (!$this->error_reading_zip) {
+        if (!$this->error_reading_zip && $this->isWithinLimits() && $this->open()) {
             for ($i = 0, $i_max = $this->amount_of_entries; $i < $i_max; $i++) {
                 $path = $this->zip->getNameIndex($i, \ZipArchive::FL_UNCHANGED);
                 if ($this->isPathIgnored($path, $this->options)) {
@@ -192,9 +231,83 @@ class Unzip
         return false;
     }
 
+    /**
+     * Guards against decompression bombs by checking the archive metadata (entry count, total
+     * uncompressed size and the uncompressed/compressed ratio) before any data is handed out.
+     * The sizes are read from the central directory via statIndex(); a crafted archive that lies
+     * about these sizes fails during the subsequent extraction anyway.
+     *
+     * An archive that exceeds the limits behaves like an empty one: extract() returns false and
+     * all generators (getPaths(), getFiles(), getStreams(), getFileStreams(), ...) yield nothing.
+     * Callers that consume the streams themselves should ask this method first, so they can tell
+     * a rejected archive from an empty one and report it to the user.
+     */
+    public function isWithinLimits(): bool
+    {
+        return $this->within_limits ??= $this->calculateIsWithinLimits();
+    }
+
+    private function calculateIsWithinLimits(): bool
+    {
+        $max_entries = $this->options->getMaxAmountOfEntries();
+        if ($max_entries > UnzipOptions::UNLIMITED && $this->amount_of_entries > $max_entries) {
+            return false;
+        }
+
+        if (!$this->open()) {
+            return false;
+        }
+
+        $total_compressed = 0;
+        $total_uncompressed = 0;
+        for ($i = 0; $i < $this->amount_of_entries; $i++) {
+            $stat = $this->zip->statIndex($i, \ZipArchive::FL_UNCHANGED);
+            if ($stat === false) {
+                continue;
+            }
+            $total_compressed += max(0, (int) ($stat['comp_size'] ?? 0));
+            $total_uncompressed += max(0, (int) ($stat['size'] ?? 0));
+        }
+
+        $max_uncompressed = $this->options->getMaxUncompressedSize();
+        if ($max_uncompressed > UnzipOptions::UNLIMITED && $total_uncompressed > $max_uncompressed) {
+            return false;
+        }
+
+        $max_ratio = $this->options->getMaxCompressionRatio();
+        if (
+            $max_ratio > UnzipOptions::UNLIMITED
+            && $total_compressed > 0
+            && $total_uncompressed > $this->options->getRatioCheckMinUncompressedSize()
+            && ($total_uncompressed / $total_compressed) > $max_ratio
+        ) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Extracting is the last operation on the archive in almost all cases, therefore the file handle
+     * of the ZIP-file is released afterwards, so the ZIP-file and its directory can be deleted
+     * immediately (which otherwise fails on e.g. NFS as long as the file is open).
+     */
     public function extract(): bool
     {
-        if ($this->error_reading_zip) {
+        try {
+            return $this->extractAndKeepOpen();
+        } finally {
+            $this->close();
+        }
+    }
+
+    private function extractAndKeepOpen(): bool
+    {
+        if (!$this->open()) {
+            return false;
+        }
+
+        if (!$this->isWithinLimits()) {
             return false;
         }
 
@@ -208,9 +321,8 @@ class Unzip
                 break;
             case ZipDirectoryHandling::ENSURE_SINGLE_TOP_DIR:
                 // top directory with same name as the ZIP without suffix
-                $zip_path = $this->stream->getMetadata(self::URI);
-                $sufix = '.' . pathinfo((string) $zip_path, PATHINFO_EXTENSION);
-                $top_directory = basename((string) $zip_path, $sufix);
+                $sufix = '.' . pathinfo($this->path_to_zip, PATHINFO_EXTENSION);
+                $top_directory = basename($this->path_to_zip, $sufix);
 
                 // first we check if the ZIP contains the top directory
                 $has_top_directory = true;
@@ -231,6 +343,7 @@ class Unzip
                 foreach ($this->getStreams() as $stream) {
                     $uri = $stream->getMetadata(self::URI);
                     if (substr((string) $uri, -1) === self::DIRECTORY_SEPARATOR) {
+                        $stream->close();
                         continue; // Skip directories
                     }
                     $file_name = Util::sanitizeFileName($destination_path . self::DIRECTORY_SEPARATOR . basename((string) $uri));
@@ -238,6 +351,7 @@ class Unzip
                         $file_name,
                         $stream->getContents()
                     );
+                    $stream->close();
                 }
                 return true; // Stop here
         }

@@ -1280,42 +1280,11 @@ class ilNewsItem
     }
 
     /**
-     * Get default visibility for reference id
-     * @deprecated will move to ilNewsData
+     * Get global default visibility for news items.
      */
-    public static function _getDefaultVisibilityForRefId(int $a_ref_id): string
+    public static function getDefaultVisibility(): string
     {
-        global $DIC;
-
-        $tree = $DIC->repositoryTree();
-
-        $news_set = new ilSetting("news");
-        $default_visibility = ($news_set->get("default_visibility") != "")
-                ? $news_set->get("default_visibility")
-                : "users";
-
-        if ($tree->isInTree($a_ref_id)) {
-            $path = $tree->getPathFull($a_ref_id);
-
-            foreach ($path as $key => $row) {
-                if (!in_array($row["type"], ["root", "cat", "crs", "fold", "grp"], true)) {
-                    continue;
-                }
-
-                $visibility = ilBlockSetting::_lookup(
-                    "news",
-                    "default_visibility",
-                    0,
-                    (int) $row["obj_id"]
-                );
-
-                if ($visibility != "") {
-                    $default_visibility = $visibility;
-                }
-            }
-        }
-
-        return $default_visibility;
+        return (new ilSetting('news'))->get('default_visibility', NEWS_USERS);
     }
 
 
@@ -1326,6 +1295,18 @@ class ilNewsItem
     public function delete(): void
     {
         $ilDB = $this->db;
+
+        $this->db->manipulateF(
+            'DELETE FROM note WHERE news_id = %s',
+            [\ilDBConstants::T_INTEGER],
+            [$this->getId()]
+        );
+
+        $this->db->manipulateF(
+            'DELETE FROM like_data WHERE news_id = %s',
+            [\ilDBConstants::T_INTEGER],
+            [$this->getId()]
+        );
 
         // delete il_news_read entries
         $ilDB->manipulate("DELETE FROM il_news_read " .
@@ -1749,6 +1730,11 @@ class ilNewsItem
         return $per;
     }
 
+    public static function _lookupDefaultCOPeriod(): int
+    {
+        return (int) (new ilSetting("news"))->get("co_period") ?: 30;
+    }
+
     /**
      * @deprecated will move to settings->user
      */
@@ -1816,7 +1802,6 @@ class ilNewsItem
     ): bool {
         $mob = $this->getMobId();
         $mob = new ilObjMediaObject($mob);
-        $mob_dir = ilObjMediaObject::_getDirectory($mob->getId());
         // check purpose
         if (!$mob->hasPurposeItem($a_purpose)) {
             return false;
@@ -1824,7 +1809,7 @@ class ilNewsItem
 
         $m_item = $mob->getMediaItem($a_purpose);
         if ($m_item->getLocationType() !== "Reference") {
-            $this->media_manager->deliverEntry($mob->getId(), "/" . $m_item->getLocation());
+            $this->media_manager->deliverEntry($mob->getId(), $m_item->getLocation());
             if ($a_increase_download_cnt) {
                 $this->increaseDownloadCounter();
             }

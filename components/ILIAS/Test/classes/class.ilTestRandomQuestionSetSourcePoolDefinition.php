@@ -18,13 +18,18 @@
 
 declare(strict_types=1);
 
+use ILIAS\TestQuestionPool\ExportImport\Foundation\Normalize\FromNormalized;
+use ILIAS\TestQuestionPool\ExportImport\Foundation\Normalize\ToNormalized;
+use ILIAS\TestQuestionPool\ExportImport\Foundation\Normalize\Transformations;
+use ILIAS\TestQuestionPool\ExportImport\Foundation\Normalize\Envelopes\Id;
+
 /**
  * @author		Björn Heyser <bheyser@databay.de>
  * @version		$Id$
  *
  * @package		Modules/Test
  */
-class ilTestRandomQuestionSetSourcePoolDefinition
+class ilTestRandomQuestionSetSourcePoolDefinition implements ToNormalized, FromNormalized
 {
     private ?int $id = null;
     private ?int $pool_id = null;
@@ -153,7 +158,11 @@ class ilTestRandomQuestionSetSourcePoolDefinition
      */
     public function setMappedTaxonomyFilter(array $filter = []): void
     {
-        $this->mapped_taxonomy_filter = $filter;
+        $this->mapped_taxonomy_filter = array_filter(
+            $filter,
+            static fn(mixed $value, int|string $key): bool => (int) $key > 0 || !is_array($value),
+            ARRAY_FILTER_USE_BOTH
+        );
     }
 
     private function getMappedTaxonomyFilterForDbValue(): ?string
@@ -163,7 +172,22 @@ class ilTestRandomQuestionSetSourcePoolDefinition
 
     private function setMappedTaxonomyFilterFromDbValue(?string $value): void
     {
-        $this->mapped_taxonomy_filter = empty($value) ? [] : unserialize($value);
+        $this->mapped_taxonomy_filter = [];
+        if ($value === null || $value === '') {
+            return;
+        }
+
+        $filter = unserialize($value, ['allowed_classes' => false]);
+        if (!is_array($filter)) {
+            return;
+        }
+
+        $mapped_taxonomy_filter = [];
+        foreach ($filter as $tax_id => $node_ids) {
+            $mapped_taxonomy_filter[$tax_id] = $node_ids;
+        }
+
+        $this->setMappedTaxonomyFilter($mapped_taxonomy_filter);
     }
 
     public function mapTaxonomyFilter(ilQuestionPoolDuplicatedTaxonomiesKeysMap $taxonomies_keys_map): void
@@ -173,7 +197,7 @@ class ilTestRandomQuestionSetSourcePoolDefinition
             $mapped_node_ids = [];
 
             $mapped_taxonomy_id = $taxonomies_keys_map->getMappedTaxonomyId($tax_id);
-            if ($mapped_taxonomy_id === null) {
+            if ($mapped_taxonomy_id === null || $mapped_taxonomy_id < 1) {
                 continue;
             }
 
@@ -450,4 +474,85 @@ class ilTestRandomQuestionSetSourcePoolDefinition
     }
 
     // -----------------------------------------------------------------------------------------------------------------
+
+    #[\Override]
+    public function toNormalized(
+        Transformations $transformations,
+        array $context = []
+    ): array|float|bool|int|string|null {
+        $normalized = [
+            'id' => $transformations->normalize(new Id($this->getId(), 'rnd_src_pool_def')),
+            'pool_id' => $transformations->normalize(new Id($this->getPoolId(), 'qpl')),
+            'pool_title' => $this->getPoolTitle(),
+            'pool_path' => $this->getPoolPath(),
+            'quest_amount' => $this->getQuestionAmount(),
+            'pool_quest_count' => $this->getPoolQuestionCount(),
+            'position' => $this->getSequencePosition(),
+            'type_filter' => $this->getTypeFilterAsTypeTags(),
+            'lifecycle_filter' => $this->getLifecycleFilter(),
+            'taxonomy_filter' => [],
+            'mapped_taxonomy_filter' => [],
+        ];
+
+        foreach ($this->getOriginalTaxonomyFilter() as $tax_id => $node_ids) {
+            $normalized['taxonomy_filter'][] = [
+                'tax_id' => $transformations->normalize(new Id($tax_id, 'tax')),
+                'node_ids' => array_map(
+                    static fn($node_id): mixed => $transformations->normalize(new Id($node_id, 'tax_node')),
+                    $node_ids
+                ),
+            ];
+        }
+
+        foreach ($this->getMappedTaxonomyFilter() as $tax_id => $node_ids) {
+            $normalized['mapped_taxonomy_filter'][] = [
+                'tax_id' => $transformations->normalize(new Id($tax_id, 'mapped_tax')),
+                'node_ids' => array_map(
+                    static fn($node_id): mixed => $transformations->normalize(new Id($node_id, 'mapped_tax_node')),
+                    $node_ids
+                ),
+            ];
+        }
+
+        return $normalized;
+    }
+
+    #[\Override]
+    public function fromNormalized(
+        array $normalized,
+        Transformations $transformations
+    ): static {
+        $clone = clone $this;
+        $clone->setId($transformations->denormalize($normalized['id'], Id::class)->getId());
+        $clone->setPoolId($transformations->denormalize($normalized['pool_id'], Id::class)->getId());
+        $clone->setPoolTitle($transformations->string($normalized['pool_title']));
+        $clone->setPoolPath($transformations->string($normalized['pool_path']));
+        $clone->setQuestionAmount($transformations->nullableInt($normalized['quest_amount']));
+        $clone->setPoolQuestionCount($transformations->nullableInt($normalized['pool_quest_count']));
+        $clone->setSequencePosition($transformations->int($normalized['position']));
+        $clone->setTypeFilterFromTypeTags($normalized['type_filter']);
+        $clone->setLifecycleFilter($normalized['lifecycle_filter']);
+
+        $taxonomy_filter = [];
+        foreach ($normalized['taxonomy_filter'] as $item) {
+            $tax_id = $transformations->denormalize($item['tax_id'], Id::class)->getId();
+            $taxonomy_filter[$tax_id] = array_map(
+                static fn($node_id): mixed => $transformations->denormalize($node_id, Id::class)->getId(),
+                $item['node_ids']
+            );
+        }
+        $clone->setOriginalTaxonomyFilter($taxonomy_filter);
+
+        $mapped_taxonomy_filter = [];
+        foreach (($normalized['mapped_taxonomy_filter'] ?? []) as $item) {
+            $tax_id = $transformations->denormalize($item['tax_id'], Id::class)->getId();
+            $mapped_taxonomy_filter[$tax_id] = array_map(
+                static fn($node_id): mixed => $transformations->denormalize($node_id, Id::class)->getId(),
+                $item['node_ids']
+            );
+        }
+        $clone->setMappedTaxonomyFilter($mapped_taxonomy_filter);
+
+        return $clone;
+    }
 }

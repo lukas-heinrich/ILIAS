@@ -18,6 +18,7 @@
 
 namespace ILIAS\HTTP;
 
+use ILIAS\HTTP\Cookies\CookieFactory;
 use ILIAS\HTTP\Cookies\CookieJar;
 use ILIAS\HTTP\Cookies\CookieJarFactory;
 use ILIAS\HTTP\Request\RequestFactory;
@@ -25,6 +26,7 @@ use ILIAS\HTTP\Response\ResponseFactory;
 use ILIAS\HTTP\Response\Sender\ResponseSenderStrategy;
 use ILIAS\HTTP\Wrapper\WrapperFactory;
 use ILIAS\HTTP\Duration\DurationFactory;
+use ILIAS\HTTP\Message\MessageFactory;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 
@@ -39,19 +41,30 @@ class RawHTTPServices implements GlobalHttpState
     private ?ResponseInterface $response = null;
 
 
-    /**
-     * RawHTTPServices constructor.
-     *
-     * @param ResponseSenderStrategy $sender A response sender strategy.
-     * @param CookieJarFactory       $cookieJarFactory Cookie Jar implementation.
-     */
-    public function __construct(private ResponseSenderStrategy $sender, private CookieJarFactory $cookieJarFactory, private RequestFactory $requestFactory, private ResponseFactory $responseFactory, private DurationFactory $durationFactory)
+    public function __construct(
+        private ResponseSenderStrategy $sender,
+        private CookieJarFactory $cookieJarFactory,
+        private RequestFactory $requestFactory,
+        private ResponseFactory $responseFactory,
+        private DurationFactory $durationFactory,
+        private CookieFactory $cookieFactory,
+        private MessageFactory $messageFactory
+    ) {
+    }
+
+    public function sender(): ResponseSenderStrategy
     {
+        return $this->sender;
     }
 
     public function durations(): DurationFactory
     {
         return $this->durationFactory;
+    }
+
+    public function messages(): MessageFactory
+    {
+        return $this->messageFactory;
     }
 
     public function wrapper(): WrapperFactory
@@ -63,6 +76,11 @@ class RawHTTPServices implements GlobalHttpState
     /**
      * @inheritDoc
      */
+    public function cookies(): CookieFactory
+    {
+        return $this->cookieFactory;
+    }
+
     public function cookieJar(): CookieJar
     {
         return $this->cookieJarFactory->fromResponse($this->response());

@@ -18,6 +18,10 @@
 
 declare(strict_types=1);
 
+use ILIAS\TestQuestionPool\ExportImport\Foundation\Normalize\FromNormalized;
+use ILIAS\TestQuestionPool\ExportImport\Foundation\Normalize\ToNormalized;
+use ILIAS\TestQuestionPool\ExportImport\Foundation\Normalize\Transformations;
+use ILIAS\TestQuestionPool\ExportImport\Normalize\Envelopes\QuestionImage;
 use ILIAS\TestQuestionPool\QuestionPoolDIC;
 use ILIAS\TestQuestionPool\RequestDataCollector;
 use ILIAS\TestQuestionPool\Questions\QuestionLMExportable;
@@ -36,7 +40,7 @@ use ILIAS\Test\Logging\AdditionalInformationGenerator;
  *
  * @ingroup		ModulesTestQuestionPool
  */
-class assImagemapQuestion extends assQuestion implements ilObjQuestionScoringAdjustable, ilObjAnswerScoringAdjustable, iQuestionCondition, QuestionLMExportable
+class assImagemapQuestion extends assQuestion implements ilObjAnswerScoringAdjustable, iQuestionCondition, QuestionLMExportable, ToNormalized, FromNormalized
 {
     private RequestDataCollector $request; // Hate it.
 
@@ -53,19 +57,19 @@ class assImagemapQuestion extends assQuestion implements ilObjQuestionScoringAdj
         'POLY' => 'poly'];
 
     /** @var $answers array The possible answers of the imagemap question. */
-    public $answers;
+    public array $answers;
 
     /** @var $image_filename string The image file containing the name of image file. */
-    public $image_filename;
+    public string $image_filename;
 
     /** @var $imagemap_contents string The variable containing contents of an imagemap file. */
-    public $imagemap_contents;
+    public string $imagemap_contents;
 
     /** @var $coords array */
-    public $coords;
+    public array $coords;
 
     /** @var $is_multiple_choice bool Defines weather the Question is a Single or a Multiplechoice question. */
-    protected $is_multiple_choice = false;
+    protected bool $is_multiple_choice = false;
 
     /**
      * assImagemapQuestion constructor
@@ -206,7 +210,7 @@ class assImagemapQuestion extends assQuestion implements ilObjQuestionScoringAdj
         }
 
         if (!file_exists($image_source_path) || !is_readable($image_source_path)) {
-            $this->log->root()->alert(
+            $this->log->forComponent('qpl')->alert(
                 "Could not copy imagemap question files: Source path '{$image_source_path}' does not exist or is not readable.",
                 [
                     'source_question_id' => $source_question_id,
@@ -255,9 +259,9 @@ class assImagemapQuestion extends assQuestion implements ilObjQuestionScoringAdj
             $this->setImageFilename($data['image_file'] ?? '');
 
             try {
-                $this->setLifecycle(ilAssQuestionLifecycle::getInstance($data['lifecycle']));
+                $this->setLifecycle(new ilAssQuestionLifecycle($data['lifecycle']));
             } catch (ilTestQuestionPoolInvalidArgumentException $e) {
-                $this->setLifecycle(ilAssQuestionLifecycle::getDraftInstance());
+                $this->setLifecycle(new ilAssQuestionLifecycle());
             }
 
             try {
@@ -297,30 +301,42 @@ class assImagemapQuestion extends assQuestion implements ilObjQuestionScoringAdj
         return $added;
     }
 
+    public function uploadImageFile(
+        string $upload_file_name,
+        string $upload_tmp_name
+    ): void {
+        $path_parts = pathinfo($upload_file_name);
+        $suffix = $path_parts['extension'] ?? '';
+
+        if (!in_array($path_parts['extension'], ['jpg', 'jpeg', 'png', 'gif'])) {
+            $this->tpl->setOnScreenMessage('failure', 'The image could not be uploaded!');
+            return;
+        }
+
+        $image_filename = bin2hex(random_bytes(10)) . ".{$suffix}";
+
+        $imagepath = $this->getImagePath();
+        if (!file_exists($imagepath)) {
+            ilFileUtils::makeDirParents($imagepath);
+        }
+
+        if (!ilFileUtils::moveUploadedFile($upload_tmp_name, $image_filename, $imagepath . $image_filename)) {
+            $this->tpl->setOnScreenMessage('failure', 'The image could not be uploaded!');
+            return;
+        }
+
+        $this->setImageFilename($image_filename);
+    }
+
     public function getImageFilename(): string
     {
         return $this->image_filename;
     }
 
     public function setImageFilename(
-        string $image_filename,
-        string $image_tempfilename = ''
+        string $image_filename
     ): void {
-        if (!empty($image_filename)) {
-            $image_filename = str_replace(' ', '_', $image_filename);
-            $this->image_filename = $image_filename;
-        }
-        if (!empty($image_tempfilename)) {
-            $imagepath = $this->getImagePath();
-            if (!file_exists($imagepath)) {
-                ilFileUtils::makeDirParents($imagepath);
-            }
-            if (!ilFileUtils::moveUploadedFile($image_tempfilename, $image_filename, $imagepath . $image_filename)) {
-                $this->tpl->setOnScreenMessage('failure', 'The image could not be uploaded!');
-                return;
-            }
-            $this->log->write('gespeichert: ' . $imagepath . $image_filename);
-        }
+        $this->image_filename = $image_filename;
     }
 
     public function get_imagemap_contents(string $href = '#'): string
@@ -914,5 +930,36 @@ class assImagemapQuestion extends assQuestion implements ilObjQuestionScoringAdj
                 . "{$this->lng->txt('unchecked')}: {$v->getPointsUnchecked()})",
             $this->getAnswers()
         );
+    }
+
+    #[\Override]
+    public function toNormalized(
+        Transformations $transformations,
+        array $context = []
+    ): array|float|bool|int|string|null
+    {
+        return [
+            ...$transformations->normalize(parent::toNormalized($transformations, $context)),
+            'image' => $transformations->normalize(new QuestionImage($this->image_filename, $this->getId())),
+            'multiple_choice' => $this->is_multiple_choice,
+            'answers' => $transformations->normalize($this->answers),
+        ];
+    }
+
+    #[\Override]
+    public function fromNormalized(
+        array $normalized,
+        Transformations $transformations
+    ): static
+    {
+        $clone = parent::fromNormalized($normalized, $transformations);
+        $clone->image_filename = $transformations->denormalize($normalized['image'], QuestionImage::class)->getFilename();
+        $clone->is_multiple_choice = $transformations->bool($normalized['multiple_choice']);
+        $clone->answers = array_map(
+            static fn(array $answer): ASS_AnswerImagemap => $transformations->denormalize($answer, new ASS_AnswerImagemap()),
+            $normalized['answers']
+        );
+
+        return $clone;
     }
 }

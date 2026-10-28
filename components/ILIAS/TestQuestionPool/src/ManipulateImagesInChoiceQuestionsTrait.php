@@ -29,9 +29,10 @@ trait ManipulateImagesInChoiceQuestionsTrait
      */
     protected function deleteImage($image_filename): void
     {
+        $cleaned_image_file_name = basename($image_filename);
         $imagepath = $this->getImagePath();
-        @unlink($imagepath . $image_filename);
-        $thumbpath = $imagepath . $this->getThumbPrefix() . $image_filename;
+        @unlink($imagepath . $cleaned_image_file_name);
+        $thumbpath = $imagepath . $this->getThumbPrefix() . $cleaned_image_file_name;
         @unlink($thumbpath);
     }
 
@@ -59,11 +60,11 @@ trait ManipulateImagesInChoiceQuestionsTrait
 
             if (!file_exists($image_source_path . $filename)
                 || !copy($image_source_path . $filename, $image_target_path . $filename)) {
-                $this->log->root()->warning('Image could not be cloned for object for question: ' . $target_question_id);
+                $this->log->forComponent('qpl')->warning('Image could not be cloned for object for question: ' . $target_question_id);
             }
             if (!file_exists($image_source_path . $this->getThumbPrefix() . $filename)
                 || !copy($image_source_path . $this->getThumbPrefix() . $filename, $image_target_path . $this->getThumbPrefix() . $filename)) {
-                $this->log->root()->warning('Image thumbnail could not be cloned for object for question: ' . $target_question_id);
+                $this->log->forComponent('qpl')->warning('Image thumbnail could not be cloned for object for question: ' . $target_question_id);
             }
         }
     }

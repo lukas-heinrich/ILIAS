@@ -48,6 +48,18 @@ class ilCertificateDateHelperTest extends ilCertificateBaseTestCase
         $this->setGlobalVariable('ilLoggerFactory', $logger_factory);
         $this->setGlobalVariable('lng', $this->getSystemLanguageMock());
         $this->setGlobalVariable('ilUser', $this->getUserMock());
+        $this->setGlobalVariable(
+            'logging.factory',
+            $this->createStub(ILIAS\Logging\Logger\LoggerFactoryInterface::class)
+        );
+        $this->setGlobalVariable(
+            'logging.defaultConfigFactory',
+            $this->createStub(ILIAS\Logging\Logger\DefaultConfigLoggerFactoryInterface::class)
+        );
+        $this->setGlobalVariable(
+            'logging.config',
+            $this->createStub(ILIAS\Logging\Config\ConfigInterface::class)
+        );
         $this->current_time = time();
     }
 

@@ -21,26 +21,32 @@ declare(strict_types=1);
 namespace ILIAS\FileDelivery;
 
 use ILIAS\FileDelivery\Delivery\StreamDelivery;
-use ILIAS\FileDelivery\Token\DataSigner;
 use ILIAS\Filesystem\Stream\FileStream;
 use ILIAS\FileDelivery\Delivery\Disposition;
 use ILIAS\FileDelivery\Delivery\LegacyDelivery;
+use ILIAS\FileDelivery\Isolation\IsolationConfig;
 use ILIAS\Data\URI;
+use ILIAS\HTTP\GlobalHttpState;
+use ILIAS\FileDelivery\Token\DataSigning;
+use ILIAS\HTTP\Path\HttpPathProvider;
 
 /**
  * @author Fabian Schmid <fabian@sr.solutions>
  */
-class Services
+class Services implements FileDeliveryServices
 {
     public const DELIVERY_ENDPOINT = '/deliver.php/';
 
-    private ?string $base_uri = null;
+    /** @var array<string, string> */
+    private array $base_uris = [];
 
     public function __construct(
         private StreamDelivery $delivery,
         private LegacyDelivery $legacy_delivery,
-        private DataSigner $data_signer,
-        private \ILIAS\HTTP\Services $http
+        private DataSigning $data_signer,
+        private GlobalHttpState $http,
+        private IsolationConfig $isolation = new IsolationConfig(false, null, null),
+        private ?HttpPathProvider $http_path = null
     ) {
     }
 
@@ -61,20 +67,49 @@ class Services
         int $user_id,
         int $valid_for_at_least_hours
     ): URI {
-        // a new DateTimeImmutable which is set to the end of now + $valid_for_at_least_hours hours
-        $valid_for_at_least_hours++;
-        $until = new \DateTimeImmutable(
-            (new \DateTimeImmutable("now +$valid_for_at_least_hours hours"))->format('Y-m-d H:00')
-        );
-
         $token = $this->data_signer->getSignedStreamToken(
             $stream,
             $filename,
             $disposition,
             $user_id,
-            $until
+            $this->validUntil($valid_for_at_least_hours)
         );
 
+        return $this->buildURL($token, $filename, true);
+    }
+
+    /**
+     * @deprecated see {@see FileDeliveryServices::buildTokenURLWithoutIsolation()}
+     */
+    public function buildTokenURLWithoutIsolation(
+        FileStream $stream,
+        string $filename,
+        Disposition $disposition,
+        int $user_id,
+        int $valid_for_at_least_hours
+    ): URI {
+        $token = $this->data_signer->getSignedStreamTokenWithoutIsolation(
+            $stream,
+            $filename,
+            $disposition,
+            $user_id,
+            $this->validUntil($valid_for_at_least_hours)
+        );
+
+        return $this->buildURL($token, $filename, false);
+    }
+
+    private function validUntil(int $valid_for_at_least_hours): \DateTimeImmutable
+    {
+        // a new DateTimeImmutable which is set to the end of now + $valid_for_at_least_hours hours
+        $valid_for_at_least_hours++;
+        return new \DateTimeImmutable(
+            (new \DateTimeImmutable("now +$valid_for_at_least_hours hours"))->format('Y-m-d H:00')
+        );
+    }
+
+    private function buildURL(string $token, string $filename, bool $isolated): URI
+    {
         // maybe add suffix
         $suffix = '';
         // try to determine suffix from filename
@@ -84,18 +119,50 @@ class Services
         }
 
         return new URI(
-            $this->getBaseURI() . self::DELIVERY_ENDPOINT . $token . $suffix
+            $this->getBaseURI($isolated) . self::DELIVERY_ENDPOINT . $token . $suffix
         );
     }
 
-    protected function getBaseURI(): string
+    protected function getBaseURI(bool $isolated = true): string
     {
-        return $this->base_uri ?? $this->base_uri = rtrim(
-            $this->http->request()->getUri()->getScheme()
-            . '://' . $this->http->request()->getUri()->getHost()
-            . ($this->http->request()->getUri()->getPort() ? ':' . $this->http->request()->getUri()->getPort() : '')
-            . dirname($this->http->request()->getUri()->getPath()),
-            "/"
+        return $this->base_uris[$isolated ? 'content' : 'ilias'] ??= $this->buildBaseURI($isolated);
+    }
+
+    private function buildBaseURI(bool $isolated): string
+    {
+        $request_uri = $this->http->request()->getUri();
+        $http_path = $this->http_path?->getHttpPath();
+
+        // CLI contexts such as cron jobs have no request to derive the URL from,
+        // see https://mantis.ilias.de/view.php?id=47807
+        $is_without_request = $request_uri->getHost() === '';
+
+        // the path is the one ILIAS is reached under, which dirname() of the request
+        // path does not give on every page, see https://mantis.ilias.de/view.php?id=48124
+        $path = match (true) {
+            $http_path !== null => rtrim('/' . ($http_path->getPath() ?? ''), '/'),
+            $is_without_request => '',
+            default => rtrim(dirname($request_uri->getPath()), '/'),
+        };
+
+        if ($isolated
+            && $this->isolation->isActivated()
+            && ($content_domain = $this->isolation->getContentDomain()) !== null
+        ) {
+            return rtrim($content_domain, '/') . $path;
+        }
+
+        if ($is_without_request) {
+            return $http_path?->getBaseURI() ?? '';
+        }
+
+        // the host stays with the request, since allowed_hosts permits more than one
+        return rtrim(
+            $request_uri->getScheme()
+            . '://' . $request_uri->getHost()
+            . ($request_uri->getPort() ? ':' . $request_uri->getPort() : '')
+            . $path,
+            '/'
         );
     }
 }

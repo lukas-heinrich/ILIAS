@@ -84,9 +84,13 @@ class ilSAHSPresentationGUI implements ilCtrlBaseClassInterface
 
         $type = ilObjSAHSLearningModule::_lookupSubType($obj_id);
 
-        if ($cmd === "downloadCertificate") {
-            $scorm_gui = new ilSCORMPresentationGUI();
-            $ret = $this->ctrl->forwardCommand($scorm_gui);
+        switch ($cmd) {
+            case "downloadCertificate":
+            case "logMessage":
+            case "logWarning":
+                $scorm_gui = new ilSCORMPresentationGUI();
+                $this->ctrl->forwardCommand($scorm_gui);
+                return;
         }
 
         $this->slm_gui = new ilObjSCORMLearningModuleGUI("", $this->refId, true, false);
@@ -261,7 +265,7 @@ class ilSAHSPresentationGUI implements ilCtrlBaseClassInterface
         global $DIC;
         $ilAccess = $DIC->access();
         $refId = $this->refId;
-        
+
         $this->setInfoTabs("info_short");
 
         $this->lng->loadLanguageModule("meta");

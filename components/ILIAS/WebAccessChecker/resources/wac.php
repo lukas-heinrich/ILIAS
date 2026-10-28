@@ -23,6 +23,7 @@
  */
 use ILIAS\DI\Container;
 use ILIAS\HTTP\Request\RequestFactoryImpl;
+use ILIAS\HTTP\Request\HeaderSettingsLegacyProxy;
 use ILIAS\HTTP\Response\ResponseFactoryImpl;
 use ILIAS\HTTP\Cookies\CookieJarFactoryImpl;
 use ILIAS\HTTP\Response\Sender\DefaultResponseSenderStrategy;
@@ -30,6 +31,7 @@ use ILIAS\HTTP\Duration\DurationFactory;
 use ILIAS\HTTP\Duration\Increment\IncrementFactory;
 use ILIAS\HTTP\Services;
 use ILIAS\HTTP\Cookies\CookieFactoryImpl;
+use ILIAS\HTTP\Message\MessageFactoryImpl;
 
 /** @noRector */
 require_once(__DIR__ . '/../vendor/composer/vendor/autoload.php');
@@ -37,7 +39,9 @@ require_once(__DIR__ . '/../vendor/composer/vendor/autoload.php');
 $container = new Container();
 
 //manually init http service
-$container['http.request_factory'] = static fn($c): RequestFactoryImpl => new RequestFactoryImpl();
+$container['http.request_factory'] = static fn($c): RequestFactoryImpl => new RequestFactoryImpl(
+    new HeaderSettingsLegacyProxy()
+);
 
 $container['http.response_factory'] = static fn($c): ResponseFactoryImpl => new ResponseFactoryImpl();
 
@@ -49,7 +53,15 @@ $container['http.duration_factory'] = static fn($c): DurationFactory => new Dura
     new IncrementFactory()
 );
 
-$container['http'] = static fn($c): Services => new Services($c);
+$container['http'] = static fn($c): Services => new Services(
+    $c['http.request_factory'],
+    $c['http.response_factory'],
+    $c['http.cookie_jar_factory'],
+    $c['http.response_sender_strategy'],
+    $c['http.duration_factory'],
+    new CookieFactoryImpl(),
+    new MessageFactoryImpl(),
+);
 
 $GLOBALS["DIC"] = $container;
 
@@ -59,7 +71,7 @@ $GLOBALS["DIC"] = $container;
 $Services = $container['http'];
 
 //TODO: fix tests and mod_xsendfile which refuses to work
-ilWebAccessCheckerDelivery::run($Services, new CookieFactoryImpl());
+ilWebAccessCheckerDelivery::run($Services, $Services->cookies());
 
 //send response
 $Services->sendResponse();

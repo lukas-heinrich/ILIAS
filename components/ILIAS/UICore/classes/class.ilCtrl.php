@@ -24,7 +24,7 @@ use ILIAS\Refinery\Factory as Refinery;
 use ILIAS\HTTP\Wrapper\RequestWrapper;
 use ILIAS\Filesystem\Stream\Streams;
 use Psr\Http\Message\ServerRequestInterface;
-use GuzzleHttp\Psr7\Response;
+use ILIAS\HTTP\Message\MessageFactory;
 
 /**
  * Class ilCtrl provides processing control methods. A global
@@ -34,6 +34,8 @@ use GuzzleHttp\Psr7\Response;
  */
 class ilCtrl implements ilCtrlInterface
 {
+    use ilCtrlNamespaceEncoding;
+
     protected ?object $exec_object = null;
     protected ?string $command = null;
 
@@ -57,6 +59,7 @@ class ilCtrl implements ilCtrlInterface
         protected ilComponentFactory $component_factory,
         protected ilCtrlSubject $subject,
         protected ilCtrlQueryParserInterface $query_parser,
+        protected MessageFactory $message_factory,
     ) {
     }
 
@@ -435,7 +438,7 @@ class ilCtrl implements ilCtrlInterface
         $target_url = $this->modifyUrlWithPluginHooks($target_url);
 
         // initialize http response object
-        $response = new Response();
+        $response = $this->message_factory->response();
 
         // there's an exceptional case for asynchronous file uploads
         // where a json response is delivered.
@@ -868,7 +871,7 @@ class ilCtrl implements ilCtrlInterface
         $target_url = $this->appendParameterString(
             $target_url,
             self::PARAM_BASE_CLASS,
-            urlencode($base_class), // encode in case of namespaced classes
+            $this->encodeNamespaceForUrl($base_class), // encode in case of namespaced classes
             $is_escaped
         );
 
@@ -889,7 +892,7 @@ class ilCtrl implements ilCtrlInterface
             $target_url = $this->appendParameterString(
                 $target_url,
                 self::PARAM_CMD_CLASS,
-                urlencode($cmd_class), // encode in case of namespaced classes
+                $this->encodeNamespaceForUrl($cmd_class), // encode in case of namespaced classes
                 $is_escaped
             );
         }

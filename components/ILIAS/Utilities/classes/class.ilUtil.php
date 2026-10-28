@@ -18,7 +18,6 @@
 
 use ILIAS\FileDelivery\Delivery;
 use ILIAS\Filesystem\Stream\Streams;
-use ILIAS\HTTP\Cookies\CookieFactoryImpl;
 use ILIAS\HTTP\Cookies\Cookie;
 
 /**
@@ -287,8 +286,8 @@ class ilUtil
         try {
             $parser = $mailAddressParserFactory->getParser($a_email);
             $addresses = $parser->parse();
-            return count($addresses) == 1 && $addresses[0]->getHost() != ilMail::ILIAS_HOST;
-        } catch (ilException $e) {
+            return count($addresses) === 1 && $addresses[0]->getHost() !== ilMail::ILIAS_HOST;
+        } catch (Exception) {
             return false;
         }
     }
@@ -667,7 +666,7 @@ class ilUtil
                 $a_str
             );
             if ($old_str == $a_str) {
-                $ilLog->write(
+                $ilLog->info(
                     "ilUtil::maskA-" . htmlentities($old_str) . " == " .
                     htmlentities($a_str)
                 );
@@ -700,7 +699,7 @@ class ilUtil
                 $a_str
             );
             if ($old_str == $a_str) {
-                $ilLog->write(
+                $ilLog->info(
                     "ilUtil::unmaskA-" . htmlentities($old_str) . " == " .
                     htmlentities($a_str)
                 );
@@ -1289,7 +1288,7 @@ class ilUtil
         $http = $DIC->http();
         $cookie_jar = $http->cookieJar();
 
-        $cookie_factory = new CookieFactoryImpl();
+        $cookie_factory = $http->cookies();
 
         $cookie_expire = null;
         if (defined('IL_COOKIE_EXPIRE') && is_numeric(IL_COOKIE_EXPIRE) && IL_COOKIE_EXPIRE > 0) {

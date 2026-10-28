@@ -16,8 +16,6 @@
  *
  *********************************************************************/
 
-declare(strict_types=1);
-
 /**
  * Soap object administration methods
  * @author  Stefan Meyer <meyer@leifos.com>
@@ -49,7 +47,7 @@ class ilSoapObjectAdministration extends ilSoapAdministration
 
         $ilLog = $DIC['ilLog'];
         $obj_id = ilObject::_lookupObjIdByImportId($import_id);
-        $ilLog->write("SOAP getObjIdByImportId(): import_id = " . $import_id . ' obj_id = ' . $obj_id);
+        $ilLog->info("SOAP getObjIdByImportId(): import_id = " . $import_id . ' obj_id = ' . $obj_id);
         return $obj_id ?: "0";
     }
 
@@ -170,13 +168,17 @@ class ilSoapObjectAdministration extends ilSoapAdministration
             return $this->raiseError("Object with ID $a_ref_id has been deleted.", 'Client');
         }
 
+        global $DIC;
+        $access = $DIC['ilAccess'];
+
         $xml_writer = new ilObjectXMLWriter();
         $xml_writer->enablePermissionCheck(true);
         if (is_int($user_id)) {
             $xml_writer->setUserId($user_id);
             $xml_writer->enableOperations(true);
         }
-        $xml_writer->setObjects(array($tmp_obj));
+        $objs = $access->checkAccess("read", "", $a_ref_id) ? array($tmp_obj) : array();
+        $xml_writer->setObjects($objs);
         if ($xml_writer->start()) {
             return $xml_writer->getXML();
         }
@@ -222,6 +224,9 @@ class ilSoapObjectAdministration extends ilSoapAdministration
 
         $res->filter(ROOT_FOLDER_ID, true);
 
+        global $DIC;
+        $access = $DIC['ilAccess'];
+
         $objs = array();
         foreach ($res->getUniqueResults() as $entry) {
             if ($entry['type'] === 'role' || $entry['type'] === 'rolt') {
@@ -230,7 +235,8 @@ class ilSoapObjectAdministration extends ilSoapAdministration
                 }
                 continue;
             }
-            if ($tmp = ilObjectFactory::getInstanceByRefId($entry['ref_id'], false)) {
+            if (($tmp = ilObjectFactory::getInstanceByRefId($entry['ref_id'], false)) &&
+                $access->checkAccess("read", "", (int) $entry['ref_id'])) {
                 $objs[] = $tmp;
             }
         }
@@ -270,6 +276,9 @@ class ilSoapObjectAdministration extends ilSoapAdministration
             );
         }
 
+        global $DIC;
+        $access = $DIC['ilAccess'];
+
         $highlighter = null;
         if (ilSearchSettings::getInstance()->enabledLucene()) {
             ilSearchSettings::getInstance()->setMaxHits(25);
@@ -302,7 +311,7 @@ class ilSoapObjectAdministration extends ilSoapAdministration
             $objs[ROOT_FOLDER_ID] = ilObjectFactory::getInstanceByRefId(ROOT_FOLDER_ID, false);
             foreach ($result_ids as $ref_id => $obj_id) {
                 $obj = ilObjectFactory::getInstanceByRefId($ref_id, false);
-                if ($obj instanceof ilObject) {
+                if ($obj instanceof ilObject && $access->checkAccess("read", "", (int) $ref_id)) {
                     $objs[] = $obj;
                 }
             }
@@ -334,7 +343,7 @@ class ilSoapObjectAdministration extends ilSoapAdministration
             $objs = array();
             foreach ($res->getUniqueResults() as $entry) {
                 $obj = ilObjectFactory::getInstanceByRefId($entry['ref_id'], false);
-                if ($obj instanceof ilObject) {
+                if ($obj instanceof ilObject && $access->checkAccess("read", "", (int) $entry['ref_id'])) {
                     $objs[] = $obj;
                 }
             }
@@ -383,6 +392,7 @@ class ilSoapObjectAdministration extends ilSoapAdministration
         global $DIC;
 
         $tree = $DIC['tree'];
+        $access = $DIC['ilAccess'];
 
         if (!$target_obj = ilObjectFactory::getInstanceByRefId($ref_id, false)) {
             return $this->raiseError(
@@ -405,7 +415,8 @@ class ilSoapObjectAdministration extends ilSoapAdministration
 
         foreach ($tree->getChilds($ref_id, 'title') as $child) {
             if ($all || in_array($child['type'], $types, true)) {
-                if ($tmp = ilObjectFactory::getInstanceByRefId($child['ref_id'], false)) {
+                if (($tmp = ilObjectFactory::getInstanceByRefId($child['ref_id'], false)) &&
+                    $access->checkAccess("read", "", (int) $child['ref_id'])) {
                     $objs[] = $tmp;
                 }
             }
@@ -562,7 +573,8 @@ class ilSoapObjectAdministration extends ilSoapAdministration
                     'Client'
                 );
             }
-            if (!$rbacsystem->checkAccess('create', $a_target_id, $object_data['type'])) {
+            // use explicit user as the rbacsystem singleton may hold a stale user
+            if (!$rbacsystem->checkAccessOfUser($DIC->user()->getId(), 'create', $a_target_id, $object_data['type'])) {
                 return $this->raiseError(
                     'No permission to create objects of type ' . $object_data['type'] . '!',
                     'Client'
@@ -709,13 +721,14 @@ class ilSoapObjectAdministration extends ilSoapAdministration
         }
 
         // Permission checks
-        if (!$rbacsystem->checkAccess('create', $target_obj->getRefId(), $source_obj->getType())) {
+        // use explicit user as the rbacsystem singleton may hold a stale user
+        if (!$rbacsystem->checkAccessOfUser($DIC->user()->getId(), 'create', $target_obj->getRefId(), $source_obj->getType())) {
             return $this->raiseError(
                 'No permission to create objects of type ' . $source_obj->getType() . '!',
                 'Client'
             );
         }
-        if (!$rbacsystem->checkAccess('delete', $source_obj->getRefId())) {
+        if (!$rbacsystem->checkAccessOfUser($DIC->user()->getId(), 'delete', $source_obj->getRefId())) {
             return $this->raiseError(
                 'No permission to link object with id: ' . $source_obj->getRefId() . '!',
                 'Client'
@@ -794,7 +807,8 @@ class ilSoapObjectAdministration extends ilSoapAdministration
                 'Client'
             );
         }
-        if (!$rbacsystem->checkAccess('delete', $del_obj->getRefId())) {
+        // use explicit user as the rbacsystem singleton may hold a stale user
+        if (!$rbacsystem->checkAccessOfUser($DIC->user()->getId(), 'delete', $del_obj->getRefId())) {
             return $this->raiseError(
                 'No permission to delete object with id: ' . $del_obj->getRefId() . '!',
                 'Client'
@@ -853,7 +867,8 @@ class ilSoapObjectAdministration extends ilSoapAdministration
         // Check access
         $permission_ok = false;
         foreach ($ref_ids = ilObject::_getAllReferences($obj_id) as $ref_id) {
-            if ($rbacsystem->checkAccess('delete', $ref_id)) {
+            // use explicit user as the rbacsystem singleton may hold a stale user
+            if ($rbacsystem->checkAccessOfUser($DIC->user()->getId(), 'delete', $ref_id)) {
                 $permission_ok = true;
                 break;
             }
@@ -872,7 +887,7 @@ class ilSoapObjectAdministration extends ilSoapAdministration
             $subtree_nodes = $tree->getSubtree($node_data);
 
             foreach ($subtree_nodes as $node) {
-                $ilLog->write('Soap: removeFromSystemByImportId(). Deleting object with title id: ' . $node['title']);
+                $ilLog->info('Soap: removeFromSystemByImportId(). Deleting object with title id: ' . $node['title']);
                 $tmp_obj = ilObjectFactory::getInstanceByRefId($node['ref_id']);
                 if (!is_object($tmp_obj)) {
                     return $this->raiseError(
@@ -969,7 +984,8 @@ class ilSoapObjectAdministration extends ilSoapAdministration
                 $rolf_ids = $rbacreview->getFoldersAssignedToRole($object_data['obj_id'], true);
                 $rolf_id = $rolf_ids[0];
 
-                if (!$rbacsystem->checkAccess('write', $rolf_id)) {
+                // use explicit user as the rbacsystem singleton may hold a stale user
+                if (!$rbacsystem->checkAccessOfUser($DIC->user()->getId(), 'write', $rolf_id)) {
                     return $this->raiseError(
                         'No write permission for object with id ' . $object_data['obj_id'] . '!',
                         'Client'
@@ -1114,7 +1130,8 @@ class ilSoapObjectAdministration extends ilSoapAdministration
         }
 
         // checking copy permissions, objects and create permissions
-        if (!$rbacsystem->checkAccess('copy', $xml_parser->getSourceId())) {
+        // use explicit user as the rbacsystem singleton may hold a stale user
+        if (!$rbacsystem->checkAccessOfUser($DIC->user()->getId(), 'copy', $xml_parser->getSourceId())) {
             return $this->raiseError(
                 "Missing copy permissions for object with reference id " . $xml_parser->getSourceId(),
                 'Client'
@@ -1198,7 +1215,8 @@ class ilSoapObjectAdministration extends ilSoapAdministration
         $lng = $DIC['lng'];
         $ilUser = $DIC['ilUser'];
 
-        if (!$rbacsystem->checkAccess('read', $ref_id)) {
+        // use explicit user as the rbacsystem singleton may hold a stale user
+        if (!$rbacsystem->checkAccessOfUser($DIC->user()->getId(), 'read', $ref_id)) {
             return $this->raiseError("Missing read permissions for object with reference id " . $ref_id, 'Client');
         }
 
@@ -1266,7 +1284,8 @@ class ilSoapObjectAdministration extends ilSoapAdministration
                 'Client'
             );
         }
-        if (!$rbacsystem->checkAccess('create', $target_id, $type)) {
+        // use explicit user as the rbacsystem singleton may hold a stale user
+        if (!$rbacsystem->checkAccessOfUser($DIC->user()->getId(), 'create', $target_id, $type)) {
             return $this->raiseError('No permission to create objects of type ' . $type . '!', 'Client');
         }
 
@@ -1360,17 +1379,17 @@ class ilSoapObjectAdministration extends ilSoapAdministration
 
                 switch ($ref_data['time_target']['timing_type']) {
                     case ilObjectXMLWriter::TIMING_DEACTIVATED:
-                        $ilLog->write(__METHOD__ . ilObjectActivation::TIMINGS_DEACTIVATED . ' ' . $ref_data['time_target']['timing_type']);
+                        $ilLog->info(ilObjectActivation::TIMINGS_DEACTIVATED . ' ' . $ref_data['time_target']['timing_type']);
                         $items->setTimingType(ilObjectActivation::TIMINGS_DEACTIVATED);
                         break;
 
                     case ilObjectXMLWriter::TIMING_TEMPORARILY_AVAILABLE:
-                        $ilLog->write(__METHOD__ . ilObjectActivation::TIMINGS_ACTIVATION . ' ' . $ref_data['time_target']['timing_type']);
+                        $ilLog->info(ilObjectActivation::TIMINGS_ACTIVATION . ' ' . $ref_data['time_target']['timing_type']);
                         $items->setTimingType(ilObjectActivation::TIMINGS_ACTIVATION);
                         break;
 
                     case ilObjectXMLWriter::TIMING_PRESETTING:
-                        $ilLog->write(__METHOD__ . ilObjectActivation::TIMINGS_PRESETTING . ' ' . $ref_data['time_target']['timing_type']);
+                        $ilLog->info(ilObjectActivation::TIMINGS_PRESETTING . ' ' . $ref_data['time_target']['timing_type']);
                         $items->setTimingType(ilObjectActivation::TIMINGS_PRESETTING);
                         break;
                 }
@@ -1418,17 +1437,17 @@ class ilSoapObjectAdministration extends ilSoapAdministration
 
                 switch ($ref_data['time_target']['timing_type']) {
                     case ilObjectXMLWriter::TIMING_DEACTIVATED:
-                        $ilLog->write(__METHOD__ . ilObjectActivation::TIMINGS_DEACTIVATED . ' ' . $ref_data['time_target']['timing_type']);
+                        $ilLog->info(ilObjectActivation::TIMINGS_DEACTIVATED . ' ' . $ref_data['time_target']['timing_type']);
                         $items->setTimingType(ilObjectActivation::TIMINGS_DEACTIVATED);
                         break;
 
                     case ilObjectXMLWriter::TIMING_TEMPORARILY_AVAILABLE:
-                        $ilLog->write(__METHOD__ . ilObjectActivation::TIMINGS_ACTIVATION . ' ' . $ref_data['time_target']['timing_type']);
+                        $ilLog->info(ilObjectActivation::TIMINGS_ACTIVATION . ' ' . $ref_data['time_target']['timing_type']);
                         $items->setTimingType(ilObjectActivation::TIMINGS_ACTIVATION);
                         break;
 
                     case ilObjectXMLWriter::TIMING_PRESETTING:
-                        $ilLog->write(__METHOD__ . ilObjectActivation::TIMINGS_PRESETTING . ' ' . $ref_data['time_target']['timing_type']);
+                        $ilLog->info(ilObjectActivation::TIMINGS_PRESETTING . ' ' . $ref_data['time_target']['timing_type']);
                         $items->setTimingType(ilObjectActivation::TIMINGS_PRESETTING);
                         break;
                 }

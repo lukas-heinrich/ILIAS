@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /**
  * This file is part of ILIAS, a powerful learning management system
  * published by ILIAS open source e-Learning e.V.
@@ -80,7 +82,7 @@ class SurveyCategories
     }
 
     public function addCategory(
-        string $categoryname,
+        ?string $categoryname,
         int $other = 0,
         int $neutral = 0,
         ?string $label = null,
@@ -187,7 +189,7 @@ class SurveyCategories
             $obj->scale = $this->getNewScale();
             $this->log->debug("getScale needed new scale, scale =" . $obj->scale);
         }
-        return $obj->scale;
+        return (int) $obj->scale;
     }
 
     public function flushCategories(): void

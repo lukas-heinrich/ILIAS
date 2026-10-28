@@ -22,7 +22,6 @@ namespace ILIAS\Test\ExportImport;
 
 use ILIAS\TestQuestionPool\Questions\GeneralQuestionPropertiesRepository;
 use ILIAS\Data\DateFormat\DateFormat;
-use PhpOffice\PhpSpreadsheet\Cell\DataType;
 
 /**
  * @author Fabian Helfer <fhelfer@databay.de>
@@ -129,9 +128,6 @@ class ResultsExportExcel implements Exporter
         return $path;
     }
 
-    /**
-     * @throws \PhpOffice\PhpSpreadsheet\Writer\Exception
-     */
     public function deliver(): void
     {
         $this->worksheet->sendToClient($this->filename);
@@ -454,7 +450,10 @@ class ResultsExportExcel implements Exporter
             $question_from_answered_questions = $test_attempt->getAnsweredQuestionByQuestionId($question_id);
             if ($question_from_answered_questions !== null
                 && $question_from_answered_questions['isAnswered']) {
-                $answers = $question_obj->getSolutionForTextOutput($active_id, $test_attempt->getPass());
+                $answers = $question_obj->getSolutionForTextOutput(
+                    $active_id,
+                    $test_attempt->getPass()
+                );
             }
 
             if (is_array($answers)) {
@@ -469,8 +468,24 @@ class ResultsExportExcel implements Exporter
             $col = 0;
             $this->worksheet->setCell($current_row, $col++, $question_obj->getTitle());
             $this->worksheet->setCell($current_row, $col++, $this->lng->txt($question_obj->getQuestionType()));
-            $this->worksheet->setCell($current_row, $col++, $answers, DataType::TYPE_STRING);
-            $this->worksheet->setCell($current_row, $col++, $correct_answers);
+            $this->worksheet->setCell(
+                $current_row,
+                $col++,
+                html_entity_decode(
+                    $answers,
+                    ENT_QUOTES | ENT_HTML5,
+                    'UTF-8'
+                )
+            );
+            $this->worksheet->setCell(
+                $current_row,
+                $col++,
+                html_entity_decode(
+                    $correct_answers,
+                    ENT_QUOTES | ENT_HTML5,
+                    'UTF-8'
+                )
+            );
             $this->worksheet->setCell($current_row, $col++, implode(', ', $question_obj->getVariablesAsTextArray($active_id, $test_attempt->getPass())));
             $this->worksheet->setCell($current_row, $col++, $test_attempt->getAnsweredQuestionByQuestionId($question_id)['reached'] ?? 0);
             $this->worksheet->setCell($current_row, $col++, $question['points']);

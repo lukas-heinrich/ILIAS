@@ -19,7 +19,7 @@
 declare(strict_types=1);
 
 use ILIAS\Refinery\Factory;
-use ILIAS\HTTP\Wrapper\WrapperFactory;
+use ILIAS\Filesystem\Configuration\FilesystemConfig;
 
 /**
  * Class ilObjFileServicesGUI
@@ -43,7 +43,7 @@ class ilObjFileServicesGUI extends ilObject2GUI
     protected ilSetting $settings;
     public ilGlobalTemplateInterface $tpl;
     protected Factory $refinery;
-    protected ilFileServicesSettings $file_service_settings;
+    protected FilesystemConfig $file_service_settings;
 
     /**
      * Constructor
@@ -88,6 +88,12 @@ class ilObjFileServicesGUI extends ilObject2GUI
 
     protected function hasUserPermissionTo(string $str): bool
     {
+        // the ref_id comes from the request, permissions on another administration node
+        // must not grant access to the file services
+        if (ilObject::_lookupType($this->ref_id, true) !== ilObjFileServices::TYPE_FILE_SERVICES) {
+            return false;
+        }
+
         return $this->access->checkAccess($str, '', $this->ref_id);
     }
 

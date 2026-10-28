@@ -18,17 +18,46 @@
 	width: auto;
 }
 
+#copg-top-actions .dropdown-menu {
+	width: auto;
+}
+
 #iltinymenu div.ilTinyMenuSection {
 	white-space: normal;
 }
 .ilTinyMenuSection > div.dropdown:nth-child(1) > ul.dropdown-menu {
-	right:auto;
-	left:0;
+	right: auto;
+	left: 0;
+}
+
+/* #47866 */
+.ilTinyMenuSection > div.dropdown:nth-child(4) > ul.dropdown-menu {
+	right: auto;
+}
+
+/* workaround for style selection */
+#copg-editor-slate-content .form-group div#characteristic,
+#copg-editor-slate-content .form-group div#style,
+#copg-editor-slate-content .form-group div#vaccord_templ {
+	max-height: 200px;
+	overflow: auto;
+	border: 1px solid #f0f0f0;
+	padding: 10px;
+	background-color: #fff;
+}
+#copg-editor-slate-content .form-group div#characteristic label.radio-inline,
+#copg-editor-slate-content .form-group div#style label.radio-inline,
+#copg-editor-slate-content .form-group div#vaccord_templ label.radio-inline {
+	display: flex;
+	flex-direction: row;
+	gap: 5px;
+	align-items: center;
+	margin-top: 15px;
 }
 
 /* see #41844 and #46127 */
 #copg-editor-slate-content p, #iltinymenu .il-copg-button-group p {
-	background-color: transparent;
+	/* background-color: transparent; */
 }
 
 #tinytarget_div .tox-tinymce {
@@ -90,6 +119,10 @@ div.ilc_VerificationPlaceHolder /* no custom image yet */
 	background-color: #f9f9f9;
 	text-align: center;
 	min-width: 40px;
+}
+
+[data-copg-ed-type='data-row-head'] {
+	width: 40px;
 }
 
 .copg-iim-area-shape-sel {
@@ -252,4 +285,20 @@ button.copg-add.dropdown-toggle.btn:focus-visible {
 
 .il-copg-mob-fullscreen {
 	height: calc(90vh - 160px);
+}
+
+/* 48324 */
+.ilc_Mob .il-video-container video,
+.ilc_Mob .il-video-container iframe {
+	display: block;
+}
+
+/* Keep default list markers inside paragraphs, including the editor sizing copy. */
+.ilc_Paragraph > ul.ilc_list_u_BulletedList,
+.copg-input-ghost > ul.ilc_list_u_BulletedList {
+	padding-left: max(15px, 1.2em);
+}
+.ilc_Paragraph > ol.ilc_list_o_NumberedList,
+.copg-input-ghost > ol.ilc_list_o_NumberedList {
+	padding-left: max(15px, 2em);
 }

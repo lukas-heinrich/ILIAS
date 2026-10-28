@@ -410,6 +410,31 @@ class ilTestSession
         return null;
     }
 
+    /**
+     * This function does NOT check for permissions, just that all other
+     * parameters align!
+     */
+    public function checkAccess(
+        ilObjTest $test
+    ): void {
+        if ($this->user_id !== $this->user->getId()) {
+            throw new ilTestException('active id given does not relate to current user!');
+        }
+
+        if ($this->active_id === 0) {
+            return;
+        }
+
+        if ($this->test_id !== $test->getTestId()) {
+            throw new ilTestException('active id given does not relate to current test!');
+        }
+
+        if ($this->user_id === ANONYMOUS_USER_ID
+            && $this->anonymous_id !== $this->getAccessCodeFromSession()) {
+            throw new ilTestException('active id given does not relate to current anonymous session!');
+        }
+    }
+
     public function setAccessCodeToSession(string $access_code): void
     {
         if (!is_array(ilSession::get(self::ACCESS_CODE_SESSION_INDEX))) {
@@ -456,15 +481,13 @@ class ilTestSession
 
     public function isAccessCodeUsed(string $code): bool
     {
-        $query = "SELECT anonymous_id FROM tst_active WHERE test_fi = %s AND anonymous_id = %s";
-
-        $result = $this->db->queryF(
-            $query,
-            ['integer', 'text'],
-            [$this->getTestId(), $code]
-        );
-
-        return ($result->numRows() > 0);
+        return $this->db->fetchObject(
+            $this->db->queryF(
+                'SELECT COUNT(anonymous_id) cnt FROM tst_active WHERE test_fi = %s AND anonymous_id = %s',
+                [ilDBConstants::T_INTEGER, ilDBConstants::T_TEXT],
+                [$this->getTestId(), $code]
+            )
+        )->cnt > 0;
     }
 
     private function buildAccessCode(): string

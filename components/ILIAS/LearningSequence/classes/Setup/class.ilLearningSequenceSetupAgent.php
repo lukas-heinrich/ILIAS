@@ -20,10 +20,22 @@ declare(strict_types=1);
 
 use ILIAS\Setup;
 use ILIAS\Refinery;
+use ILIAS\LearningSequence\Setup\InitLOMForLearningSequenceMigration;
+use ILIAS\LearningSequence\Setup\ilLearningSequenceConditionsSyncedObjective;
+use ILIAS\LearningSequence\Content\Condition\ConditionTypes;
 
 class ilLearningSequenceSetupAgent implements Setup\Agent
 {
     use Setup\Agent\HasNoNamedObjective;
+
+    protected Refinery\Factory $refinery;
+
+    public function __construct(
+        Refinery\Factory $refinery,
+        protected ConditionTypes $condition_types
+    ) {
+        $this->refinery = $refinery;
+    }
 
     /**
      * @inheritdoc
@@ -46,26 +58,46 @@ class ilLearningSequenceSetupAgent implements Setup\Agent
      */
     public function getInstallObjective(?Setup\Config $config = null): Setup\Objective
     {
-        return new ilFileSystemComponentDataDirectoryCreatedObjective(
-            ilLearningSequenceFilesystem::PATH_PRE,
-            ilFileSystemComponentDataDirectoryCreatedObjective::WEBDIR
+        return new \ilFileSystemComponentDataDirectoryCreatedObjective(
+            \ilLearningSequenceFilesystem::PATH_PRE,
+            \ilFileSystemComponentDataDirectoryCreatedObjective::WEBDIR
         );
     }
 
-    /**
-     * @inheritdoc
-     */
     public function getUpdateObjective(?Setup\Config $config = null): Setup\Objective
     {
         return new Setup\ObjectiveCollection(
-            'Database is updated for Module/LearningSequence',
-            false,
-            new ilDatabaseUpdateStepsExecutedObjective(
-                new ilLearningSequenceRectifyPostConditionsTableDBUpdateSteps()
+            'Database is updated for Components/LearningSequence',
+            true,
+            new \ilFileSystemComponentDataDirectoryCreatedObjective(
+                \ilLearningSequenceFilesystem::PATH_PRE,
+                \ilFileSystemComponentDataDirectoryCreatedObjective::WEBDIR
             ),
-            new ilDatabaseUpdateStepsExecutedObjective(
-                new ilLearningSequenceRegisterNotificationType()
-            )
+            new \ilDatabaseUpdateStepsExecutedObjective(
+                new \ilLearningSequenceRectifyPostConditionsTableDBUpdateSteps()
+            ),
+            new \ilDatabaseUpdateStepsExecutedObjective(
+                new \ilLearningSequenceRegisterNotificationType()
+            ),
+            new \ilDatabaseUpdateStepsExecutedObjective(
+                new \LSODropActivationDBUpdateSteps()
+            ),
+            new \ilDatabaseUpdateStepsExecutedObjective(
+                new \LSOAddModeDBUpdateSteps()
+            ),
+            new \ilDatabaseUpdateStepsExecutedObjective(
+                new \ilLearningSequenceStreamlinePermissionsDBUpdateSteps()
+            ),
+            new \ilDatabaseUpdateStepsExecutedObjective(
+                new \ilLearningSequenceItemBoundariesDBUpdateSteps()
+            ),
+            new \ilDatabaseUpdateStepsExecutedObjective(
+                new \ilLearningSequenceItemPathDBUpdateSteps()
+            ),
+            new \ilDatabaseUpdateStepsExecutedObjective(
+                new \ilLearningSequenceItemVisitsDBUpdateSteps()
+            ),
+            new ilLearningSequenceConditionsSyncedObjective($this->condition_types)
         );
     }
 
@@ -84,9 +116,14 @@ class ilLearningSequenceSetupAgent implements Setup\Agent
     {
         return new Setup\ObjectiveCollection(
             'Component LearningSequence',
-            true,
-            new ilDatabaseUpdateStepsMetricsCollectedObjective($storage, new ilLearningSequenceRectifyPostConditionsTableDBUpdateSteps()),
-            new ilDatabaseUpdateStepsMetricsCollectedObjective($storage, new ilLearningSequenceRegisterNotificationType())
+            false,
+            new \ilDatabaseUpdateStepsMetricsCollectedObjective($storage, new \ilLearningSequenceRectifyPostConditionsTableDBUpdateSteps()),
+            new \ilDatabaseUpdateStepsMetricsCollectedObjective($storage, new \ilLearningSequenceRegisterNotificationType()),
+            new \ilDatabaseUpdateStepsMetricsCollectedObjective($storage, new \LSOAddModeDBUpdateSteps()),
+            new \ilDatabaseUpdateStepsMetricsCollectedObjective($storage, new \ilLearningSequenceStreamlinePermissionsDBUpdateSteps()),
+            new \ilDatabaseUpdateStepsMetricsCollectedObjective($storage, new \ilLearningSequenceItemBoundariesDBUpdateSteps()),
+            new \ilDatabaseUpdateStepsMetricsCollectedObjective($storage, new \ilLearningSequenceItemPathDBUpdateSteps()),
+            new \ilDatabaseUpdateStepsMetricsCollectedObjective($storage, new \ilLearningSequenceItemVisitsDBUpdateSteps())
         );
     }
 
@@ -95,6 +132,9 @@ class ilLearningSequenceSetupAgent implements Setup\Agent
      */
     public function getMigrations(): array
     {
-        return [];
+        return [
+            new InitLOMForLearningSequenceMigration(),
+            new LSOMigrateCurriculumToLearningMap(),
+        ];
     }
 }

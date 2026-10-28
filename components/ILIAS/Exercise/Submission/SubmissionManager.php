@@ -229,6 +229,7 @@ class SubmissionManager
         } else {
             $team_id = 0;
         }
+        $log_team_id = $this->getTeamIdForLog($user_id, $team_id);
         $success = $this->repo->addLocalFile(
             $this->assignment->getExerciseId(),
             $this->ass_id,
@@ -240,9 +241,9 @@ class SubmissionManager
             $this->stakeholder
         );
 
-        if ($success && $team_id > 0) {
+        if ($success && $log_team_id > 0) {
             $this->domain->team()->writeLog(
-                $team_id,
+                $log_team_id,
                 \ilExAssignmentTeam::TEAM_LOG_ADD_FILE,
                 $filename
             );
@@ -278,6 +279,7 @@ class SubmissionManager
         } else {
             $team_id = 0;
         }
+        $log_team_id = $this->getTeamIdForLog($user_id, $team_id);
         $success = $this->repo->addUpload(
             $this->assignment->getExerciseId(),
             $this->ass_id,
@@ -289,9 +291,9 @@ class SubmissionManager
             $this->stakeholder
         );
 
-        if ($success && $team_id > 0) {
+        if ($success && $log_team_id > 0) {
             $this->domain->team()->writeLog(
-                $team_id,
+                $log_team_id,
                 \ilExAssignmentTeam::TEAM_LOG_ADD_FILE,
                 $filename
             );
@@ -335,6 +337,7 @@ class SubmissionManager
         } else {
             $team_id = 0;
         }
+        $log_team_id = $this->getTeamIdForLog($user_id, $team_id);
         $filenames = $this->repo->addZipUpload(
             $this->assignment->getExerciseId(),
             $this->ass_id,
@@ -345,11 +348,10 @@ class SubmissionManager
             $this->stakeholder,
             $this->remainingFilesAllowed($user_id)
         );
-        $this->log->debug("99");
-        if ($team_id > 0) {
+        if ($log_team_id > 0) {
             foreach ($filenames as $filename) {
                 $this->domain->team()->writeLog(
-                    $team_id,
+                    $log_team_id,
                     \ilExAssignmentTeam::TEAM_LOG_ADD_FILE,
                     $filename
                 );
@@ -357,6 +359,15 @@ class SubmissionManager
         }
 
         return count($filenames) > 0;
+    }
+
+    protected function getTeamIdForLog(int $user_id, int $team_id): int
+    {
+        if ($team_id > 0 || !$this->type->usesTeams()) {
+            return $team_id;
+        }
+
+        return (int) ($this->team->getTeamForMember($this->ass_id, $user_id) ?? 0);
     }
 
     public function deliverFile(
@@ -590,10 +601,10 @@ class SubmissionManager
 
                 // handle duplicates
                 if (array_key_exists($targetfile, $duplicates)) {
-                    $suffix = strrpos($targetfile, ".");
-                    $targetfile = substr($targetfile, 0, $suffix) .
-                        " (" . (++$duplicates[$targetfile]) . ")" .
-                        substr($targetfile, $suffix);
+                    $targetfile = $this->getFilenameWithDuplicateSuffix(
+                        $targetfile,
+                        ++$duplicates[$targetfile]
+                    );
                 } else {
                     $duplicates[$targetfile] = 1;
                 }
@@ -621,10 +632,24 @@ class SubmissionManager
                 \ilFileUtils::makeDirParents($dir);
                 $file = $dir . DIRECTORY_SEPARATOR . $targetfile;
                 if (!is_null($stream)) {
-                    file_put_contents(
-                        $file,
-                        $stream->getContents()
-                    );
+                    $source_stream = $stream->detach();
+                    if (!is_resource($source_stream)) {
+                        throw new \RuntimeException('Unable to read submission stream.');
+                    }
+
+                    $target_stream = fopen($file, 'wb');
+                    if ($target_stream === false) {
+                        throw new \RuntimeException("Unable to open file for writing: $file");
+                    }
+
+                    try {
+                        stream_copy_to_stream(
+                            $source_stream,
+                            $target_stream
+                        );
+                    } finally {
+                        fclose($target_stream);
+                    }
                 }
 
                 // unzip blog/portfolio
@@ -645,6 +670,20 @@ class SubmissionManager
             trim($userName["login"]) . "_" .
             $userName["user_id"]
         );
+    }
+
+    protected function getFilenameWithDuplicateSuffix(
+        string $filename,
+        int $duplicate_number
+    ): string {
+        $suffix = strrpos($filename, ".");
+        if ($suffix === false) {
+            return $filename . " (" . $duplicate_number . ")";
+        }
+
+        return substr($filename, 0, $suffix) .
+            " (" . $duplicate_number . ")" .
+            substr($filename, $suffix);
     }
 
     public function deliverSubmissions(
@@ -732,10 +771,10 @@ class SubmissionManager
                     // #11070
                     $chkName = strtolower($newFilename);
                     if (array_key_exists($chkName, $duplicates)) {
-                        $suffix = strrpos($newFilename, ".");
-                        $newFilename = substr($newFilename, 0, $suffix) .
-                            " (" . (++$duplicates[$chkName]) . ")" .
-                            substr($newFilename, $suffix);
+                        $newFilename = $this->getFilenameWithDuplicateSuffix(
+                            $newFilename,
+                            ++$duplicates[$chkName]
+                        );
                     } else {
                         $duplicates[$chkName] = 1;
                     }

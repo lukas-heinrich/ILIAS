@@ -614,7 +614,6 @@ class ilObjExercise extends ilObject
 
     /**
      * Exports grades as excel
-     * @throws \PhpOffice\PhpSpreadsheet\Exception
      * @throws ilExcUnknownAssignmentTypeException
      */
     public function exportGradesExcel(): void

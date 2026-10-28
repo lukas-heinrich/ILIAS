@@ -301,6 +301,7 @@ class assOrderingQuestionGUI extends assQuestionGUI implements ilGuiQuestionScor
             ];
             $nested_answers->setOptions($nested_answers_options);
             $nested_answers->setValue($this->object->isOrderingTypeNested());
+            $nested_answers->setInfo($this->lng->txt('qst_use_nested_answers_info'));
             $form->addItem($nested_answers);
         }
 
@@ -343,7 +344,7 @@ class assOrderingQuestionGUI extends assQuestionGUI implements ilGuiQuestionScor
                 $this->ctrl->getLinkTarget($this, self::CMD_EDIT_NESTING)
             );
         }
-        $tabs->setTabActive('edit_question');
+        $tabs->setTabActive(self::TAB_EDIT_QUESTION);
         $tabs->setSubTabActive($active);
     }
 
@@ -666,16 +667,15 @@ class assOrderingQuestionGUI extends assQuestionGUI implements ilGuiQuestionScor
 
     protected function getAnswerStatisticOrderingVariantHtml(ilAssOrderingElementList $list): string
     {
-        $list = array_map(
-            fn(ilAssOrderingElement $elem): string => htmlspecialchars(
-                $this->getAnswerStatisticOrderingElementHtml($elem) ?? '',
-                ENT_QUOTES | ENT_SUBSTITUTE,
-                'utf-8'
-            ),
-            $list->getElements()
+        return $this->ui->renderer()->render(
+            $this->ui->factory()->listing()->unordered(
+                array_map(
+                    fn(ilAssOrderingElement $elem): string
+                        => $this->getAnswerStatisticOrderingElementHtml($elem) ?? '',
+                    $list->getElements()
+                )
+            )
         );
-
-        return $this->ui->renderer()->render($this->ui->factory()->listing()->unordered($list));
     }
 
     public function getAnswersFrequency($relevantAnswers, $questionIndex): array
@@ -711,8 +711,7 @@ class assOrderingQuestionGUI extends assQuestionGUI implements ilGuiQuestionScor
 
                 $answers[$hash] = [
                     'answer' => $variantHtml,
-                    'frequency' => 0,
-                    'sanitized' => true
+                    'frequency' => 0
                 ];
             }
 

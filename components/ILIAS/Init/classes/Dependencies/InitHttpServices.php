@@ -16,6 +16,10 @@
  *
  *********************************************************************/
 
+use ILIAS\HTTP\Cookies\CookieFactoryImpl;
+use ILIAS\HTTP\Cookies\CookieFactory;
+use ILIAS\HTTP\Message\MessageFactory;
+use ILIAS\HTTP\Message\MessageFactoryImpl;
 use ILIAS\DI\Container;
 use ILIAS\HTTP\Request\RequestFactoryImpl;
 use ILIAS\HTTP\Response\ResponseFactoryImpl;
@@ -24,40 +28,42 @@ use ILIAS\HTTP\Response\Sender\DefaultResponseSenderStrategy;
 use ILIAS\HTTP\Duration\DurationFactory;
 use ILIAS\HTTP\Duration\Increment\IncrementFactory;
 use ILIAS\HTTP\Services;
+use ILIAS\HTTP\Request\HeaderSettingsLegacyProxy;
+use ILIAS\HTTP\Request\RequestFactory;
+use ILIAS\HTTP\Response\ResponseFactory;
+use ILIAS\HTTP\Cookies\CookieJarFactory;
+use ILIAS\HTTP\Response\Sender\ResponseSenderStrategy;
+use ILIAS\HTTP\GlobalHttpState;
 
 /**
- * Responsible for loading the HTTP Service into the dependency injection container of ILIAS
+ * @deprecated This class is only used for backport compatibility and will be removed in a future release. For most
+ * cases this is done by \ILIAS\HTTP::init already. This is needed as long as some other components still rely on old
+ * ways of getting the HTTP-service.
  */
 class InitHttpServices
 {
+    /**
+     * @deprecated
+     */
     public function init(Container $container): void
     {
-        $container['http.request_factory'] = static function (Container $c): RequestFactoryImpl {
-            $header = null;
-            $value = null;
+        $container[RequestFactory::class] = (static fn(Container $c): RequestFactoryImpl => new RequestFactoryImpl(
+            new HeaderSettingsLegacyProxy(),
+        ));
 
-            if (
-                isset($c['ilIliasIniFile'])
-                && (bool) $c->iliasIni()->readVariable('https', 'auto_https_detect_enabled')
-            ) {
-                $header = (string) $c->iliasIni()->readVariable('https', 'auto_https_detect_header_name');
-                $value = (string) $c->iliasIni()->readVariable('https', 'auto_https_detect_header_value');
-                $header = $header === '' ? null : $header;
-                $value = $value === '' ? null : $value;
-            }
+        $container[ResponseFactory::class] = static fn($c): ResponseFactoryImpl => new ResponseFactoryImpl();
 
-            return new RequestFactoryImpl($header, $value);
-        };
+        $container[CookieFactory::class] = static fn($c): CookieFactoryImpl => new CookieFactoryImpl();
 
-        $container['http.response_factory'] = static fn($c): ResponseFactoryImpl => new ResponseFactoryImpl();
+        $container[MessageFactory::class] = static fn($c): MessageFactoryImpl => new MessageFactoryImpl();
 
-        $container['http.cookie_jar_factory'] = static fn($c): CookieJarFactoryImpl => new CookieJarFactoryImpl();
+        $container[CookieJarFactory::class] = static fn($c): CookieJarFactoryImpl => new CookieJarFactoryImpl();
 
-        $container['http.response_sender_strategy'] = static fn(
+        $container[ResponseSenderStrategy::class] = static fn(
             $c
         ): DefaultResponseSenderStrategy => new DefaultResponseSenderStrategy();
 
-        $container['http.duration_factory'] = static fn($c): DurationFactory => new DurationFactory(
+        $container[DurationFactory::class] = static fn($c): DurationFactory => new DurationFactory(
             new IncrementFactory()
         );
 
@@ -65,6 +71,15 @@ class InitHttpServices
             throw new OutOfBoundsException('TODO');
         };
 
-        $container['http'] = static fn($c): Services => new Services($c);
+        $container[GlobalHttpState::class] = static fn($c): Services => new Services(
+            $c[RequestFactory::class],
+            $c[ResponseFactory::class],
+            $c[CookieJarFactory::class],
+            $c[ResponseSenderStrategy::class],
+            $c[DurationFactory::class],
+            $c[CookieFactory::class],
+            $c[MessageFactory::class],
+        );
+        $container['http'] = static fn($c): Services => $c[GlobalHttpState::class];
     }
 }

@@ -135,7 +135,7 @@ class Renderer extends AbstractComponentRenderer
         $sig_toggle = $component->getToggleSignal();
         $id = $this->bindJavaScript($component);
 
-        $expander = $f->button()->shy( '', '')->withSymbol($f->symbol()->glyph()->expand())
+        $expander = $f->button()->shy('', '')->withSymbol($f->symbol()->glyph()->expand())
             ->withOnClick($sig_show);
         $collapser = $f->button()->shy('', '')->withSymbol($f->symbol()->glyph()->collapse())
             ->withOnClick($sig_hide);
@@ -155,6 +155,12 @@ class Renderer extends AbstractComponentRenderer
         $subheadline = $component->getSubheadline();
         if ($subheadline) {
             $tpl->setVariable("SUBHEADLINE", $subheadline);
+        }
+
+        foreach ($component->getTags() as $tag) {
+            $tpl->setCurrentBlock("tag");
+            $tpl->setVariable("TAG", $default_renderer->render($tag));
+            $tpl->parseCurrentBlock();
         }
 
         foreach ($component->getImportantFields() as $label => $value) {

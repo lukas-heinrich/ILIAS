@@ -76,6 +76,8 @@ class ControlCenterGUI
     {
         $next_class = $this->ctrl->getNextClass($this);
 
+        $this->clearAsyncOnloadCode();
+
         $cmd = Command::tryFrom($this->ctrl->getCmd());
         switch ($next_class) {
             default:
@@ -111,8 +113,8 @@ class ControlCenterGUI
 
     protected function view(): void
     {
-        $content = $this->content_factory->getInfoContent($this->ref_id, $this->obj_id, $this->type, $this->state_info);
-        echo $this->ui_renderer->renderAsync($this->ui_factory->prompt()->state()->show($content));
+        $show_state = $this->content_factory->getInfoShowState($this->ref_id, $this->obj_id, $this->type, $this->state_info);
+        echo $this->ui_renderer->renderAsync($show_state);
         exit;
     }
 
@@ -142,14 +144,14 @@ class ControlCenterGUI
 
     protected function withdraw(): void
     {
-        $content = $this->content_factory->getConfirmationContent(
+        $show_state = $this->content_factory->getConfirmationShowState(
             $this->ref_id,
             $this->obj_id,
             $this->type,
             Action::WITHDRAW,
             $this->object_handler->isOnlyReference($this->ref_id)
         );
-        echo $this->ui_renderer->renderAsync($this->ui_factory->prompt()->state()->show($content));
+        echo $this->ui_renderer->renderAsync($show_state);
         exit;
     }
 
@@ -173,14 +175,14 @@ class ControlCenterGUI
 
     protected function accept(): void
     {
-        $content = $this->content_factory->getConfirmationContent(
+        $show_state = $this->content_factory->getConfirmationShowState(
             $this->ref_id,
             $this->obj_id,
             $this->type,
             Action::ACCEPT,
             $this->object_handler->isOnlyReference($this->ref_id)
         );
-        echo $this->ui_renderer->renderAsync($this->ui_factory->prompt()->state()->show($content));
+        echo $this->ui_renderer->renderAsync($show_state);
         exit;
     }
 
@@ -196,14 +198,14 @@ class ControlCenterGUI
 
     protected function reject(): void
     {
-        $content = $this->content_factory->getConfirmationContent(
+        $show_state = $this->content_factory->getConfirmationShowState(
             $this->ref_id,
             $this->obj_id,
             $this->type,
             Action::REJECT,
             $this->object_handler->isOnlyReference($this->ref_id)
         );
-        echo $this->ui_renderer->renderAsync($this->ui_factory->prompt()->state()->show($content));
+        echo $this->ui_renderer->renderAsync($show_state);
         exit;
     }
 
@@ -231,6 +233,18 @@ class ControlCenterGUI
             GlobalTemplate::MESSAGE_TYPE_SUCCESS,
             $this->content_factory->getSuccessMessage($action),
             true
+        );
+    }
+
+    /**
+     * This is a workaround to get rid of unwanted onload code, from classes down the Ctrl path
+     * rendering UI components prematurely. Scripts are not attached twice when async rendering
+     * multiple times in a row, so we render a dummy components before the actually important components.
+     */
+    public function clearAsyncOnloadCode(): void
+    {
+        $this->ui_renderer->renderAsync(
+            $this->ui_factory->legacy()->content('')
         );
     }
 }

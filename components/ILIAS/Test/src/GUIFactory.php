@@ -20,7 +20,7 @@ declare(strict_types=1);
 
 namespace ILIAS\Test;
 
-use Pimple\Container as PimpleContainer;
+use ILIAS\DI\Container as GlobalContainer;
 use ILIAS\Test\Scoring\Manual\ConsecutiveScoringGUI;
 use ILIAS\Test\Scoring\Manual\TestScoring;
 use ILIAS\Test\Scoring\Manual\ConsecutiveScoring;
@@ -43,7 +43,7 @@ class GUIFactory
     }
 
     public function __construct(
-        private PimpleContainer $global_dic,
+        private GlobalContainer $global_dic,
         private TestDIC $test_dic
     ) {
         $this->definitions['ILIAS\Test\Scoring\Manual\ConsecutiveScoringGUI'] = fn(\ilObjTest $test_obj): ConsecutiveScoringGUI =>
@@ -76,7 +76,6 @@ class GUIFactory
                     $this->internal['manscoring.testscoring']($test_obj),
                     $this->test_dic['scoring.manual.done_helper'],
                     $this->global_dic['ilUser'],
-                    $this->internal['test.access']($test_obj),
                     $this->test_dic['participant.repository'],
                     $this->global_dic['lng'],
                 );
@@ -84,7 +83,8 @@ class GUIFactory
         $this->internal['manscoring.positionsfactory'] = fn(\ilObjTest $test_obj): PositionsFactory =>
             new PositionsFactory(
                 $test_obj,
-                $this->test_dic['question.general_properties.repository']
+                $this->test_dic['question.general_properties.repository'],
+                $this->test_dic['participant.access_filter.factory']
             );
 
         $this->internal['manscoring.testscoring'] = fn(\ilObjTest $test_obj): TestScoring =>

@@ -22,7 +22,6 @@ namespace ILIAS\Setup;
 
 use ILIAS\Refinery\Factory as Refinery;
 use ILIAS\Refinery\Transformation;
-use Symfony\Component\Console\Input\InputInterface;
 
 /**
  * An agent that is just a collection of some other agents.
@@ -53,6 +52,20 @@ class AgentCollection implements Agent
     {
         $clone = clone $this;
         unset($clone->agents[$key]);
+        return $clone;
+    }
+
+    /**
+     * A collection that only contains the agent with the given key, still under
+     * that key, so everything it stores keeps its path.
+     */
+    public function withOnlyAgent(string $key): AgentCollection
+    {
+        if (!isset($this->agents[$key])) {
+            throw new \InvalidArgumentException("There is no agent with the name '$key'.");
+        }
+        $clone = clone $this;
+        $clone->agents = [$key => $this->agents[$key]];
         return $clone;
     }
 

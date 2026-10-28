@@ -30,8 +30,7 @@ class ScoreSettings implements Exportable
         protected int $id,
         protected SettingsScoring $settings_scoring,
         protected SettingsResultSummary $settings_result_summary,
-        protected SettingsResultDetails $settings_result_details,
-        protected SettingsGamification $settings_gamification
+        protected SettingsResultDetails $settings_result_details
     ) {
         $this->settings_result_summary = $settings_result_summary
             ->withShowPassDetails($settings_result_details->getShowPassDetails());
@@ -85,24 +84,11 @@ class ScoreSettings implements Exportable
         return $clone;
     }
 
-    public function getGamificationSettings(): SettingsGamification
-    {
-        return $this->settings_gamification;
-    }
-
-    public function withGamificationSettings(SettingsGamification $settings): self
-    {
-        $clone = clone $this;
-        $clone->settings_gamification = $settings;
-        return $clone;
-    }
-
     public function getArrayForLog(AdditionalInformationGenerator $additional_info): array
     {
         return $this->settings_scoring->toLog($additional_info)
             + $this->settings_result_summary->toLog($additional_info)
-            + $this->settings_result_details->toLog($additional_info)
-            + $this->settings_gamification->toLog($additional_info);
+            + $this->settings_result_details->toLog($additional_info);
     }
 
     public function toExport(): array
@@ -110,8 +96,7 @@ class ScoreSettings implements Exportable
         return [
             'settings_scoring' => $this->settings_scoring->toExport(),
             'settings_result_summary' => $this->settings_result_summary->toExport(),
-            'settings_result_details' => $this->settings_result_details->toExport(),
-            'settings_gamification' => $this->settings_gamification->toExport()
+            'settings_result_details' => $this->settings_result_details->toExport()
         ];
     }
 
@@ -121,8 +106,7 @@ class ScoreSettings implements Exportable
             $data['id'] ?? -1,
             SettingsScoring::fromExport($data['settings_scoring']),
             SettingsResultSummary::fromExport($data['settings_result_summary']),
-            SettingsResultDetails::fromExport($data['settings_result_details']),
-            SettingsGamification::fromExport($data['settings_gamification'])
+            SettingsResultDetails::fromExport($data['settings_result_details'])
         );
     }
 }

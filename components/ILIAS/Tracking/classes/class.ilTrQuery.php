@@ -329,6 +329,14 @@ class ilTrQuery
             $udf_order = $a_order_field;
             $a_order_field = '';
         }
+
+        if (!in_array(
+            $a_order_field,
+            array_merge(["login", "active", "usr_pref.value"], $a_additional_fields)
+        )) {
+            $a_order_field = "login";
+        }
+
         $result = self::executeQueries(
             $queries,
             $a_order_field,
@@ -1023,7 +1031,7 @@ class ilTrQuery
                 if ($subtype == "scorm2004") {
                     // based on cmi_node/cp_node, used for scorm tracking data views
                     $mod = new ilObjSCORM2004LearningModule($obj_id, false);
-                    $all = $mod->getTrackedUsers("");
+                    $all = $mod->getTrackedUsers();
                     if ($all) {
                         $a_users = array();
                         foreach ($all as $item) {

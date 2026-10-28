@@ -30,6 +30,8 @@ use ILIAS\TestQuestionPool\QuestionPoolDIC;
 * @author		Helmut Schottmüller <helmut.schottmueller@mac.com>
 * @version	$Id$
 * @ingroup components\ILIASTestQuestionPool
+ *
+ * @deprecated Use normalized question import instead
 */
 class assQuestionImport
 {
@@ -209,7 +211,7 @@ class assQuestionImport
     protected function fetchLifecycle(ilQTIItem $item): ilAssQuestionLifecycle
     {
         try {
-            $lifecycle = ilAssQuestionLifecycle::getInstance(
+            $lifecycle = new ilAssQuestionLifecycle(
                 $item->getMetadataEntry('ilias_lifecycle')
             );
         } catch (ilTestQuestionPoolInvalidArgumentException $e) {
@@ -218,11 +220,11 @@ class assQuestionImport
                     $item->getMetadataEntry('lifecycle')
                 );
 
-                $lifecycle = ilAssQuestionLifecycle::getInstance(
+                $lifecycle = new ilAssQuestionLifecycle(
                     $lomLifecycle->getMappedIliasLifecycleIdentifer()
                 );
             } catch (ilTestQuestionPoolInvalidArgumentException $e) {
-                $lifecycle = ilAssQuestionLifecycle::getDraftInstance();
+                $lifecycle = new ilAssQuestionLifecycle();
             }
         }
 
@@ -357,7 +359,7 @@ class assQuestionImport
                     break;
                 case 'matimage':
                     $matimage = $material['material'];
-                    if (preg_match("/(il_([0-9]+)_mob_([0-9]+))/", $matimage->getLabel(), $matches)) {
+                    if (preg_match('/^il_[0-9]+_mob_[0-9]+\z/', $matimage->getLabel()) === 1) {
                         $mobs[] = ["mob" => $matimage->getLabel(),
                                         "uri" => $matimage->getUri()
                         ];

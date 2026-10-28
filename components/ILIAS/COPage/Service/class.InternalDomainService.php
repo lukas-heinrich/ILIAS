@@ -28,10 +28,8 @@ use ILIAS\COPage\Page\PageContentManager;
 use ILIAS\COPage\PC\PCDefinition;
 use ILIAS\COPage\Link\LinkManager;
 use ILIAS\COPage\Style\StyleManager;
+use ILIAS\COPage\WordDiff\WordDiff;
 
-/**
- * @author Alexander Killing <killing@leifos.de>
- */
 class InternalDomainService
 {
     use GlobalDICDomainServices;
@@ -39,6 +37,7 @@ class InternalDomainService
     protected ?\ilLogger $copg_log = null;
     protected InternalRepoService $repo_service;
     protected InternalDataService $data_service;
+    protected ?Page\PageManagerInterface $page_manager = null;
 
     public function __construct(
         Container $DIC,
@@ -69,6 +68,17 @@ class InternalDomainService
         );
     }
 
+    public function historyRetrieval(int $page_id, string $parent_type, string $lang): History\HistoryRetrieval
+    {
+        return new History\HistoryRetrieval(
+            $this->repo_service->history(),
+            $this->DIC->database(),
+            $page_id,
+            $parent_type,
+            $lang
+        );
+    }
+
     public function xsl(): Xsl\XslManager
     {
         return new Xsl\XslManager();
@@ -81,7 +91,11 @@ class InternalDomainService
 
     public function page(): Page\PageManagerInterface
     {
-        return new Page\PageManager();
+        return $this->page_manager ??= new Page\PageManager(
+            $this->repo_service->page(),
+            $this->domUtil(),
+            $this->profile()
+        );
     }
 
     public function pageConfig(string $parent_type): \ilPageConfig
@@ -112,6 +126,15 @@ class InternalDomainService
         return new PageCompare();
     }
 
+    /**
+     * @param list<string> $original_lines
+     * @param list<string> $closing_lines
+     */
+    public function wordDiff(array $original_lines, array $closing_lines): WordDiff
+    {
+        return new WordDiff($original_lines, $closing_lines);
+    }
+
     public function link(): LinkManager
     {
         return new LinkManager();
@@ -131,5 +154,20 @@ class InternalDomainService
             return $this->copg_log;
         }
         return null;
+    }
+
+    public function layoutRetrieval(): Layout\PageLayoutRetrieval
+    {
+        return new Layout\PageLayoutRetrieval();
+    }
+
+    public function testQuestion(): \ILIAS\TestQuestionPool\Questions\PublicInterface
+    {
+        return $this->DIC->testQuestion();
+    }
+
+    public function componentFactory(): \ilComponentFactory
+    {
+        return $this->DIC['component.factory'];
     }
 }

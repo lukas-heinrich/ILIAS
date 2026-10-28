@@ -1,7 +1,5 @@
 <?php
 
-declare(strict_types=1);
-
 /**
  * This file is part of ILIAS, a powerful learning management system
  * published by ILIAS open source e-Learning e.V.
@@ -18,6 +16,8 @@ declare(strict_types=1);
  *
  *********************************************************************/
 
+declare(strict_types=1);
+
 use ILIAS\Cron\Job\Schedule\JobScheduleType;
 use ILIAS\Cron\Job\JobResult;
 use ILIAS\Cron\CronJob;
@@ -30,7 +30,7 @@ class ilPrgUpdateProgressCronJob extends CronJob
 {
     private const ID = 'prg_update_progress';
 
-    protected Pimple\Container $dic;
+    protected ILIAS\DI\ServiceContainer $dic;
     protected ilLanguage $lng;
     protected ilStudyProgrammeSettingsDBRepository $settings_repo;
     protected ilPRGAssignmentDBRepository $assignment_repo;

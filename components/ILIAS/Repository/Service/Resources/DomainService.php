@@ -21,26 +21,31 @@ declare(strict_types=1);
 namespace ILIAS\Repository\Resources;
 
 use ILIAS\Filesystem\Util\Archive\Archives;
+use ILIAS\Filesystem\Configuration\FilesystemConfig;
 use ILIAS\Filesystem\Util\Archive\LegacyArchives;
 
 class DomainService
 {
     protected LegacyArchives $legacy_archives;
     protected Archives $archives;
+    protected FilesystemConfig $file_service_settings;
 
     public function __construct(
         Archives $archives,
-        LegacyArchives $legacy_archives
+        LegacyArchives $legacy_archives,
+        FilesystemConfig $file_service_settings
     ) {
         $this->archives = $archives;
         $this->legacy_archives = $legacy_archives;
+        $this->file_service_settings = $file_service_settings;
     }
 
     public function zip(): ZipAdapter
     {
         return new ZipAdapter(
             $this->archives,
-            $this->legacy_archives
+            $this->legacy_archives,
+            $this->file_service_settings
         );
     }
 }

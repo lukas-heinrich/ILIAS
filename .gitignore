@@ -9,6 +9,7 @@
 /.settings
 /errors
 /extern
+/scripts/PHPStan/.cache
 /components/ILIAS/PHPUnit/config/cfg.phpunit.php
 /nbproject
 /templates/default/delos.css.map
@@ -30,7 +31,7 @@
 /ilias.ini.php
 /ilias.log
 /db_template_writer.php
-/components/ILIAS/setup_/sql/dbupdate_custom.php
+/components/ILIAS/Database/sql/dbupdate_custom.php
 /install_client.php
 
 # Directories

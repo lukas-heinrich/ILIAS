@@ -31,6 +31,8 @@ use Psr\Http\Message\ServerRequestInterface;
  */
 class TableRendererTestBase extends TableTestBase
 {
+    use LanguageStubs;
+
     protected function getActionFactory()
     {
         return new I\Table\Action\Factory();
@@ -48,7 +50,7 @@ class TableRendererTestBase extends TableTestBase
         $request = $this->createMock(ServerRequestInterface::class);
         $request
             ->method("getUri")
-            ->willReturn(new \GuzzleHttp\Psr7\Uri('http://localhost:80'));
+            ->willReturn((new \ILIAS\HTTP\Message\MessageFactoryImpl())->uri('http://localhost:80'));
         $request
             ->method("getQueryParams")
             ->willReturn([]);
@@ -62,9 +64,13 @@ class TableRendererTestBase extends TableTestBase
 
     public function getUIFactory(): NoUIFactory
     {
-        $factory = new class ($this->getTableFactory()) extends NoUIFactory {
+        $factory = new class (
+            $this->getTableFactory(),
+            $this->createRelayArgumentLanguageStub(),
+        ) extends NoUIFactory {
             public function __construct(
-                protected Component\Table\Factory $table_factory
+                protected Component\Table\Factory $table_factory,
+                protected \ILIAS\Language\Language $language,
             ) {
             }
             public function button(): I\Button\Factory
@@ -79,7 +85,7 @@ class TableRendererTestBase extends TableTestBase
             {
                 return new I\Symbol\Factory(
                     new I\Symbol\Icon\Factory(),
-                    new I\Symbol\Glyph\Factory(),
+                    new I\Symbol\Glyph\Factory($this->language),
                     new I\Symbol\Avatar\Factory()
                 );
             }

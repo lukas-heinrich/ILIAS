@@ -51,7 +51,7 @@ class HasAgentTest extends TestCase
     public function testGetRelevantAgentWithoutOption(): void
     {
         $ii = $this->createMock(InputInterface::class);
-        $ac = $this->createMock(AgentCollection::class);
+        $ac = $this->createStub(AgentCollection::class);
 
         $ii
             ->method("getOption")
@@ -71,7 +71,7 @@ class HasAgentTest extends TestCase
     public function testGetRelevantAgentWithNoPluginOption(): void
     {
         $ii = $this->createMock(InputInterface::class);
-        $ac = $this->createMock(AgentCollection::class);
+        $ac = $this->createStub(AgentCollection::class);
 
         $ii
             ->method("hasOption")
@@ -79,10 +79,10 @@ class HasAgentTest extends TestCase
 
         $ii
             ->method("getOption")
-            ->will($this->returnValueMap([
+            ->willReturnMap([
                 ["no-legacy-plugins", true],
                 ["skip-legacy-plugin", null]
-            ]));
+            ]);
 
         $this->agent_finder
             ->expects($this->once())
@@ -98,7 +98,7 @@ class HasAgentTest extends TestCase
     public function testGetRelevantAgentWithPluginNameOptions(): void
     {
         $ii = $this->createMock(InputInterface::class);
-        $ac = $this->createMock(AgentCollection::class);
+        $ac = $this->createStub(AgentCollection::class);
 
 
         $ii
@@ -107,11 +107,11 @@ class HasAgentTest extends TestCase
 
         $ii
             ->method("getOption")
-            ->will($this->returnValueMap([
+            ->willReturnMap([
                 ["no-legacy-plugins", null],
                 ["legacy-plugin", "foobar"],
                 ["skip-legacy-plugin", null]
-            ]));
+            ]);
 
         $this->agent_finder
             ->expects($this->once())

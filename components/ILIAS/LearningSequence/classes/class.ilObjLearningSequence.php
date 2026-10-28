@@ -18,13 +18,25 @@
 
 declare(strict_types=1);
 
+use ILIAS\Data\Factory;
+use ILIAS\ILIASObject\LocalDIC;
+use ILIAS\ILIASObject\Properties\ObjectReferenceProperties\AvailabilityPeriod\AvailabilityPeriod;
+use ILIAS\ILIASObject\Properties\ObjectReferenceProperties\CachedRepository as ReferencePropertiesRepository;
+use ILIAS\ILIASObject\Properties\ObjectReferenceProperties\ObjectReferenceProperties;
+use ILIAS\LearningSequence\Content\Condition\SubtypeAwareInterface;
+use ILIAS\LearningSequence\Content\Condition\UnknownConditionTypeException;
+use ILIAS\LearningSequence\LearningMap\LSOLearningMapDataBuilder;
+use ILIAS\LearningSequence\LearningMap\LSOLearningMapRenderer;
+use ILIAS\LearningSequence\LearningMap\LSOLearningMapViewMode;
+use ILIAS\News\Service;
+
 class ilObjLearningSequence extends ilContainer
 {
-    public const OBJ_TYPE = 'lso';
+    public const string OBJ_TYPE = 'lso';
 
-    public const E_CREATE = 'create';
-    public const E_UPDATE = 'update';
-    public const E_DELETE = 'delete';
+    public const string E_CREATE = 'create';
+    public const string E_UPDATE = 'update';
+    public const string E_DELETE = 'delete';
 
     protected ?ilLSItemsDB $items_db = null;
     protected ?ilLSPostConditionDB $conditions_db = null;
@@ -34,16 +46,16 @@ class ilObjLearningSequence extends ilContainer
     protected ?ilLSStateDB $state_db = null;
     protected ?ilLearningSequenceRoles $ls_roles = null;
     protected ?ilLearningSequenceSettingsDB $settings_db = null;
-    protected ?ilLearningSequenceActivationDB $activation_db = null;
-    protected ?ilLearningSequenceActivation $ls_activation = null;
+
     protected ?ArrayAccess $di = null;
     protected ?ArrayAccess $local_di = null;
     protected ?ilObjLearningSequenceAccess $ls_access = null;
     protected ArrayAccess $dic;
     protected ilCtrl $ctrl;
-    protected \ILIAS\News\Service $il_news;
+    protected Service $il_news;
     protected ilConditionHandler $il_condition_handler;
-
+    protected ReferencePropertiesRepository $repo_ref_props;
+    protected ?ObjectReferenceProperties $ref_props = null;
 
     public function __construct(int $id = 0, bool $call_by_reference = true)
     {
@@ -55,17 +67,17 @@ class ilObjLearningSequence extends ilContainer
         $this->ctrl = $DIC['ilCtrl'];
         $this->user = $DIC['ilUser'];
         $this->tree = $DIC['tree'];
-        $this->log = $DIC["ilLoggerFactory"]->getRootLogger();
+        $this->log = $DIC["ilLoggerFactory"]->getComponentLogger('lso');
         $this->app_event_handler = $DIC['ilAppEventHandler'];
         $this->il_news = $DIC->news();
         $this->il_condition_handler = new ilConditionHandler();
-
+        $this->repo_ref_props = LocalDIC::dic()['properties.object_reference.repositoy'];
         parent::__construct($id, $call_by_reference);
 
         $this->lng->loadLanguageModule('rbac');
     }
 
-    public static function getInstanceByRefId(int $ref_id): ?\ilObject
+    public static function getInstanceByRefId(int $ref_id): ?ilObject
     {
         return ilObjectFactory::getInstanceByRefId($ref_id, false);
     }
@@ -74,8 +86,14 @@ class ilObjLearningSequence extends ilContainer
     {
         parent::read();
         $this->getLSSettings();
-        if ($this->getRefId()) {
-            $this->getLSActivation();
+        try {
+            $this->ref_props = $this->repo_ref_props->getFor($this->getRefId());
+        } catch (Exception $e) {
+            $this->ref_props = $this->repo_ref_props->getFor(null);
+            $this->repo_ref_props->storePropertyAvailabilityPeriod(
+                $this->ref_props->getPropertyAvailabilityPeriod()
+                    ->withObjectReferenceId($this->getRefId())
+            );
         }
     }
 
@@ -85,6 +103,8 @@ class ilObjLearningSequence extends ilContainer
         if (!$id) {
             return 0;
         }
+
+        $this->createMetaData();
         $this->raiseEvent(self::E_CREATE);
 
         return $this->getId();
@@ -95,6 +115,8 @@ class ilObjLearningSequence extends ilContainer
         if (!parent::update()) {
             return false;
         }
+
+        $this->updateMetaData();
         $this->raiseEvent(self::E_UPDATE);
 
         return true;
@@ -102,14 +124,17 @@ class ilObjLearningSequence extends ilContainer
 
     public function delete(): bool
     {
+        $this->deleteMetaData();
+        $lso_ref_id = $this->getRefId();
+
         if (!parent::delete()) {
             return false;
         }
 
         ilLearningSequenceParticipants::_deleteAllEntries($this->getId());
         $this->getSettingsDB()->delete($this->getId());
-        $this->getStateDB()->deleteFor($this->getRefId());
-        $this->getActivationDB()->deleteForRefId($this->getRefId());
+        $this->getStateDB()->deleteFor($lso_ref_id);
+        $this->getDI()["conditions.handler"]->deleteConditionsByLSORefId($lso_ref_id);
 
         $this->raiseEvent(self::E_DELETE);
 
@@ -128,6 +153,16 @@ class ilObjLearningSequence extends ilContainer
         );
     }
 
+    public function getObjectReferenceProperties(): ?ObjectReferenceProperties
+    {
+        return $this->ref_props;
+    }
+
+    public function storeAvailabilityPeriod(AvailabilityPeriod $period): void
+    {
+        $this->repo_ref_props->storePropertyAvailabilityPeriod($period);
+    }
+
     public function cloneObject(int $target_id, int $copy_id = 0, bool $omit_tree = false): ?ilObject
     {
         /** @var ilObjLearningSequence $new_obj */
@@ -137,8 +172,19 @@ class ilObjLearningSequence extends ilContainer
         $this->cloneMetaData($new_obj);
         $this->cloneSettings($new_obj);
         $this->cloneLPSettings($new_obj->getId());
-        $this->cloneActivation($new_obj, $copy_id);
         $this->cloneIntroAndExtroContentPages($new_obj, [LSOPageType::INTRO, LSOPageType::EXTRO]);
+
+        $online = $this->getObjectProperties()->getPropertyIsOnline();
+        $cwo = ilCopyWizardOptions::_getInstance($copy_id);
+        if ($cwo->isRootNode($this->getRefId())) {
+            $online = $online->withOffline();
+        }
+        $new_obj->getObjectProperties()->storePropertyIsOnline($online);
+
+        $new_obj->repo_ref_props->storePropertyAvailabilityPeriod(
+            $this->ref_props->getPropertyAvailabilityPeriod()
+                ->withObjectReferenceId($new_obj->getRefId())
+        );
 
         $roles = $new_obj->getLSRoles();
         $roles->addLSMember(
@@ -146,6 +192,124 @@ class ilObjLearningSequence extends ilContainer
             $roles->getDefaultAdminRole()
         );
         return $new_obj;
+    }
+
+    /**
+     * @param int $target_id
+     * @param int $copy_id
+     * @return bool
+     * @throws ReflectionException
+     * @throws ilDatabaseException
+     * @throws ilException
+     * @throws ilObjectNotFoundException
+     */
+    public function cloneDependencies(int $target_id, int $copy_id): bool
+    {
+        $dependencies_cloned = parent::cloneDependencies($target_id, $copy_id);
+
+        /** @var ilObjLearningSequence $new_obj */
+        $new_obj = ilObjectFactory::getInstanceByRefId($target_id);
+        $mapping = self::getCopyWizardRefIdMapping($copy_id);
+
+        $settings = $new_obj->getLSSettings();
+        $settings = $settings->withMode($this->getLSSettings()->getMode());
+        $new_obj->updateSettings($settings);
+
+        $boundaries = $this->getDI()["db.boundaries"];
+        ['start_ref_id' => $source_start_ref_id, 'end_ref_id' => $source_end_ref_id] = $boundaries
+            ->getBoundariesFor($this->getId());
+        $new_start_ref_id = self::mapCopiedRefId($source_start_ref_id, $mapping);
+        $new_end_ref_id = self::mapCopiedRefId($source_end_ref_id, $mapping);
+        if ($new_start_ref_id > 0 || $new_end_ref_id > 0) {
+            $boundaries->setStartRefId($new_obj->getId(), $new_start_ref_id);
+            $boundaries->setEndRefId($new_obj->getId(), $new_end_ref_id);
+        }
+
+        return $dependencies_cloned && $this->cloneConditions($target_id, $copy_id);
+    }
+
+    /**
+     * @param int $target_id
+     * @param int $copy_id
+     * @return bool
+     * @throws ReflectionException
+     * @throws ilException
+     */
+    private function cloneConditions(int $target_id, int $copy_id): bool
+    {
+        $mapping = self::getCopyWizardRefIdMapping($copy_id);
+        $condition_factory = $this->getDI()["conditions.factory"];
+
+        foreach ($this->getLSItems() as $ls_item) {
+            $item_ref_id = $ls_item->getRefId();
+            $new_item_ref_id = self::mapCopiedRefId($item_ref_id, $mapping);
+            if ($new_item_ref_id === 0) {
+                continue;
+            }
+
+            $conditions = $condition_factory->getConditionIdsForItem($item_ref_id);
+            foreach ($conditions as $condition_id) {
+                $created = false;
+                try {
+                    $condition = $condition_factory->getConditionInstanceById($condition_id);
+                } catch (UnknownConditionTypeException $e) {
+                    $this->log->warning(
+                        'Condition ' . $condition_id . ' is not copied: ' . $e->getMessage()
+                    );
+                    continue;
+                }
+                $condition_name = $condition->getIdentifierForClass($condition::class);
+
+                try {
+                    $new_condition = $condition_factory->getConditionInstanceByName($condition_name);
+                    $new_condition->setLsoRefId($target_id);
+                    $new_condition->setObjRefId($new_item_ref_id);
+                    if ($condition instanceof SubtypeAwareInterface) {
+                        $new_condition->setSubtype($condition->getSubtype());
+                    }
+                    $export_payload = $condition->export();
+
+                    $new_condition->create(true);
+                    $created = true;
+
+                    $new_condition_id = (int) $new_condition->getConditionId();
+                    if ($new_condition_id > 0) {
+                        $new_condition->setImportMapping($mapping);
+                        $new_condition->import($export_payload, $new_condition_id);
+                    }
+                } catch (Throwable $e) {
+                    if ($created && isset($new_condition)) {
+                        $new_condition->delete();
+                    }
+
+                    $this->log->warning(__METHOD__ . ': condition copy failed: ' . $e->getMessage());
+                    continue;
+                }
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @return array<int|string, mixed>
+     */
+    protected static function getCopyWizardRefIdMapping(int $copy_id): array
+    {
+        $cp_options = ilCopyWizardOptions::_getInstance($copy_id);
+        return array_filter($cp_options->getMappings(), 'is_numeric', ARRAY_FILTER_USE_KEY);
+    }
+
+    /**
+     * @param array<int|string, mixed> $mapping
+     */
+    protected static function mapCopiedRefId(int $source_ref_id, array $mapping): int
+    {
+        if ($source_ref_id <= 0) {
+            return 0;
+        }
+
+        return (int) ($mapping[$source_ref_id] ?? 0);
     }
 
     /**
@@ -175,21 +339,21 @@ class ilObjLearningSequence extends ilContainer
         $new_admin = $new_obj->getDefaultAdminRole();
 
         if (!$admin || !$new_admin || !$this->getRefId() || !$new_obj->getRefId()) {
-            $this->log->write(__METHOD__ . ' : Error cloning auto generated role: il_lso_admin');
+            $this->log->info('Error cloning auto generated role: il_lso_admin');
         }
 
         $this->rbac_admin->copyRolePermissions($admin, $this->getRefId(), $new_obj->getRefId(), $new_admin, true);
-        $this->log->write(__METHOD__ . ' : Finished copying of role lso_admin.');
+        $this->log->info('Finished copying of role lso_admin.');
 
         $member = $this->getDefaultMemberRole();
         $new_member = $new_obj->getDefaultMemberRole();
 
         if (!$member || !$new_member) {
-            $this->log->write(__METHOD__ . ' : Error cloning auto generated role: il_lso_member');
+            $this->log->info('Error cloning auto generated role: il_lso_member');
         }
 
         $this->rbac_admin->copyRolePermissions($member, $this->getRefId(), $new_obj->getRefId(), $new_member, true);
-        $this->log->write(__METHOD__ . ' : Finished copying of role lso_member.');
+        $this->log->info('Finished copying of role lso_member.');
 
         return true;
     }
@@ -211,8 +375,7 @@ class ilObjLearningSequence extends ilContainer
             ->withAbstract($source->getAbstract())
             ->withExtro($source->getExtro())
             ->withAbstractImage($source->getAbstractImage())
-            ->withExtroImage($source->getExtroImage())
-        ;
+            ->withExtroImage($source->getExtroImage());
 
         $new_obj->updateSettings($target);
     }
@@ -221,29 +384,6 @@ class ilObjLearningSequence extends ilContainer
     {
         $lp_settings = new ilLPObjSettings($this->getId());
         $lp_settings->cloneSettings($obj_id);
-    }
-
-    protected function cloneActivation(ilObjLearningSequence $new_obj, int $a_copy_id): void
-    {
-        // #14596
-        $cwo = ilCopyWizardOptions::_getInstance($a_copy_id);
-        if ($cwo->isRootNode($this->getRefId())) {
-            $activation = $new_obj->getLSActivation()->withIsOnline(false);
-        } else {
-            $activation = $new_obj->getLSActivation()
-                ->withIsOnline($this->getLSActivation()->getIsOnline())
-                ->withActivationStart($this->getLSActivation()->getActivationStart())
-                ->withActivationEnd($this->getLSActivation()->getActivationEnd());
-        }
-
-        $new_status = ($new_obj->getLSActivation()->getEffectiveOnlineStatus())
-            ? $new_obj->getObjectProperties()->getPropertyIsOnline()->withOnline()
-            : $new_obj->getObjectProperties()->getPropertyIsOnline()->withOffline();
-        $new_obj->getObjectProperties()->storePropertyIsOnline($new_status);
-
-        $new_obj->getActivationDB()->store(
-            $activation
-        );
     }
 
     protected function getDIC(): ArrayAccess
@@ -268,7 +408,7 @@ class ilObjLearningSequence extends ilContainer
             $di->init(
                 $this->getDIC(),
                 $this->getDI(),
-                new \ILIAS\Data\Factory(),
+                new Factory(),
                 $this
             );
             $this->local_di = $di;
@@ -282,29 +422,6 @@ class ilObjLearningSequence extends ilContainer
             $this->settings_db = $this->getDI()['db.settings'];
         }
         return $this->settings_db;
-    }
-
-    protected function getActivationDB(): ilLearningSequenceActivationDB
-    {
-        if (!$this->activation_db) {
-            $this->activation_db = $this->getDI()['db.activation'];
-        }
-        return $this->activation_db;
-    }
-
-    public function getLSActivation(): ilLearningSequenceActivation
-    {
-        if (!$this->ls_activation) {
-            $this->ls_activation = $this->getActivationDB()->getActivationForRefId($this->getRefId());
-        }
-
-        return $this->ls_activation;
-    }
-
-    public function updateActivation(ilLearningSequenceActivation $settings): void
-    {
-        $this->getActivationDB()->store($settings);
-        $this->ls_activation = $settings;
     }
 
     public function getLSSettings(): ilLearningSequenceSettings
@@ -346,7 +463,8 @@ class ilObjLearningSequence extends ilContainer
 
         return $this->ls_participants;
     }
-    public function getMembersObject(): \ilLearningSequenceParticipants //used by Services/Membership/classes/class.ilMembershipGUI.php
+
+    public function getMembersObject(): ilLearningSequenceParticipants //used by Services/Membership/classes/class.ilMembershipGUI.php
     {
         return $this->getLSParticipants();
     }
@@ -371,7 +489,7 @@ class ilObjLearningSequence extends ilContainer
 
     /**
      * Update LSItems
-     * @param LSItem[]
+     * @param LSItem[] $ls_items
      */
     public function storeLSItems(array $ls_items): void
     {
@@ -380,8 +498,9 @@ class ilObjLearningSequence extends ilContainer
     }
 
     /**
-     * Delete post conditions for ref ids.
-     * @param int[]
+     * Delete post-conditions for ref ids.
+     * @param int[] $ref_ids
+     * @throws ilRepositoryException
      */
     public function deletePostConditionsForSubObjects(array $ref_ids): void
     {
@@ -398,7 +517,7 @@ class ilObjLearningSequence extends ilContainer
     {
         $condition_types = $this->il_condition_handler->getOperatorsByTriggerType($type);
         $conditions = [
-            $this->getPostConditionDB()::STD_ALWAYS_OPERATOR => $this->lng->txt('condition_always')
+            $this->getPostConditionDB()::STD_ALWAYS_OPERATOR => $this->lng->txt('always')
         ];
         foreach ($condition_types as $cond_type) {
             $conditions[$cond_type] = $this->lng->txt('condition_' . $cond_type);
@@ -520,6 +639,7 @@ class ilObjLearningSequence extends ilContainer
         $item->setContent("lso_news_online_txt");
         $ns->data()->save($item);
     }
+
     public function announceLSOOffline(): void
     {
         //NYI
@@ -531,11 +651,47 @@ class ilObjLearningSequence extends ilContainer
         $act_db->setEffectiveOnlineStatus($this->getRefId(), $status);
     }
 
-    public function getCurrentUserCurriculum(): string
+    /**
+     * The learning map of the current user, rendered as html. Used by the page
+     * content element ilPCLearningMap on the intro-/extro-page. Which map is
+     * built - the condition graph of the adaptive mode or the plain chain of
+     * the sequential one - is decided in the local DI by the operation mode.
+     */
+    public function getCurrentUserLearningMap(bool $with_panel = true): string
     {
-        $dic = $this->getLocalDI();
-        $curriculum = $dic["player.curriculumbuilder"]->getLearnerCurriculum(false);
-        return $dic['ui.renderer']->render($curriculum);
+        return $this->renderLearningMap(
+            $this->getLocalDI()['learning_map.data_builder'],
+            $with_panel
+        );
+    }
+
+    /**
+     * Renders the learning map from the given data builder. The player hands in
+     * the builder of its own local DI, resolved before the current object is
+     * rendered: some kiosk views (e.g. the ILIAS learning module) change the
+     * ilCtrl context while rendering, so building the player url afterwards
+     * fails.
+     */
+    public function renderLearningMap(LSOLearningMapDataBuilder $data_builder, bool $with_panel = true): string
+    {
+        global $DIC;
+        $sequential = $this->getLSSettings()->getMode() !== ilLearningSequenceSettings::MODE_ADAPTIVE;
+        $renderer = new LSOLearningMapRenderer(
+            $DIC['ui.factory'],
+            $DIC['ui.renderer'],
+            $DIC['tpl'],
+            $this->lng,
+            $sequential
+        );
+        $map_data = $data_builder
+            ->build(LSOLearningMapViewMode::MODE_FULL_ROUTE)
+            ->toArray();
+        $graph = $renderer->fromMapData($map_data);
+
+        if (!$with_panel) {
+            return $renderer->renderWithoutPanel($graph);
+        }
+        return $renderer->render($graph);
     }
 
     public function getCurrentUserLaunchButtons(): string
@@ -547,8 +703,8 @@ class ilObjLearningSequence extends ilContainer
 
 
     /***************************************************************************
-    * Role Stuff
-    ***************************************************************************/
+     * Role Stuff
+     ***************************************************************************/
     /**
      * @return array<string, int>
      */
@@ -623,7 +779,7 @@ class ilObjLearningSequence extends ilContainer
     public function createContentPage(LSOPageType $page_type): void
     {
         if ($this->hasContentPage($page_type)) {
-            throw new \LogicException('will not create content page - it already exists.');
+            throw new LogicException('will not create content page - it already exists.');
         }
         $new_page_object = $page_type === LSOPageType::INTRO ? new ilLSOIntroPage() : new ilLSOExtroPage();
         $new_page_object->setId($this->getContentPageId());

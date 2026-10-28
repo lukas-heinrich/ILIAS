@@ -57,7 +57,7 @@ abstract class ilDashboardBlockGUI extends ilBlockGUI implements ilDesktopItemHa
         global $DIC;
         $this->http = $DIC->http();
         $this->refinery = $DIC->refinery();
-        $this->logging = $DIC->logger()->root();
+        $this->logging = $DIC->logger()->forComponent('dash');
         $this->settings = $DIC->settings();
         $this->object_cache = $DIC['ilObjDataCache'];
         $this->tree = $DIC->repositoryTree();
@@ -179,6 +179,7 @@ abstract class ilDashboardBlockGUI extends ilBlockGUI implements ilDesktopItemHa
     {
         $this->lng->loadLanguageModule('dash');
         $this->lng->loadLanguageModule('pd');
+        $this->setLimit(PHP_INT_MAX);
         $this->initViewSettings();
         $this->view_settings->parse();
         $this->requested_item_ref_id = (int) ($this->http->request()->getQueryParams()['item_ref_id'] ?? 0);
@@ -363,21 +364,9 @@ abstract class ilDashboardBlockGUI extends ilBlockGUI implements ilDesktopItemHa
     public function addCommandActions(): void
     {
         $sortings = $this->view_settings->getSelectableSortingModes();
-        if (count($sortings) > 1) {
+        $has_manual_sorting = in_array(ilPDSelectedItemsBlockConstants::SORT_MANUALLY, $sortings, true);
+        if (count($sortings) > 1 || $has_manual_sorting) {
             foreach ($sortings as $sorting) {
-                if ($sorting === ilPDSelectedItemsBlockConstants::SORT_MANUALLY) {
-                    global $DIC;
-                    $signal = $this->signal_generator->create();
-                    // $signal = $DIC['ui.signal_generator']->create();
-                    $this->manual_sort_modal = $this->ui->factory()->modal()->roundtrip(
-                        $this->lng->txt('dash_manual_sorting_title'),
-                        [$this->manually()]
-                    )->withAdditionalOnLoadCode(fn($id) => "document.getElementById('$id').addEventListener('close', () => {window.location = window.location;});");
-
-                    $this->manual_sort_modal = $this->manual_sort_modal->withAdditionalOnLoadCode(fn($id) => (
-                        "il.Dashboard.moveModalButtons($id)"
-                    ));
-                }
                 $this->addSortOption(
                     $sorting,
                     '<span data-action="' . $sorting . '">' . $this->lng->txt(ilObjDashboardSettingsGUI::DASH_SORT_PREFIX . $sorting) . '</span>',
@@ -385,6 +374,17 @@ abstract class ilDashboardBlockGUI extends ilBlockGUI implements ilDesktopItemHa
                 );
             }
             $this->setSortTarget($this->ctrl->getLinkTarget($this, 'changePDItemSorting'));
+        }
+
+        if ($has_manual_sorting) {
+            $this->manual_sort_modal = $this->ui->factory()->modal()->roundtrip(
+                $this->lng->txt('dash_manual_sorting_title'),
+                [$this->manually()]
+            )->withAdditionalOnLoadCode(fn($id) => "document.getElementById('$id').addEventListener('close', () => {window.location = window.location;});");
+
+            $this->manual_sort_modal = $this->manual_sort_modal->withAdditionalOnLoadCode(fn($id) => (
+                "il.Dashboard.moveModalButtons($id)"
+            ));
         }
 
         $presentations = $this->view_settings->getSelectablePresentationModes();
@@ -538,7 +538,6 @@ abstract class ilDashboardBlockGUI extends ilBlockGUI implements ilDesktopItemHa
 
     public function getViewControlsForPanel(): array
     {
-        global $DIC;
         if (!$this->manual_sort_modal) {
             return parent::getViewControlsForPanel();
         }
@@ -604,17 +603,18 @@ abstract class ilDashboardBlockGUI extends ilBlockGUI implements ilDesktopItemHa
         }
     }
 
+
     public function addToDeskObject(): void
     {
         $this->favourites_manager->add($this->user->getId(), $this->requested_item_ref_id);
-        $this->main_tpl->setOnScreenMessage('success', $this->lng->txt('rep_added_to_favourites'), true);
+        $this->main_tpl->setOnScreenMessage('success', $this->lng->txt('added_to_favourites'), true);
         $this->ctrl->redirectByClass(ilDashboardGUI::class, 'show');
     }
 
     public function removeFromDeskObject(): void
     {
         $this->favourites_manager->remove($this->user->getId(), $this->requested_item_ref_id);
-        $this->main_tpl->setOnScreenMessage('success', $this->lng->txt('rep_removed_from_favourites'), true);
+        $this->main_tpl->setOnScreenMessage('success', $this->lng->txt('removed_from_favourites'), true);
         $this->ctrl->redirectByClass(ilDashboardGUI::class, 'show');
     }
 

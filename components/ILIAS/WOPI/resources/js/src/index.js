@@ -1,6 +1,7 @@
 import document from 'document';
 import il from 'ilias';
 import $ from 'jquery';
+import codec from './codec.js';
 
 il.WOPI = {
   modified: false,
@@ -139,9 +140,17 @@ il.WOPI.init = function () {
 
   this.frameholder = frameholder;
   this.editorFrame = editorFrame;
-  // eslint-disable-next-line max-len
-  this.editorFrameWindow = editorFrame.contentWindow || (editorFrame.contentDocument.document || editorFrame.contentDocument);
   this.inline = inline;
+
+  // Messages are only exchanged with the editor frame and the origin of the
+  // editor (the WOPI client), see il.HTTP.Channel.
+  this.channel = new il.HTTP.Channel(
+    window,
+    () => editorFrame.contentWindow,
+    new URL(editorUrl, window.location.href).origin,
+    'wopi',
+    codec,
+  );
   this.fillParent();
 
   // BUILD FORM
@@ -166,18 +175,6 @@ il.WOPI.init = function () {
 
   // SEND FORM
   form.submit();
-
-  // Listen to postMessages from the editor
-  window.addEventListener(
-    'message',
-    (event) => {
-      this.handleMessage(event);
-    },
-    false,
-  );
-  this.registerListener('*', (values) => {
-    // console.log('message received', values);
-  });
 
   // Add event listener to receive messages from the editor
   this.registerListener('App_LoadingStatus', () => {
@@ -212,29 +209,86 @@ il.WOPI.init = function () {
   );
 };
 
-il.WOPI.handleMessage = function (message) {
-  const messageObj = JSON.parse(message.data);
-  const MessageId = messageObj.MessageId ?? null;
+/**
+ * Opens the WOPI client as a viewer inside the given container, e.g. a modal. The container
+ * carries the editor URL, the access token and its TTL in data attributes.
+ */
+il.WOPI.preview = function (holderId) {
+  const holder = document.getElementById(holderId);
+  if (!holder) {
+    return;
+  }
+  const frameName = `${holderId}_frame`;
 
+  const frame = document.createElement('iframe');
+  frame.name = frameName;
+  frame.title = holder.getAttribute('data-title') || 'Preview';
+  frame.setAttribute('allowfullscreen', 'true');
+  frame.setAttribute('frameBorder', '0');
+  frame.style.width = '100%';
+  frame.style.height = '75vh';
+  frame.style.border = '0';
+  frame.style.display = 'block';
+  holder.appendChild(frame);
+
+  this.fillModal(holder);
+
+  const form = document.createElement('form');
+  form.method = 'POST';
+  form.action = holder.getAttribute('data-editor-url');
+  form.target = frameName;
+  form.style.display = 'none';
+
+  const tokenInput = document.createElement('input');
+  tokenInput.name = 'access_token';
+  tokenInput.value = holder.getAttribute('data-token');
+  form.appendChild(tokenInput);
+
+  const ttlInput = document.createElement('input');
+  ttlInput.name = 'access_token_ttl';
+  ttlInput.value = holder.getAttribute('data-ttl');
+  form.appendChild(ttlInput);
+
+  holder.appendChild(form);
+  form.submit();
+};
+
+/**
+ * Lets a preview inside a modal fill the modal: the paddings between the dialog and the
+ * preview are removed. The size of the modal itself is not changed.
+ */
+il.WOPI.fillModal = function (holder) {
+  const dialog = holder.closest('.modal-dialog');
+  if (!dialog) {
+    return;
+  }
+
+  let element = holder.parentElement;
+  while (element && element !== dialog) {
+    element.style.padding = '0';
+    element.style.margin = '0';
+    element.style.maxWidth = 'none';
+    element.style.width = '100%';
+    element = element.parentElement;
+  }
+};
+
+il.WOPI.handleMessage = function (MessageId, Values) {
   if (this.listeners[MessageId]) {
     this.listeners[MessageId].forEach((callback) => {
-      callback(messageObj.Values);
-    });
-  }
-  if (this.listeners['*']) {
-    this.listeners['*'].forEach((callback) => {
-      callback(messageObj);
+      callback(Values);
     });
   }
 };
 
 il.WOPI.postMessage = function (mobj) {
-  this.editorFrameWindow.postMessage(JSON.stringify(mobj), '*');
+  this.channel.send(mobj.MessageId, mobj.Values ?? {});
 };
 
 il.WOPI.registerListener = function (MessageId, callback) {
   if (!this.listeners[MessageId]) {
     this.listeners[MessageId] = [];
+    this.channel.on(MessageId, (Values) => this.handleMessage(MessageId, Values));
   }
   this.listeners[MessageId].push(callback);
 };

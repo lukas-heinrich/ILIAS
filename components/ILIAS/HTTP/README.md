@@ -114,6 +114,37 @@ $response->withBody($body);
 $dic->http()->saveResponse($response);
 ```
 
+## Messages
+### Description
+Components which need further PSR-7 messages, e.g. to proxy a request to another server
+or to emit a response of their own, create them with the `MessageFactory`. Components
+MUST NOT instantiate classes of the underlying PSR-7 library (`GuzzleHttp\Psr7\*`)
+directly and MUST only type against the `Psr\Http\Message\*` interfaces, so the library
+stays an implementation detail of this component.
+
+### Usage
+In a component bootstrap, use the service:
+```php
+$use[\ILIAS\HTTP\Message\MessageFactory::class]
+```
+
+In legacy code, it is available through the HTTP services:
+```php
+<?php
+$dic = $GLOBALS["DIC"];
+
+$messages = $dic->http()->messages();
+
+//create a request
+$request = $messages->request('POST', 'https://lrs.example.org/statements', ['Content-Type' => 'application/json'], $body);
+
+//create a response
+$response = $messages->response(200, ['Content-Type' => 'application/json'], $body);
+
+//create an uri
+$uri = $messages->uri('https://www.ilias.de');
+```
+
 
 ## Cookie Handling
 ### Description
@@ -124,13 +155,20 @@ and can render the newly set cookies back.
 Be aware that the cookie jar reads the cookies at creation time of the jar.
 After the new cookie header is rendered into the response the response must be saved.
 See the caveats section of the response for further information.
+
+Cookies and cookie jars are immutable as well: every `with*()` returns a new instance, which
+has to be used further on.
+
+Cookies are created with the `CookieFactory` of the HTTP services (`$dic->http()->cookies()`,
+or `$use[\ILIAS\HTTP\Cookies\CookieFactory::class]` in a component bootstrap). Components
+MUST NOT instantiate the implementations (`CookieFactoryImpl`, `CookieWrapper`, ...) or use the
+underlying library (`Dflydev\FigCookies\*`) directly.
  
 ### Usage
 
 #### Add new Cookie 
 ```php
 <?php
-use \ILIAS\HTTP\Cookies\CookieFactoryImpl;
 use \ILIAS\HTTP\Cookies\CookieJar;
 
 //get the cookie jar
@@ -141,14 +179,14 @@ $dic = $GLOBALS["DIC"];
  */
 $cookieJar = $dic->http()->cookieJar();
 
-//create a new cookie factory
-$cookieFactory = new CookieFactoryImpl();
+//get the cookie factory
+$cookieFactory = $dic->http()->cookies();
 
 //create a cookie
 $cookie = $cookieFactory->create("CookieName", "CookieValue");
 
 //set the cookie path
-$cookie->withPath('/');
+$cookie = $cookie->withPath('/');
 
 //render the cookies back into the response.
 $response = $cookieJar
@@ -163,7 +201,6 @@ $dic->http()->saveResponse($response);
 
 ```php
 <?php
-use \ILIAS\HTTP\Cookies\CookieFactoryImpl;
 use \ILIAS\HTTP\Cookies\CookieJar;
 
 //get the cookie jar
@@ -174,15 +211,14 @@ $dic = $GLOBALS["DIC"];
  */
 $cookieJar = $dic->http()->cookieJar();
 
-//create a new cookie factory
-$cookieFactory = new CookieFactoryImpl();
+//get the cookie factory
+$cookieFactory = $dic->http()->cookies();
 
 //create an expired cookie
 $cookie = $cookieFactory->createExpired("CookieName");
 
 //set the cookie path
-$cookie
-    ->withPath('/');
+$cookie = $cookie->withPath('/');
 
 //render the cookies back into the response.
 $response = $cookieJar
@@ -215,21 +251,124 @@ The project is also actively maintained.
 The http-message package contains the specified interfaces of the php-fig which defined psr-7.
 
 # DropInReplacements
-With ILIAS 8, the Technical Board has decided to replace the [`Superglobals`](https://www.php.net/manual/en/language.variables.superglobals.php)
-`$_GET`, `$_POST`, `$_COOKIE` and `$_REQUEST` with so called `SuperGlobalDropInReplacement` instances.
-These are `ArrayAccess` wrappers for the respective `Superglobals`. They contain the [`Refinery`](../Refinery/README.md)
-and run values on readout through the `->kindlyTo()->string()` `transformation` respectively.
-Furthermore, the `SuperGlobalDropInReplacement` should prevent that values in the `Superglobals` are manually
-assigned or modified/overwritten, because this violates the immutability of these values in the HTTP request.
-The general replacement of the `Superglobals` for some 3rd-Party-Libraries however leads to problems, because these
-require an `array` and no `ArrayAccess` object (currently known for `SimpleSAMLphp`). Therefore, there is the
-possibility to override the `Superglobals` via an ini setting in the `client.ini.php` file.
+With ILIAS 8, the Technical Board decided to replace the [`Superglobals`](https://www.php.net/manual/en/language.variables.superglobals.php)
+`$_GET`, `$_POST`, `$_COOKIE` and `$_REQUEST` with so-called `SuperGlobalDropInReplacement` instances.
+These are `ArrayAccess` wrappers for the respective `Superglobals`. They use the [`Refinery`](../Refinery/README.md)
+to sanitize values on readout via the `->kindlyTo()->string()` transformation.
+`SuperGlobalDropInReplacement` also prevents values in the `Superglobals` from being manually assigned or
+overwritten, since this would violate the immutability of HTTP request values.
+Globally replacing the `Superglobals` causes problems with some third-party libraries that require a plain
+`array` rather than an `ArrayAccess` object (currently known for `SimpleSAMLphp`). Therefore, the replacement
+can be disabled via an ini setting in `client.ini.php`.
+
+As of ILIAS 11, this setting is only applied when `DEVMODE` is enabled.
 
 ```
 [server]
 prevent_super_global_replacement = 1
 ```
 
-Furthermore, the `SuperGlobalDropInReplacement` behave in such a way when `DEVMODE` is enabled that overwriting a value
+Furthermore, the `SuperGlobalDropInReplacement` behave in such a way that overwriting a value
 in one of the `Superglobals` leads to a `\OutOfBoundsException`.
 
+# postMessage Channel: Talking to Other Origins
+
+Some ILIAS pages show content of another origin in an iframe: user content on
+the content domain of
+[User Content Isolation](../FileDelivery/README.md#irss-user-content-isolation)
+(SCORM packages, HTML learning modules), or editors of external servers
+embedded via WOPI. The browser blocks any direct access between windows of
+different origins (reading `window.parent.something`,
+`iframe.contentWindow.document`, ...). The only way to communicate is
+`postMessage`. All these cases share the same requirements, which
+`il.HTTP.Channel` covers:
+
+* messages are only accepted from the expected window **and** origin,
+* outgoing messages are addressed to that origin, never to `*`,
+* request/response with correlation ids and timeouts, plus fire-and-forget
+  events,
+* an exchangeable codec for the format on the wire.
+
+The script is `public/assets/js/postmessage-channel.js`. It creates its own
+namespace, so it can also be loaded by static pages of another origin (e.g. on
+the content domain) that load no other ILIAS script.
+
+## Usage
+
+```js
+// in the ILIAS page; iframe shows content of the content domain
+const channel = new il.HTTP.Channel(
+  window,                        // own window, messages are received here
+  () => iframe.contentWindow,    // the other end
+  'https://content.example.org', // its origin ('*', 'null' and '' are refused)
+  'my-channel',                  // both ends use the same name
+);
+channel.on('progress', (payload) => store(payload)); // the return value answers requests
+channel.send('configure', { level: 2 });             // event, no answer
+channel.request('state', null, 5000)                 // resolves with the answer
+  .then((state) => { /* ... */ });
+channel.destroy();                                   // removes the listener
+```
+
+The other end (e.g. a page on the content domain) creates a channel the same
+way with `() => window.parent` and the origin of the ILIAS page.
+
+## Message format and codec
+
+By default (`il.HTTP.Channel.envelopeCodec`) messages are plain objects:
+
+```js
+{
+  'il-postmessage': 1,  // marker and version; other messages are ignored
+  channel: 'my-channel',
+  type: 'progress',
+  payload: { ... },     // structured clone, no functions or DOM nodes
+  id: 7,                // requests only
+  re: 7,                // responses only: id of the request
+  error: '...',         // failed requests only
+}
+```
+
+A handler that throws, or a missing handler, rejects the request on the other
+side. Requests time out after 10 s by default (`0` waits forever).
+
+Protocols defined by others (e.g. WOPI, which exchanges JSON strings with a
+`MessageId`) are used by passing a codec as fifth argument:
+
+```js
+const codec = {
+  encode: (channel, message) => JSON.stringify({ MessageId: message.type, Values: message.payload }),
+  decode: (channel, data) => { /* return {type, payload} or null to ignore the data */ },
+};
+new il.HTTP.Channel(window, () => editor.contentWindow, editorOrigin, 'wopi', codec);
+```
+
+## Security notes
+
+* The origin and window checks only ensure **who** sent a message. Content of
+  another origin (user content in particular) is untrusted, so is everything it
+  sends: every handler of
+  an ILIAS page is a trust boundary. Accept only what the content may change
+  anyway, take everything else from the page's own state, and never insert
+  received strings as HTML.
+* Everything sent to the content is readable by it. Never send session ids,
+  CSRF tokens or data of other users.
+* All user content shares the content domain of User Content Isolation and is
+  not isolated from each other. Pages that give content of the content domain access to something
+  (like the SCORM API) should send `Cross-Origin-Opener-Policy: same-origin`, so
+  content opening them with `window.open()` gets no handle to their frames.
+* Content that has to survive closing the window cannot rely on the ILIAS page
+  still processing messages; it has to send its last data itself (e.g. with
+  `fetch(..., {keepalive: true, credentials: 'omit'})` to an endpoint that does
+  not need the session).
+
+## Consumers
+
+* SCORM 1.2 and 2004 players: the runtime runs in a guest frame next to the SCO,
+  see `components/ILIAS/ScormAicc/README.md`.
+
+## Building and testing
+
+Sources in `resources/js/postmessage/src`, built with `npx rollup -c` in
+`resources/js/postmessage` (the result in `dist/` is committed). Tests:
+`tests/Client/PostMessage` (`npm test`).

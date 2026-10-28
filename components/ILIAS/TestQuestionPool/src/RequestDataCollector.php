@@ -18,7 +18,7 @@
 
 namespace ILIAS\TestQuestionPool;
 
-use GuzzleHttp\Psr7\UploadedFile;
+use Psr\Http\Message\UploadedFileInterface;
 use ILIAS\FileUpload\DTO\UploadResult;
 use ILIAS\Refinery\Transformation;
 use ILIAS\Repository\BaseGUIRequest;
@@ -79,13 +79,11 @@ class RequestDataCollector implements RequestDataCollectorInterface
             $uploaded_files = $uploaded_files[$current_key];
 
             if (isset($uploaded_files[$index]) && $http_names === []) {
-                /** @var UploadedFile $file */
+                /** @var UploadedFileInterface $file */
                 $file = $uploaded_files[$index];
-                $c = \Closure::bind(static function (UploadedFile $file): ?string {
-                    return $file->file ?? null;
-                }, null, $file);
 
-                return $c($file);
+                // same identifier as used by the FileUpload service for its results
+                return $file->getStream()->getMetadata('uri');
             }
         }
 
@@ -199,6 +197,18 @@ class RequestDataCollector implements RequestDataCollectorInterface
         );
     }
 
+    public function getNumericGapValue(
+        int $gap_index
+    ): ?float {
+        return $this->http->wrapper()->post()->retrieve(
+            "gap_{$gap_index}_numeric",
+            $this->refinery->byTrying([
+                $this->refinery->kindlyTo()->float(),
+                $this->refinery->always(null)
+            ])
+        );
+    }
+
     public function getPostKeys(): array
     {
         return $this->http->wrapper()->post()->keys();
@@ -272,6 +282,17 @@ class RequestDataCollector implements RequestDataCollectorInterface
                     ? 'ALL_OBJECTS'
                     : array_map('intval', $value)
             )
+        );
+    }
+
+    public function getNumericQuestionSolutionSubmit(): ?float
+    {
+        return $this->http->wrapper()->post()->retrieve(
+            'numeric_result',
+            $this->refinery->byTrying([
+                $this->refinery->kindlyTo()->float(),
+                $this->refinery->always(null)
+            ])
         );
     }
 

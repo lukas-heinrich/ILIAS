@@ -41,7 +41,7 @@ use ILIAS\FileDelivery\Token\Signer\Algorithm\Algorithm;
 /**
  * @author Fabian Schmid <fabian@sr.solutions>
  */
-final class DataSigner
+final class DataSigner implements DataSigning
 {
     private SigningSerializer $signing_serializer;
     private Factory $salt_factory;
@@ -83,9 +83,32 @@ final class DataSigner
         int $user_id,
         ?\DateTimeImmutable $until = null
     ): string {
+        return $this->signStreamToken($stream, $filename, $until, true);
+    }
+
+    /**
+     * @deprecated see {@see DataSigning::getSignedStreamTokenWithoutIsolation()}
+     */
+    public function getSignedStreamTokenWithoutIsolation(
+        FileStream $stream,
+        string $filename,
+        Disposition $disposition,
+        int $user_id,
+        ?\DateTimeImmutable $until = null
+    ): string {
+        return $this->signStreamToken($stream, $filename, $until, false);
+    }
+
+    private function signStreamToken(
+        FileStream $stream,
+        string $filename,
+        ?\DateTimeImmutable $until,
+        bool $isolated
+    ): string {
         $payload = $this->payload_builder->shortFile(
             $stream,
-            $filename
+            $filename,
+            $isolated
         );
 
         if ($until !== null) {

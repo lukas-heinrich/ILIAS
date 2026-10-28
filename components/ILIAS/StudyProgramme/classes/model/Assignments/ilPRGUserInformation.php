@@ -59,7 +59,7 @@ class ilPRGUserInformation
     }
     public function isActive(): bool
     {
-        return (bool)$this->user_data['active'];
+        return (bool) $this->user_data['active'];
     }
     public function getEmail(): string
     {
@@ -79,7 +79,13 @@ class ilPRGUserInformation
     }
     public function getGender(): string
     {
-        return $this->user_data['gender'];
+        $gender = $this->user_data['gender'] ?? null;
+        if (!is_string($gender)) {
+            return \ILIAS\User\Profile\Fields\Standard\Genders::Undisclosed->value;
+        }
+
+        return \ILIAS\User\Profile\Fields\Standard\Genders::tryFrom($gender)?->value
+            ?? \ILIAS\User\Profile\Fields\Standard\Genders::Undisclosed->value;
     }
     public function getTitle(): string
     {

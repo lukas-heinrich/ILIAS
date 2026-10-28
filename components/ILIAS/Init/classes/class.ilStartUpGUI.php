@@ -154,7 +154,6 @@ class ilStartUpGUI implements ilCtrlBaseClassInterface, ilCtrlSecurityInterface
     {
         return [
             'doStandardAuthentication',
-            'doLTIAuthentication'
         ];
     }
 
@@ -602,64 +601,6 @@ class ilStartUpGUI implements ilCtrlBaseClassInterface, ilCtrlSecurityInterface
             ->withAdditionalTransformation($this->saniziteArrayElementsTrafo());
     }
 
-    private function doLTIAuthentication(): void
-    {
-        $this->getLogger()->debug('Trying lti authentication');
-
-        $credentials = new ilAuthFrontendCredentialsLTI();
-        $credentials->initFromRequest();
-
-        $provider_factory = new ilAuthProviderFactory();
-        $provider = $provider_factory->getProviderByAuthMode($credentials, ilAuthUtils::AUTH_PROVIDER_LTI);
-
-        $status = ilAuthStatus::getInstance();
-
-        $frontend_factory = new ilAuthFrontendFactory();
-        $frontend_factory->setContext(ilAuthFrontendFactory::CONTEXT_STANDARD_FORM);
-        $frontend = $frontend_factory->getFrontend(
-            $this->authSession,
-            $status,
-            $credentials,
-            [$provider]
-        );
-        $frontend->authenticate();
-
-        setcookie(session_name(), session_id(), [
-            'expires' => 0,
-            'path' => rtrim(IL_COOKIE_PATH, '/'),
-            'domain' => IL_COOKIE_DOMAIN,
-            'secure' => true,
-            'httponly' => true,
-            'samesite' => 'None'
-        ]);
-
-        $lti_context_ids = ilSession::get("lti_context_ids");
-
-        if (is_array($lti_context_ids) && isset($lti_context_ids[0])) {
-            $ref_id = $lti_context_ids[0];
-            $obj_type = ilObject::_lookupType($ref_id, true);
-            ilSession::set('orig_request_target', "goto.php?target=" . $obj_type . "_" . $ref_id . "&lti_context_id=" . $ref_id);
-        }
-
-        switch ($status->getStatus()) {
-            case ilAuthStatus::STATUS_AUTHENTICATED:
-                ilLoggerFactory::getLogger('auth')->debug('Authentication successful; Redirecting to starting page.');
-                ilInitialisation::redirectToStartingPage();
-
-                // no break
-            case ilAuthStatus::STATUS_ACCOUNT_MIGRATION_REQUIRED:
-                $this->ctrl->redirect($this, 'showAccountMigration');
-
-                // no break
-            case ilAuthStatus::STATUS_AUTHENTICATION_FAILED:
-                $this->mainTemplate->setOnScreenMessage('failure', $this->lng->txt($status->getReason()), true);
-                $this->ctrl->redirect($this, 'showLoginPage');
-        }
-
-        $this->mainTemplate->setOnScreenMessage('failure', $this->lng->txt('err_wrong_login'));
-        $this->showLoginPage();
-    }
-
     private function doApacheAuthentication(): void
     {
         $this->getLogger()->debug('Trying apache authentication');
@@ -945,7 +886,11 @@ class ilStartUpGUI implements ilCtrlBaseClassInterface, ilCtrlSecurityInterface
 
         $page_gui = new ($ipe_context->pageUiClass())(ilLanguage::lookupId($ipe_language));
 
-        $page_gui->setStyleId(0);
+        $page_gui->setStyleId(
+            $this->dic->contentStyle()->domain()->styleForRefId(
+                ilObjAuthSettings::getAuthSettingsRefId()
+            )->getEffectiveStyleId()
+        );
 
         $page_gui->setPresentationTitle('');
         $page_gui->setTemplateOutput(false);
@@ -1284,7 +1229,8 @@ class ilStartUpGUI implements ilCtrlBaseClassInterface, ilCtrlSecurityInterface
             'components/ILIAS/Authentication',
             'beforeLogout',
             [
-                'user_id' => $this->user->getId()
+                'user_id' => $this->user->getId(),
+                'object' => $this->user
             ]
         );
 
@@ -1690,13 +1636,37 @@ class ilStartUpGUI implements ilCtrlBaseClassInterface, ilCtrlSecurityInterface
 
     private function doOpenIdConnectAuthentication(): void
     {
-        $this->getLogger()->debug('Trying openid connect authentication');
-
         $credentials = new ilAuthFrontendCredentialsOpenIdConnect();
         $credentials->initFromRequest();
 
         $provider_factory = new ilAuthProviderFactory();
+        /** @var ilAuthProviderOpenIdConnect $provider */
         $provider = $provider_factory->getProviderByAuthMode($credentials, ilAuthUtils::AUTH_OPENID_CONNECT);
+
+        if ($provider->isPostLogoutPending()) {
+            $this->getLogger()->debug('Processing OpenID Connect post-logout callback');
+
+            $state = $this->http->wrapper()->query()->retrieve(
+                'state',
+                $this->refinery->byTrying([
+                    $this->refinery->kindlyTo()->string(),
+                    $this->refinery->always('')
+                ])
+            );
+
+            if ($state === '' || !$provider->validatePostLogoutState($state)) {
+                $this->getLogger()->warning(
+                    'OpenID Connect post-logout callback state did not match. Finishing local logout.'
+                );
+            }
+
+            $this->user->setLanguage($provider->consumePostLogoutUserLanguage());
+
+            $this->doLogout();
+            return;
+        }
+
+        $this->getLogger()->debug('Trying openid connect authentication');
 
         $status = ilAuthStatus::getInstance();
 

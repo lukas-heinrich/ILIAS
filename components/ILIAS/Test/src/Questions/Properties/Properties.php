@@ -107,11 +107,11 @@ class Properties implements Property
                 'points' => $this->question_properties->getAvailablePoints(),
                 'author' => $this->question_properties->getAuthor(),
                 'complete' => $this->question_properties->isRequiredInformationComplete(),
-                'lifecycle' => \ilAssQuestionLifecycle::getInstance($this->question_properties->getLifecycle())->getTranslation($lng) ?? '',
+                'lifecycle' => new \ilAssQuestionLifecycle($this->question_properties->getLifecycle())->getTranslation($lng) ?? '',
                 'qpl' => $title_builder->buildAccessCheckedQuestionpoolTitleAsLink($this->question_properties->getOriginObjectId()),
                 'nr_of_answers' => $this->getAggregatedResults()->getNumberOfAnswers(),
                 'average_points' => $this->getAggregatedResults()->getAveragePoints(),
-                'percentage_points_achieved' => "{$this->getAggregatedResults()->getPercentageOfPointsAchieved()}%"
+                'percentage_points_achieved' => round($this->getAggregatedResults()->getPercentageOfPointsAchieved(), 2) . '%'
             ]
         );
     }

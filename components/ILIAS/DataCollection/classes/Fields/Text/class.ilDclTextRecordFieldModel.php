@@ -18,7 +18,7 @@
 
 declare(strict_types=1);
 
-use PhpOffice\PhpSpreadsheet\Cell\DataType;
+use ILIAS\Excel\CellType;
 
 class ilDclTextRecordFieldModel extends ilDclBaseRecordFieldModel
 {
@@ -26,8 +26,8 @@ class ilDclTextRecordFieldModel extends ilDclBaseRecordFieldModel
     {
         if ($this->getField()->hasProperty(ilDclBaseFieldModel::PROP_URL)) {
             $value = [
-                "link" => $form->getInput("field_" . $this->getField()->getId()),
                 "title" => $form->getInput("field_" . $this->getField()->getId() . '_title'),
+                "link" => $form->getInput("field_" . $this->getField()->getId()),
             ];
         } else {
             $value = $form->getInput("field_" . $this->getField()->getId());
@@ -50,7 +50,7 @@ class ilDclTextRecordFieldModel extends ilDclBaseRecordFieldModel
                 $col += 2;
             }
         } else {
-            $worksheet->setCell($row, $col, $value, DataType::TYPE_STRING);
+            $worksheet->setCell($row, $col, $value, CellType::STRING);
             $col++;
         }
     }
@@ -116,7 +116,7 @@ class ilDclTextRecordFieldModel extends ilDclBaseRecordFieldModel
             if ($excel->getCell(1, $col + 1) == $this->getField()->getTitle() . '_title') {
                 $title = $excel->getCell($row, $col + 1);
             }
-            $value = ['link' => $value, 'title' => $title];
+            $value = ['title' => $title, 'link' => $value];
         }
 
         if ($value) {
@@ -146,7 +146,7 @@ class ilDclTextRecordFieldModel extends ilDclBaseRecordFieldModel
     {
         $value = (string) $value;
         if ($this->getField()->getProperty(ilDclBaseFieldModel::PROP_URL)) {
-            $deserialize = json_decode($value, true);
+            $deserialize = json_decode($value, true) ?? ['title' => $value];
             return [
                 'title' => $deserialize['title'] ?? '',
                 'link' => $deserialize['link'] ?? '',

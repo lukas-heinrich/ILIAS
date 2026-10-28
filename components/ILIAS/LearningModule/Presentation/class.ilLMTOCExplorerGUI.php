@@ -75,7 +75,7 @@ class ilLMTOCExplorerGUI extends ilLMExplorerGUI
         $this->export_all_languages = $export_all_languages;
 
         $this->activation_repo = new ilPageActivationDBRepository();
-
+        $this->setPreloadChilds(false);
         $this->initTreeData();
     }
 
@@ -240,7 +240,7 @@ class ilLMTOCExplorerGUI extends ilLMExplorerGUI
         $a_name = "standard/icon_" . $a_node["type"] . ".svg";
         if ($a_node["type"] == "pg") {
             $lm_set = new ilSetting("lm");
-            $active = ilLMPage::_lookupActive(
+            $active = $this->page_manager->lookupActive(
                 $a_node["child"],
                 $this->lm->getType(),
                 (bool) $lm_set->get("time_scheduled_page_activation")
@@ -248,7 +248,7 @@ class ilLMTOCExplorerGUI extends ilLMExplorerGUI
 
             // is page scheduled?
             $img_sc = ($lm_set->get("time_scheduled_page_activation") &&
-                ilLMPage::_isScheduledActivation($a_node["child"], $this->lm->getType()) && !$active
+                $this->page_manager->isScheduledActivation($a_node["child"], $this->lm->getType()) && !$active
                 && !$this->getOfflineMode())
                 ? "_sc"
                 : "";
@@ -301,7 +301,7 @@ class ilLMTOCExplorerGUI extends ilLMExplorerGUI
                     } else {
                         $a_node = $this->getSuccessorNode($a_node["child"], "pg");
                     }
-                    $active = ilLMPage::_lookupActive(
+                    $active = $this->page_manager->lookupActive(
                         $a_node["child"],
                         $this->lm->getType(),
                         (bool) $this->lm_set->get("time_scheduled_page_activation")
@@ -343,14 +343,27 @@ class ilLMTOCExplorerGUI extends ilLMExplorerGUI
     {
         if (!$this->getOfflineMode()) {
             return $this->linker->getLink("", $a_node["child"]);
-            //return parent::buildLinkTarget($a_node_id, $a_type);
-        } else {
-            if ($a_node["type"] != "pg") {
+        }
+        // for offline, see build()
+        return "---";
+    }
+
+    public function build(
+        \ILIAS\UI\Component\Tree\Node\Factory $factory,
+        $a_node,
+        $environment = null
+    ): \ILIAS\UI\Component\Tree\Node\Node {
+        $node = parent::build($factory, $a_node, $environment);
+        if ($this->getOfflineMode()) {
+            if ($a_node["type"] !== "pg") {
                 // get next activated page
                 $found = false;
                 while (!$found) {
                     $a_node = $this->getTree()->fetchSuccessorNode($a_node["child"], "pg");
-                    $active = ilLMPage::_lookupActive(
+                    if (is_null($a_node)) {
+                        return $node;
+                    }
+                    $active = $this->page_manager->lookupActive(
                         $a_node["child"],
                         $this->lm->getType(),
                         (bool) $this->lm_set->get("time_scheduled_page_activation")
@@ -372,11 +385,19 @@ class ilLMTOCExplorerGUI extends ilLMExplorerGUI
             }
 
             if ($nid = ilLMPageObject::getExportId($this->lm->getId(), $a_node["child"])) {
-                return "lm_pg_" . $nid . $lang_suffix . ".html";
+                $target = "./lm_pg_" . $nid . $lang_suffix . ".html";
+            } else {
+                $target = "./lm_pg_" . $a_node["child"] . $lang_suffix . ".html";
             }
-            return "lm_pg_" . $a_node["child"] . $lang_suffix . ".html";
+
+            $node = $node->withAdditionalOnLoadCode(function ($id) use ($target): string {
+                return "document.getElementById('$id').querySelector('a').addEventListener('click', (event) => { event.preventDefault(); window.location.href = '$target';});";
+            });
         }
+
+        return $node;
     }
+
 
     /**
      * @param array|object $a_node

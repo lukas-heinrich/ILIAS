@@ -21,6 +21,7 @@ declare(strict_types=1);
 namespace ILIAS\Test\Settings\ScoreReporting;
 
 use ILIAS\Test\Settings\TestSettingsGUI;
+use ILIAS\Test\Scoring\Manual\TestScoring;
 use ILIAS\Test\Scoring\Settings\Settings as SettingsScoring;
 use ILIAS\Test\Logging\TestLogger;
 use ILIAS\Test\Logging\TestAdministrationInteractionTypes;
@@ -28,10 +29,7 @@ use ILIAS\Test\Presentation\TabsManager;
 use ILIAS\UI\Factory as UIFactory;
 use ILIAS\UI\Renderer as UIRenderer;
 use ILIAS\Refinery\Factory as Refinery;
-use ILIAS\Data\Factory as DataFactory;
 use ILIAS\UI\Component\Input\Container\Form\Form;
-use ilInfoScreenGUI;
-use ilObjTestGUI;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
 /**
@@ -116,7 +114,11 @@ class SettingsScoringGUI extends TestSettingsGUI
                             ->withRequest($this->getRelayedRequest())
                             ->getData();
                         $this->storeScoreSettings($settings);
-                        $this->test_object->recalculateScores(true);
+                        (new TestScoring(
+                            $this,
+                            $this->user,
+                            $this->db
+                        ))->recalculateSolutions();
                         $this->tpl->setOnScreenMessage('success', $this->lng->txt("msg_score_settings_modified_and_recalc"), true);
                         $this->ctrl->redirect($this, self::CMD_SHOW_FORM);
                         break;
@@ -176,21 +178,25 @@ class SettingsScoringGUI extends TestSettingsGUI
         $this->ctrl->redirect($this, self::CMD_SHOW_FORM);
     }
 
+    /**
+     * Restores the submitted form data, which has been relayed through the
+     * confirmation, on the current request.
+     */
     private function getRelayedRequest(): Request
     {
-        return unserialize(
-            base64_decode(
-                $this->request->getParsedBody()[self::F_CONFIRM_SETTINGS]
-            ),
-            [
-                'allowed_classes' => [
-                    \GuzzleHttp\Psr7\ServerRequest::class,
-                    \GuzzleHttp\Psr7\Uri::class,
-                    \GuzzleHttp\Psr7\UploadedFile::class,
-                    \GuzzleHttp\Psr7\Stream::class,
-                ]
-            ]
+        $relayed_settings = $this->request->getParsedBody()[self::F_CONFIRM_SETTINGS] ?? null;
+        if (!is_string($relayed_settings)) {
+            return $this->request->withParsedBody([]);
+        }
+
+        $relayed_body = json_decode(
+            base64_decode($relayed_settings),
+            true,
+            512,
+            JSON_THROW_ON_ERROR
         );
+
+        return $this->request->withParsedBody(is_array($relayed_body) ? $relayed_body : []);
     }
 
     private function buildForm(): Form
@@ -215,8 +221,7 @@ class SettingsScoringGUI extends TestSettingsGUI
             'summary' => $settings->getResultSummarySettings()->toForm(...array_merge($ui_pack, [$environment])),
             'details' => $settings->getResultDetailsSettings()->toForm(
                 ...array_merge($ui_pack, [['taxonomy_options' => $this->getTaxonomyOptions()]])
-            ),
-            'gameification' => $settings->getGamificationSettings()->toForm(...$ui_pack)
+            )
         ];
 
         $action = $this->ctrl->getFormAction($this, self::CMD_SAVE_FORM);
@@ -229,7 +234,6 @@ class SettingsScoringGUI extends TestSettingsGUI
                             ->withScoringSettings($v['scoring'])
                             ->withResultSummarySettings($v['summary'])
                             ->withResultDetailsSettings($v['details'])
-                            ->withGamificationSettings($v['gameification'])
                         ;
                     }
                 )
@@ -303,7 +307,10 @@ class SettingsScoringGUI extends TestSettingsGUI
         $confirmation->setFormAction($this->ctrl->getFormAction($this));
         $confirmation->setCancel($this->lng->txt('cancel'), self::CMD_CANCEL_RECALC);
         $confirmation->setConfirm($this->lng->txt('confirm'), self::CMD_CONFIRMED_RECALC);
-        $confirmation->addHiddenItem(self::F_CONFIRM_SETTINGS, base64_encode(serialize($request)));
+        $confirmation->addHiddenItem(
+            self::F_CONFIRM_SETTINGS,
+            base64_encode(json_encode($request->getParsedBody(), JSON_THROW_ON_ERROR))
+        );
         $this->tpl->setContent($this->ctrl->getHTML($confirmation));
     }
 }

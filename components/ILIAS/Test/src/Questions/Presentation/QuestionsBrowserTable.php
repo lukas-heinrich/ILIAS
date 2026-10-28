@@ -21,7 +21,6 @@ declare(strict_types=1);
 namespace ILIAS\Test\Questions\Presentation;
 
 use ILIAS\Taxonomy\DomainService as TaxonomyService;
-use GuzzleHttp\Psr7\ServerRequest;
 use ILIAS\Data\Factory as DataFactory;
 use ILIAS\Data\Order;
 use ILIAS\Data\Range;
@@ -155,7 +154,7 @@ class QuestionsBrowserTable implements DataRetrieval
 
             $record['question_type'] = $record['question_type'];
             $record['complete'] = (bool) $record['complete'];
-            $record['lifecycle'] = \ilAssQuestionLifecycle::getInstance($record['lifecycle'])->getTranslation($this->lng) ?? '';
+            $record['lifecycle'] = new \ilAssQuestionLifecycle($record['lifecycle'])->getTranslation($this->lng) ?? '';
 
             $record['created'] = (new \DateTimeImmutable("@{$record['created']}"))->setTimezone($timezone);
             $record['tstamp'] = (new \DateTimeImmutable("@{$record['tstamp']}"))->setTimezone($timezone);

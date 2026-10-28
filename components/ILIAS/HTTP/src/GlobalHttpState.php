@@ -19,12 +19,15 @@
 namespace ILIAS\HTTP;
 
 use ILIAS\HTTP\Cookies\CookieJar;
+use ILIAS\HTTP\Cookies\CookieFactory;
 use ILIAS\HTTP\Response\Sender\ResponseSendingException;
 use ILIAS\HTTP\Wrapper\WrapperFactory;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use ILIAS\HTTP\Duration\DurationFactory;
+use ILIAS\HTTP\Message\MessageFactory;
+use ILIAS\HTTP\Response\Sender\ResponseSenderStrategy;
 
 /**
  * Interface GlobalHttpState
@@ -42,6 +45,8 @@ use ILIAS\HTTP\Duration\DurationFactory;
 interface GlobalHttpState
 {
     public function durations(): DurationFactory;
+
+    public function messages(): MessageFactory;
 
     public function wrapper(): WrapperFactory;
 
@@ -65,6 +70,11 @@ interface GlobalHttpState
      * object.
      */
     public function cookieJar(): CookieJar;
+
+    /**
+     * Creates cookies, which are added to the response with {@see self::cookieJar()}.
+     */
+    public function cookies(): CookieFactory;
 
 
     /**
@@ -91,6 +101,8 @@ interface GlobalHttpState
      * @throws ResponseSendingException Each subsequent call will throw this exception.
      */
     public function sendResponse(): void;
+
+    public function sender(): ResponseSenderStrategy;
 
 
     public function close(): never;

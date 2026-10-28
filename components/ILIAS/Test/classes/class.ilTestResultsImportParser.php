@@ -22,6 +22,9 @@ use ILIAS\Filesystem\Stream\Stream;
 use ILIAS\ResourceStorage\Services as ResourceStorage;
 use ILIAS\Test\Logging\TestLogger;
 
+/**
+ * @deprecated 12: Use ILIAS\Test\ExportImport\TestImporter instead
+ */
 class ilTestResultsImportParser extends ilSaxParser
 {
     private $table;
@@ -135,7 +138,7 @@ class ilTestResultsImportParser extends ilSaxParser
                         $this->db->insert('tst_active', [
                             'active_id' => [ilDBConstants::T_INTEGER, $next_id],
                             'user_fi' => [ilDBConstants::T_INTEGER, $usr_id],
-                            'anonymous_id' => [ilDBConstants::T_TEXT, $a_attribs['anonymous_id'] ?: null],
+                            'anonymous_id' => [ilDBConstants::T_TEXT, $a_attribs['anonymous_id'] ?? null],
                             'test_fi' => [ilDBConstants::T_INTEGER, $this->test_obj->getTestId()],
                             'lastindex' => [ilDBConstants::T_INTEGER, $a_attribs['lastindex']],
                             'tries' => [ilDBConstants::T_INTEGER, $a_attribs['tries']],
@@ -221,9 +224,9 @@ class ilTestResultsImportParser extends ilSaxParser
                         $affectedRows = $this->db->insert("tst_sequence", [
                             "active_fi" => ["integer", $this->active_id_mapping[$a_attribs['active_fi']]],
                             "pass" => ["integer", $a_attribs['pass']],
-                            "sequence" => ["clob", $a_attribs['sequence']],
-                            "postponed" => ["text", (strlen($a_attribs['postponed'])) ? $a_attribs['postponed'] : null],
-                            "hidden" => ["text", (strlen($a_attribs['hidden'])) ? $a_attribs['hidden'] : null],
+                            "sequence" => ["clob", $this->sanitizeSerializedIntList($a_attribs['sequence'] ?? '', 'a:0:{}')],
+                            "postponed" => ["text", $this->sanitizeSerializedIntList($a_attribs['postponed'] ?? '')],
+                            "hidden" => ["text", $this->sanitizeSerializedIntList($a_attribs['hidden'] ?? '')],
                             "tstamp" => ["integer", $a_attribs['tstamp']]
                         ]);
                         break;
@@ -284,6 +287,18 @@ class ilTestResultsImportParser extends ilSaxParser
     public function handlerParseCharacterData($a_xml_parser, $a_data): void
     {
         // do nothing
+    }
+
+    private function sanitizeSerializedIntList(string $value, ?string $default = null): ?string
+    {
+        $value = trim($value);
+
+        $data = unserialize($value, ['allowed_classes' => false]);
+        if (!is_array($data)) {
+            return $default;
+        }
+
+        return serialize(array_filter($data, static fn(mixed $item): bool => is_int($item)));
     }
 
     private function fetchAttribute($attributes, $name)

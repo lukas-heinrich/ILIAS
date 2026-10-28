@@ -63,6 +63,13 @@ class ilLearningSequenceExporter extends ilXmlExporter
     public function getValidSchemaVersions(string $a_entity): array
     {
         return [
+            "11.0.0" => [
+                "namespace" => "http://www.ilias.de/Modules/LearningSequence/lso/11_0",
+                "xsd_file" => "ilias_lso_11_0.xsd",
+                "uses_dataset" => false,
+                "min" => "12.0",
+                "max" => ""
+            ],
             "9.0.0" => [
                 "namespace" => "http://www.ilias.de/Modules/LearningSequence/lso/9_0",
                 "xsd_file" => "ilias_lso_9_0.xsd",
@@ -91,11 +98,38 @@ class ilLearningSequenceExporter extends ilXmlExporter
     {
         $res = [];
         if ($a_entity == "lso") {
+            // advanced metadata
+            $advmd_ids = [];
+            foreach ($a_ids as $id) {
+                $rec_ids = $this->getActiveAdvMDRecords((int) $id);
+                foreach ($rec_ids as $rec_id) {
+                    $advmd_ids[] = $id . ":" . $rec_id;
+                }
+            }
+            if ($advmd_ids !== []) {
+                $res[] = [
+                    "component" => "components/ILIAS/AdvancedMetaData",
+                    "entity" => "advmd",
+                    "ids" => $advmd_ids
+                ];
+            }
+
             // service settings
             $res[] = [
                 "component" => "components/ILIAS/ILIASObject",
                 "entity" => "common",
                 "ids" => $a_ids
+            ];
+
+            // metadata
+            $md_ids = [];
+            foreach ($a_ids as $id) {
+                $md_ids[] = $id . ":0:lso";
+            }
+            $res[] = [
+                "component" => "components/ILIAS/MetaData",
+                "entity" => "md",
+                "ids" => $md_ids
             ];
         }
 
@@ -118,6 +152,36 @@ class ilLearningSequenceExporter extends ilXmlExporter
             }
         }
 
+        $res[] = [
+            "component" => "components/ILIAS/Tracking",
+            "entity" => "lpsettings",
+            "ids" => $a_ids
+        ];
+
         return $res;
+    }
+
+    protected function getActiveAdvMDRecords(int $a_id): array
+    {
+        $active = [];
+
+        foreach (ilAdvancedMDRecord::_getActivatedRecordsByObjectType('lso') as $record_obj) {
+            foreach ($record_obj->getAssignedObjectTypes() as $obj_info) {
+                if ($obj_info['obj_type'] === 'lso' && (int) $obj_info['optional'] === 0) {
+                    $active[] = $record_obj->getRecordId();
+                }
+
+                // local activation
+                if (
+                    $obj_info['obj_type'] === 'lso' &&
+                    (int) $obj_info['optional'] === 1 &&
+                    $a_id === $record_obj->getParentObject()
+                ) {
+                    $active[] = $record_obj->getRecordId();
+                }
+            }
+        }
+
+        return $active;
     }
 }

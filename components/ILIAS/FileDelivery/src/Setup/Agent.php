@@ -25,14 +25,30 @@ use ILIAS\Setup\ObjectiveCollection;
 use ILIAS\Setup\Metrics\Storage;
 use ILIAS\Setup;
 use ILIAS\Setup\Objective;
+use ILIAS\Refinery\Factory as Refinery;
 use ILIAS\Refinery\Transformation;
 use ILIAS\Setup\Config;
+use ILIAS\FileDelivery\Isolation\IsolationConfig;
 
 /**
  * @author Fabian Schmid <fabian@sr.solutions>
  */
-class Agent implements Setup\Agent
+class Agent implements Setup\NamedAgent
 {
+    /**
+     * @param string|null $isolation_artefact path of the current isolation settings, for tests
+     */
+    public function __construct(
+        private readonly Refinery $refinery,
+        private readonly ?string $isolation_artefact = null,
+    ) {
+    }
+
+    public function getAgentName(): string
+    {
+        return 'content_isolation';
+    }
+
     public function getBuildObjective(): Objective
     {
         return new NullObjective();
@@ -45,12 +61,27 @@ class Agent implements Setup\Agent
 
     public function hasConfig(): bool
     {
-        return false;
+        return true;
     }
 
     public function getArrayToConfigTransformation(): Transformation
     {
-        throw new LogicException("No Config");
+        return $this->refinery->custom()->transformation(
+            static function (?array $data): FileDeliverySetupConfig {
+                if ($data === null) {
+                    // no "content_isolation" section, e.g. a setup update with a
+                    // config.json of other components only
+                    return new FileDeliverySetupConfig(false, null, false);
+                }
+
+                return new FileDeliverySetupConfig(
+                    (bool) ($data['activated'] ?? false),
+                    isset($data['content_domain']) && $data['content_domain'] !== ''
+                        ? (string) $data['content_domain']
+                        : null,
+                );
+            }
+        );
     }
 
     public function getInstallObjective(?Config $config = null): Objective
@@ -60,7 +91,8 @@ class Agent implements Setup\Agent
             true,
             new KeyRotationObjective(),
             new DeliveryMethodObjective(),
-            new BaseDirObjective()
+            new BaseDirObjective(),
+            $this->buildIsolationObjective($config),
         );
     }
 
@@ -71,7 +103,8 @@ class Agent implements Setup\Agent
             true,
             new KeyRotationObjective(),
             new DeliveryMethodObjective(),
-            new BaseDirObjective()
+            new BaseDirObjective(),
+            $this->buildIsolationObjective($config),
         );
     }
 
@@ -83,5 +116,24 @@ class Agent implements Setup\Agent
     public function getMigrations(): array
     {
         return [];
+    }
+
+    private function buildIsolationObjective(?Config $config): Objective
+    {
+        // Without a config (e.g. "setup update" without config.json, as run by
+        // automated updates) the current settings are kept; writing the defaults
+        // would silently deactivate the isolation of an installation.
+        if (!$config instanceof FileDeliverySetupConfig || !$config->isIsolationConfigured()) {
+            $current = IsolationConfig::fromArtefact($this->isolation_artefact);
+            return new IsolationObjective(
+                $current->isActivated(),
+                $current->getContentDomain(),
+            );
+        }
+
+        return new IsolationObjective(
+            $config->isIsolationActivated(),
+            $config->getIsolationContentDomain(),
+        );
     }
 }

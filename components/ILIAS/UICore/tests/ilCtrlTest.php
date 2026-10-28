@@ -18,6 +18,7 @@
 
 declare(strict_types=1);
 
+use ILIAS\HTTP\Message\MessageFactory;
 use PHPUnit\Framework\TestCase;
 use ILIAS\HTTP\Response\Sender\ResponseSenderStrategy;
 use Psr\Http\Message\ServerRequestInterface;
@@ -50,17 +51,18 @@ class ilCtrlTest extends TestCase
 
         $ctrl = new ilCtrl(
             $structure,
-            $this->createMock(ilCtrlTokenRepositoryInterface::class),
-            $this->createMock(ilCtrlPathFactoryInterface::class),
-            $this->createMock(ilCtrlContextInterface::class),
-            $this->createMock(ResponseSenderStrategy::class),
-            $this->createMock(ServerRequestInterface::class),
-            $this->createMock(RequestWrapper::class),
-            $this->createMock(RequestWrapper::class),
-            $this->createMock(Refinery::class),
-            $this->createMock(ilComponentFactory::class),
+            $this->createStub(ilCtrlTokenRepositoryInterface::class),
+            $this->createStub(ilCtrlPathFactoryInterface::class),
+            $this->createStub(ilCtrlContextInterface::class),
+            $this->createStub(ResponseSenderStrategy::class),
+            $this->createStub(ServerRequestInterface::class),
+            $this->createStub(RequestWrapper::class),
+            $this->createStub(RequestWrapper::class),
+            $this->createStub(Refinery::class),
+            $this->createStub(ilComponentFactory::class),
             new ilCtrlSubject(),
-            $this->createMock(ilCtrlQueryParserInterface::class),
+            $this->createStub(ilCtrlQueryParserInterface::class),
+            $this->createStub(MessageFactory::class),
         );
 
         $invalid_baseclass = ilCtrlInvalidGuiClass::class;
@@ -133,18 +135,19 @@ class ilCtrlTest extends TestCase
     public function testGetCmdWithoutProvidedCmdAndFallback(): void
     {
         $ctrl = new ilCtrl(
-            $this->createMock(ilCtrlStructureInterface::class),
-            $this->createMock(ilCtrlTokenRepositoryInterface::class),
-            $this->createMock(ilCtrlPathFactoryInterface::class),
-            $this->createMock(ilCtrlContextInterface::class),
-            $this->createMock(ResponseSenderStrategy::class),
-            $this->createMock(ServerRequestInterface::class),
-            $this->createMock(RequestWrapper::class),
-            $this->createMock(RequestWrapper::class),
-            $this->createMock(Refinery::class),
-            $this->createMock(ilComponentFactory::class),
+            $this->createStub(ilCtrlStructureInterface::class),
+            $this->createStub(ilCtrlTokenRepositoryInterface::class),
+            $this->createStub(ilCtrlPathFactoryInterface::class),
+            $this->createStub(ilCtrlContextInterface::class),
+            $this->createStub(ResponseSenderStrategy::class),
+            $this->createStub(ServerRequestInterface::class),
+            $this->createStub(RequestWrapper::class),
+            $this->createStub(RequestWrapper::class),
+            $this->createStub(Refinery::class),
+            $this->createStub(ilComponentFactory::class),
             new ilCtrlSubject(),
-            $this->createMock(ilCtrlQueryParserInterface::class),
+            $this->createStub(ilCtrlQueryParserInterface::class),
+            $this->createStub(MessageFactory::class),
         );
 
         $fallback_cmd = 'fallback_cmd_test';
@@ -223,18 +226,19 @@ class ilCtrlTest extends TestCase
     private function getMockedCtrl(): ilCtrlInterface
     {
         return new ilCtrl(
-            $this->createMock(ilCtrlStructureInterface::class),
-            $this->createMock(ilCtrlTokenRepositoryInterface::class),
-            $this->createMock(ilCtrlPathFactoryInterface::class),
-            $this->createMock(ilCtrlContextInterface::class),
-            $this->createMock(ResponseSenderStrategy::class),
-            $this->createMock(ServerRequestInterface::class),
-            $this->createMock(RequestWrapper::class),
-            $this->createMock(RequestWrapper::class),
-            $this->createMock(Refinery::class),
-            $this->createMock(ilComponentFactory::class),
+            $this->createStub(ilCtrlStructureInterface::class),
+            $this->createStub(ilCtrlTokenRepositoryInterface::class),
+            $this->createStub(ilCtrlPathFactoryInterface::class),
+            $this->createStub(ilCtrlContextInterface::class),
+            $this->createStub(ResponseSenderStrategy::class),
+            $this->createStub(ServerRequestInterface::class),
+            $this->createStub(RequestWrapper::class),
+            $this->createStub(RequestWrapper::class),
+            $this->createStub(Refinery::class),
+            $this->createStub(ilComponentFactory::class),
             new ilCtrlSubject(),
-            $this->createMock(ilCtrlQueryParserInterface::class),
+            $this->createStub(ilCtrlQueryParserInterface::class),
+            $this->createStub(MessageFactory::class),
         );
     }
 }

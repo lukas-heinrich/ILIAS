@@ -36,5 +36,17 @@ class Blog implements Component\Component
             new \ILIAS\Blog\Setup\Agent(
                 $pull[\ILIAS\Refinery\Factory::class]
             );
+        $contribute[Component\Resource\PublicAsset::class] = static fn() => new class () implements Component\Resource\PublicAsset {
+            public function getSource(): string
+            {
+                return "components/ILIAS/Blog/resources/blog.js";
+            }
+            public function getTarget(): string
+            {
+                return "assets/js/blog.js";
+            }
+        };
+        $contribute[\ILIAS\StaticURL\Handler\Handler::class] = static fn() =>
+            new \ILIAS\PermanentLink\StaticURLHandler();
     }
 }

@@ -317,7 +317,7 @@ class ConsecutiveScoringGUI implements SegmentRetrieval
                 ]
             )->withValue(null),
             self::FILTER_USER_FINAL => $this->ui_factory->input()->field()->select(
-                $this->lng->txt('finalized_evaluation'),
+                $this->lng->txt('tst_man_scoring_users_scored'),
                 [
                     self::FILTER_ONLY => $this->lng->txt('evaluated_users'),
                     self::FILTER_HIDE => $this->lng->txt('not_evaluated_users')
@@ -341,11 +341,18 @@ class ConsecutiveScoringGUI implements SegmentRetrieval
     /**
      * @return \Closure[]
      */
-    protected function getFilters(array $filter_values): array
-    {
-        $filter_values = array_map(fn($v) => $v === '' ? null : $v, $filter_values);
-        $ret = [];
+    protected function getFilters(
+        ?array $values_from_filter
+    ): array {
+        if ($values_from_filter === null) {
+            return [];
+        }
+        $filter_values = array_map(
+            fn($v) => $v === '' ? null : $v,
+            $values_from_filter
+        );
 
+        $ret = [];
         if ($filter_values[self::FILTER_USERS] !== null) {
             $ret[] = static fn(array $uids, array $qids): array => [
                 array_intersect($uids, $filter_values[self::FILTER_USERS]),
@@ -545,6 +552,7 @@ class ConsecutiveScoringGUI implements SegmentRetrieval
                 )
             )
         )
+        ->withStepSize(0.0001)
         ->withAdditionalTransformation($this->refinery->kindlyTo()->float())
         ->withValue($score);
 
